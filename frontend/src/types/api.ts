@@ -49,3 +49,77 @@ export interface SystemHealth {
   redis: DependencyHealth
   checkedAt: string
 }
+
+export interface TransitMode {
+  key: 'bus' | 'metro' | 'rail'
+  displayName: string
+  availabilityStatus: 'available' | 'temporarilyUnavailable'
+  message: string | null
+}
+
+export interface TransitDirection {
+  direction: number
+  headsign: string | null
+  originName: string | null
+  destinationName: string | null
+}
+
+export interface TransitRoute {
+  id: string
+  nameZh: string
+  nameEn: string | null
+  originName: string | null
+  destinationName: string | null
+  operators: string[]
+  directions: TransitDirection[]
+}
+
+export interface TransitStop {
+  id: string
+  nameZh: string
+  nameEn: string | null
+  sequence: number
+  direction: number
+  latitude: number | null
+  longitude: number | null
+}
+
+export interface MetroStation {
+  id: string
+  nameZh: string
+  nameEn: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
+export interface TransitArrival {
+  id: string
+  mode: 'bus' | 'metro'
+  stopId: string
+  stopName: string
+  routeId: string | null
+  routeName: string | null
+  lineId: string | null
+  lineName: string | null
+  destinationName: string | null
+  direction: number | null
+  scheduledAt: string | null
+  estimatedAt: string | null
+  sourceUpdatedAt: string | null
+  serviceStatus: string
+  isLastService: boolean
+}
+
+export interface TdxProviderStatus {
+  configured: boolean
+  billingCycle: string
+  requestCount: number
+  responseBytes: number
+  estimatedPoints: number
+  softLimitPoints: number
+  hardLimitPoints: number
+  requestsPerMinute: number
+  overageEnabled: boolean
+  pricingVerifiedAt: string
+}

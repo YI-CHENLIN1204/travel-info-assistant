@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TravelInfoAssistant.Api.Domain;
 
 namespace TravelInfoAssistant.Api.Infrastructure;
 
@@ -17,6 +18,7 @@ public static class AppDbInitializer
             try
             {
                 await dbContext.Database.EnsureCreatedAsync();
+                await ApplyCurrentCapabilityStateAsync(dbContext);
                 return;
             }
             catch (Exception exception) when (attempt < maximumAttempts)
@@ -28,6 +30,31 @@ public static class AppDbInitializer
                     maximumAttempts);
                 await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
             }
+        }
+    }
+
+    private static async Task ApplyCurrentCapabilityStateAsync(AppDbContext dbContext)
+    {
+        var taipeiTransit = await dbContext.CityServiceCapabilities
+            .Where(item => item.City.Code == "taipei")
+            .Where(item => item.ServiceKey == "bus" || item.ServiceKey == "metro")
+            .ToListAsync();
+
+        var changed = false;
+        foreach (var capability in taipeiTransit)
+        {
+            if (capability.IntegrationStatus == IntegrationStatus.Integrated)
+            {
+                continue;
+            }
+
+            capability.IntegrationStatus = IntegrationStatus.Integrated;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync();
         }
     }
 }

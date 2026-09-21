@@ -24,7 +24,7 @@ const modules = [
     to: '/transit',
     icon: BusFront,
     accent: 'teal',
-    phase: 'Phase 3',
+    detail: 'MVP · 台北 TDX 真實資料',
   },
   {
     title: '全球航班',
@@ -32,7 +32,7 @@ const modules = [
     to: '/flights',
     icon: Plane,
     accent: 'blue',
-    phase: 'Phase 4',
+    detail: 'Phase 4 串接真實資料',
   },
   {
     title: '天氣',
@@ -40,7 +40,7 @@ const modules = [
     to: '/weather',
     icon: CloudSun,
     accent: 'amber',
-    phase: 'Phase 5',
+    detail: 'Phase 5 串接真實資料',
   },
   {
     title: '旅遊警示',
@@ -48,7 +48,7 @@ const modules = [
     to: '/alerts',
     icon: ShieldAlert,
     accent: 'coral',
-    phase: 'Phase 5',
+    detail: 'Phase 5 串接真實資料',
   },
   {
     title: '應急資訊',
@@ -56,7 +56,7 @@ const modules = [
     to: '/emergency',
     icon: Siren,
     accent: 'violet',
-    phase: 'Phase 5',
+    detail: 'Phase 5 串接真實資料',
   },
 ]
 
@@ -74,7 +74,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
         <StatusPill :tone="systemTone" :label="appStore.apiStatus === 'online' ? '系統連線正常' : '開發環境未連線'" />
         <h2>從{{ cityStore.currentCity.nameZh }}出發，<br />旅途中需要的資訊都在這裡。</h2>
         <p>
-          目前為 MVP 骨架版本。所有即時資訊都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
+          MVP 已提供台北公車與捷運查詢。所有班次資訊都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
         </p>
       </div>
       <div class="welcome-visual" aria-hidden="true">
@@ -106,7 +106,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
               <ArrowUpRight :size="18" />
             </div>
             <p>{{ item.description }}</p>
-            <small>{{ item.phase }} 串接真實資料</small>
+            <small>{{ item.detail }}</small>
           </div>
         </RouterLink>
       </div>
@@ -124,7 +124,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
             {{ service.displayName }}
           </span>
         </div>
-        <p v-else class="empty-copy">目前沒有已完成串接的交通入口；完成 Provider 後才會顯示。</p>
+        <p v-else class="empty-copy">目前沒有已完成串接的交通入口；該城市完成資料源整合後才會顯示。</p>
       </article>
 
       <article class="info-panel architecture-panel">

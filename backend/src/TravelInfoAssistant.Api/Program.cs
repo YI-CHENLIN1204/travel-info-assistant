@@ -1,8 +1,13 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Infrastructure;
+using TravelInfoAssistant.Api.Options;
+using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
+using TravelInfoAssistant.Api.Services.Transit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +21,31 @@ builder.Services
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+
+builder.Services.Configure<TdxOptions>(builder.Configuration.GetSection(TdxOptions.SectionName));
+builder.Services
+    .AddHttpClient("tdx-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("tdx-auth", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
 
 var postgresConnection = builder.Configuration.GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required.");
@@ -32,6 +62,13 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<ISystemHealthService, SystemHealthService>();
+builder.Services.AddScoped<ITransitService, TransitService>();
+builder.Services.AddSingleton<ProviderCache>();
+builder.Services.AddSingleton<TdxRateGate>();
+builder.Services.AddSingleton<TdxUsageMeter>();
+builder.Services.AddSingleton<TdxTokenProvider>();
+builder.Services.AddSingleton<TdxApiClient>();
+builder.Services.AddSingleton<ITdxTransitProvider, TdxTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

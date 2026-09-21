@@ -5,6 +5,7 @@ export interface ArrivalDisplayInput {
   estimatedAt?: Date | null
   sourceUpdatedAt?: Date | null
   now: Date
+  timeZone?: string
 }
 
 export interface ArrivalDisplayResult {
@@ -25,7 +26,7 @@ export function getArrivalDisplay(input: ArrivalDisplayInput): ArrivalDisplayRes
 
   if (scheduledMinutes > realtimeWindowMinutes || !input.estimatedAt || !realtimeFresh) {
     return {
-      label: formatTime(input.scheduledAt),
+      label: formatTime(input.scheduledAt, input.timeZone),
       mode: 'scheduled',
       stale: Boolean(input.estimatedAt) && !realtimeFresh,
     }
@@ -47,10 +48,11 @@ function minutesBetween(from: Date, to: Date): number {
   return (to.getTime() - from.getTime()) / 60_000
 }
 
-function formatTime(value: Date): string {
+function formatTime(value: Date, timeZone?: string): string {
   return new Intl.DateTimeFormat('zh-TW', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone,
   }).format(value)
 }

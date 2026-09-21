@@ -7,6 +7,8 @@
 - 主要使用者：以 LINE 為主要入口的台灣自由行及旅行團旅客
 - MVP 原則：零 API 費用、真實資料、中央快取、前後端完全分離、可平滑升級付費方案
 
+> 實作進度（2026-09-21）：Phase 1、2 已完成；Phase 3 已完成台北公車與台北捷運第一版，台鐵仍待實作。實際 TDX endpoint、快取與額度設定請見 [TDX 整合說明](TDX_INTEGRATION.md)。
+
 ---
 
 ## 1. 專案定位
@@ -449,6 +451,8 @@ locationPromptState
 ## 10. 後端 API 契約
 
 所有路徑以 `/api/v1` 開頭，回傳 JSON。
+
+下表為跨 Provider 的目標契約；目前台北交通 MVP 採用 `/transit/bus/*` 與 `/transit/metro/*` 的明確資源路徑，詳見 TDX 整合說明與 Swagger。
 
 | Method | Endpoint | 用途 |
 |---|---|---|

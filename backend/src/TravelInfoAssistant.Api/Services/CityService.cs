@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Domain;
 using TravelInfoAssistant.Api.Infrastructure;
+using TravelInfoAssistant.Api.Options;
 
 namespace TravelInfoAssistant.Api.Services;
 
-public sealed class CityService(AppDbContext dbContext) : ICityService
+public sealed class CityService(
+    AppDbContext dbContext,
+    IOptions<TdxOptions> tdxOptions) : ICityService
 {
     public async Task<IReadOnlyList<CitySummaryResponse>> GetCitiesAsync(
         CancellationToken cancellationToken)
@@ -64,7 +68,7 @@ public sealed class CityService(AppDbContext dbContext) : ICityService
             .Where(city => city.IsActive)
             .Include(city => city.ServiceCapabilities.OrderBy(capability => capability.SortOrder));
 
-    private static CitySummaryResponse ToResponse(City city) =>
+    private CitySummaryResponse ToResponse(City city) =>
         new(
             city.Id,
             city.Code,
@@ -76,13 +80,33 @@ public sealed class CityService(AppDbContext dbContext) : ICityService
             city.CenterLongitude,
             city.ServiceCapabilities
                 .OrderBy(capability => capability.SortOrder)
-                .Select(capability => new ServiceCapabilityResponse(
-                    capability.ServiceKey,
-                    capability.DisplayName,
-                    ToCamelCase(capability.IntegrationStatus),
-                    ToCamelCase(capability.AvailabilityStatus),
-                    capability.Message))
+                .Select(capability => ToCapabilityResponse(city, capability))
                 .ToList());
+
+    private ServiceCapabilityResponse ToCapabilityResponse(
+        City city,
+        CityServiceCapability capability)
+    {
+        var requiresTdx = city.Code == "taipei" &&
+                          capability.ServiceKey is "bus" or "metro" &&
+                          capability.IntegrationStatus == IntegrationStatus.Integrated;
+        if (requiresTdx && !tdxOptions.Value.IsConfigured)
+        {
+            return new ServiceCapabilityResponse(
+                capability.ServiceKey,
+                capability.DisplayName,
+                ToCamelCase(capability.IntegrationStatus),
+                ToCamelCase(AvailabilityStatus.TemporarilyUnavailable),
+                "TDX 已完成介接，但部署環境尚未設定 API 金鑰。");
+        }
+
+        return new ServiceCapabilityResponse(
+            capability.ServiceKey,
+            capability.DisplayName,
+            ToCamelCase(capability.IntegrationStatus),
+            ToCamelCase(capability.AvailabilityStatus),
+            capability.Message);
+    }
 
     private static string ToCamelCase<TEnum>(TEnum value) where TEnum : struct, Enum
     {

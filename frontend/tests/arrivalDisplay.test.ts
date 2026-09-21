@@ -46,4 +46,14 @@ describe('getArrivalDisplay', () => {
 
     expect(result).toMatchObject({ mode: 'scheduled', stale: true })
   })
+
+  it('formats scheduled time in the selected city time zone', () => {
+    const result = getArrivalDisplay({
+      now: new Date('2026-09-21T00:00:00Z'),
+      scheduledAt: new Date('2026-09-21T02:00:00Z'),
+      timeZone: 'Asia/Taipei',
+    })
+
+    expect(result).toMatchObject({ label: '10:00', mode: 'scheduled' })
+  })
 })

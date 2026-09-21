@@ -73,8 +73,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             });
 
         modelBuilder.Entity<CityServiceCapability>().HasData(
-            Capability("aaecb725-b02c-47c9-a09f-456f2a58733f", taipeiId, "bus", "公車", 1),
-            Capability("828f124b-a580-48e1-a5f1-e751e48dc679", taipeiId, "metro", "捷運", 2),
+            Capability(
+                "aaecb725-b02c-47c9-a09f-456f2a58733f",
+                taipeiId,
+                "bus",
+                "公車",
+                1,
+                IntegrationStatus.Integrated),
+            Capability(
+                "828f124b-a580-48e1-a5f1-e751e48dc679",
+                taipeiId,
+                "metro",
+                "捷運",
+                2,
+                IntegrationStatus.Integrated),
             Capability("c95f5dbc-b3dc-4d5b-be90-3720d5b9f535", taipeiId, "rail", "台鐵", 3),
             Capability("09120313-ac73-4b78-a50d-524ff51087c7", tokyoId, "metro", "地鐵", 1),
             Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2));
@@ -85,14 +97,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         Guid cityId,
         string serviceKey,
         string displayName,
-        int sortOrder) =>
+        int sortOrder,
+        IntegrationStatus integrationStatus = IntegrationStatus.NotIntegrated) =>
         new()
         {
             Id = Guid.Parse(id),
             CityId = cityId,
             ServiceKey = serviceKey,
             DisplayName = displayName,
-            IntegrationStatus = IntegrationStatus.NotIntegrated,
+            IntegrationStatus = integrationStatus,
             AvailabilityStatus = AvailabilityStatus.Available,
             SortOrder = sortOrder
         };
