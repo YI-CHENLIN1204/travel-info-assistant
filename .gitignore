@@ -1,0 +1,27 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+frontend/.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+TestResults/
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime data
+.data/
+*.log

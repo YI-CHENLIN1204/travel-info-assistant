@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/TravelInfoAssistant.Api/TravelInfoAssistant.Api.csproj" />
+  <Project Path="tests/TravelInfoAssistant.Api.Tests/TravelInfoAssistant.Api.Tests.csproj" />
+</Solution>
