@@ -8,6 +8,58 @@ namespace TravelInfoAssistant.Api.Tests;
 public sealed class TdxTransitProviderTests
 {
     [Fact]
+    public async Task GetBusRoutesAsync_CorrectsDuplicatedOutboundEndpointsForReturnDirection()
+    {
+        IReadOnlyList<TdxBusRoute> routes =
+        [
+            new TdxBusRoute
+            {
+                RouteUID = "TPE214",
+                RouteID = "214",
+                RouteName = Name("214"),
+                DepartureStopNameZh = "中和",
+                DestinationStopNameZh = "內湖",
+                SubRoutes =
+                [
+                    new TdxBusSubRoute
+                    {
+                        Direction = 0,
+                        SubRouteName = Name("214"),
+                        DepartureStopNameZh = "中和",
+                        DestinationStopNameZh = "內湖"
+                    },
+                    new TdxBusSubRoute
+                    {
+                        Direction = 1,
+                        SubRouteName = Name("214"),
+                        DepartureStopNameZh = "中和",
+                        DestinationStopNameZh = "內湖"
+                    }
+                ]
+            }
+        ];
+        var provider = CreateProvider([], [], routes);
+
+        var result = await provider.GetBusRoutesAsync(CancellationToken.None);
+
+        var route = Assert.Single(result.Data);
+        Assert.Collection(
+            route.Directions,
+            outbound =>
+            {
+                Assert.Equal(0, outbound.Direction);
+                Assert.Equal("中和", outbound.OriginName);
+                Assert.Equal("內湖", outbound.DestinationName);
+            },
+            inbound =>
+            {
+                Assert.Equal(1, inbound.Direction);
+                Assert.Equal("內湖", inbound.OriginName);
+                Assert.Equal("中和", inbound.DestinationName);
+            });
+    }
+
+    [Fact]
     public async Task GetBusStopsAsync_DeduplicatesSharedSubRouteStops()
     {
         var provider = CreateProvider(CreateStopFeed(), []);
@@ -95,12 +147,47 @@ public sealed class TdxTransitProviderTests
         Assert.Contains(result.Data, stop => stop.NameZh == "支線乙");
     }
 
+    [Fact]
+    public async Task GetBusStopsAsync_ReturnsOnlyTheRequestedDirection()
+    {
+        IReadOnlyList<TdxBusStopOfRoute> stops =
+        [
+            new TdxBusStopOfRoute
+            {
+                Direction = 0,
+                Stops =
+                [
+                    Stop("TPE4001", "4001", "中和", 1),
+                    Stop("TPE4002", "4002", "內湖", 2)
+                ]
+            },
+            new TdxBusStopOfRoute
+            {
+                Direction = 1,
+                Stops =
+                [
+                    Stop("TPE5001", "5001", "內湖", 1),
+                    Stop("TPE5002", "5002", "中和", 2)
+                ]
+            }
+        ];
+        var provider = CreateProvider(stops, []);
+
+        var outbound = await provider.GetBusStopsAsync("214", 0, CancellationToken.None);
+        var inbound = await provider.GetBusStopsAsync("214", 1, CancellationToken.None);
+
+        Assert.Equal(["中和", "內湖"], outbound.Data.Select(item => item.NameZh));
+        Assert.Equal(["內湖", "中和"], inbound.Data.Select(item => item.NameZh));
+    }
+
     private static TdxTransitProvider CreateProvider(
         IReadOnlyList<TdxBusStopOfRoute> stops,
-        IReadOnlyList<TdxBusArrival> arrivals)
+        IReadOnlyList<TdxBusArrival> arrivals,
+        IReadOnlyList<TdxBusRoute>? routes = null)
     {
         var apiClient = new StubTdxApiClient(new Dictionary<string, object>
         {
+            ["v2/Bus/Route/City/Taipei"] = routes ?? Array.Empty<TdxBusRoute>(),
             ["v2/Bus/StopOfRoute/City/Taipei/214"] = stops,
             ["v2/Bus/EstimatedTimeOfArrival/City/Taipei/214"] = arrivals
         });

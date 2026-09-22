@@ -21,7 +21,9 @@ public sealed class TdxTransitProvider(
     public Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetBusRoutesAsync(
         CancellationToken cancellationToken) =>
         GetCachedSafelyAsync(
-            "transit:tdx:bus:routes:taipei:v1",
+            // v2 fixes direction metadata. Keep the version in the key so an older
+            // mapped route response cannot survive in Redis after deployment.
+            "transit:tdx:bus:routes:taipei:v2",
             StaticFreshFor,
             StaticRetainFor,
             Array.Empty<TransitRouteResponse>(),
@@ -377,12 +379,7 @@ public sealed class TdxTransitProvider(
 
         var directions = route.SubRoutes
             .GroupBy(item => item.Direction)
-            .Select(group => group.First())
-            .Select(item => new TransitDirectionResponse(
-                item.Direction,
-                FirstText(item.Headsign, PreferredName(item.SubRouteName)),
-                FirstText(item.DepartureStopNameZh, route.DepartureStopNameZh),
-                FirstText(item.DestinationStopNameZh, route.DestinationStopNameZh)))
+            .Select(group => MapBusDirection(route, group.Key, group))
             .OrderBy(item => item.Direction)
             .ToList();
 
@@ -410,6 +407,49 @@ public sealed class TdxTransitProvider(
             operators,
             directions);
     }
+
+    private static TransitDirectionResponse MapBusDirection(
+        TdxBusRoute route,
+        int direction,
+        IEnumerable<TdxBusSubRoute> subRoutes)
+    {
+        var items = subRoutes.ToList();
+        var origin = items
+            .Select(item => item.DepartureStopNameZh)
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+        var destination = items
+            .Select(item => item.DestinationStopNameZh)
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+
+        var fallbackOrigin = direction == 1
+            ? route.DestinationStopNameZh
+            : route.DepartureStopNameZh;
+        var fallbackDestination = direction == 1
+            ? route.DepartureStopNameZh
+            : route.DestinationStopNameZh;
+
+        // Some providers repeat the route-level outbound endpoints inside both
+        // sub-route directions. For the return direction that pair must be reversed.
+        if (direction == 1 &&
+            SameText(origin, route.DepartureStopNameZh) &&
+            SameText(destination, route.DestinationStopNameZh))
+        {
+            origin = null;
+            destination = null;
+        }
+
+        return new TransitDirectionResponse(
+            direction,
+            items.Select(item => item.Headsign)
+                .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)),
+            FirstText(origin, fallbackOrigin),
+            FirstText(destination, fallbackDestination));
+    }
+
+    private static bool SameText(string? left, string? right) =>
+        !string.IsNullOrWhiteSpace(left) &&
+        !string.IsNullOrWhiteSpace(right) &&
+        string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static TransitStopResponse? MapBusStop(TdxBusStop stop, int direction)
     {

@@ -12,6 +12,7 @@ import {
 } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
+import { getBusDirectionLabel } from '@/services/transitDirection'
 import { useCityStore } from '@/stores/city'
 import { useTransitStore, type TransitModeKey } from '@/stores/transit'
 import type { MetroStation, TransitArrival, TransitRoute, TransitStop } from '@/types/api'
@@ -164,10 +165,7 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
 }
 
 function directionLabel(route: TransitRoute, direction: number): string {
-  const item = route.directions.find((value) => value.direction === direction)
-  if (item?.headsign) return `往 ${item.headsign}`
-  if (item?.destinationName) return `往 ${item.destinationName}`
-  return direction === 0 ? '去程' : '返程'
+  return getBusDirectionLabel(route, direction)
 }
 
 function formatTimestamp(value: string | null | undefined): string {
