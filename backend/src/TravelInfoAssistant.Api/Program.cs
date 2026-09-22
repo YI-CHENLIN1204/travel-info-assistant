@@ -63,11 +63,11 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<ISystemHealthService, SystemHealthService>();
 builder.Services.AddScoped<ITransitService, TransitService>();
-builder.Services.AddSingleton<ProviderCache>();
-builder.Services.AddSingleton<TdxRateGate>();
-builder.Services.AddSingleton<TdxUsageMeter>();
-builder.Services.AddSingleton<TdxTokenProvider>();
-builder.Services.AddSingleton<TdxApiClient>();
+builder.Services.AddSingleton<IProviderCache, ProviderCache>();
+builder.Services.AddSingleton<ITdxRateGate, TdxRateGate>();
+builder.Services.AddSingleton<ITdxUsageMeter, TdxUsageMeter>();
+builder.Services.AddSingleton<ITdxTokenProvider, TdxTokenProvider>();
+builder.Services.AddSingleton<ITdxApiClient, TdxApiClient>();
 builder.Services.AddSingleton<ITdxTransitProvider, TdxTransitProvider>();
 
 var allowedOrigins = builder.Configuration
