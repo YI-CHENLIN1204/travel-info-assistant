@@ -68,7 +68,11 @@ public sealed class TdxTransitProvider(
             .Select(item => MapBusStop(item.Stop, item.Direction))
             .Where(item => item is not null)
             .Cast<TransitStopResponse>()
-            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            // TDX can return the shared portion of multiple sub-routes with different StopUIDs.
+            // Treat an equal direction, sequence and normalized name as one user-facing stop.
+            .GroupBy(
+                item => LogicalStopKey(item.Sequence, item.NameZh),
+                StringComparer.OrdinalIgnoreCase)
             .Select(group => group.OrderBy(item => item.Sequence).First())
             .OrderBy(item => item.Sequence)
             .ToList();
@@ -84,16 +88,24 @@ public sealed class TdxTransitProvider(
         string stopId,
         CancellationToken cancellationToken)
     {
+        var stopFeed = await GetBusStopFeedAsync(routeName, cancellationToken);
+        var equivalentStopIds = GetEquivalentBusStopIds(
+            stopFeed.Data,
+            direction,
+            stopId);
         var feed = await GetBusArrivalFeedAsync(routeName, cancellationToken);
         var matching = feed.Data
             .Where(item => item.Direction == direction)
-            .Where(item => string.Equals(
-                item.StopUID ?? item.StopID,
-                stopId,
-                StringComparison.OrdinalIgnoreCase))
+            .Where(item =>
+            {
+                var providerStopId = FirstText(item.StopUID, item.StopID);
+                return providerStopId is not null && equivalentStopIds.Contains(providerStopId);
+            })
             .ToList();
         var arrivals = matching
-            .SelectMany(item => MapBusArrivals(item, feed.FetchedAt))
+            .SelectMany(item => MapBusArrivals(item, feed.FetchedAt, stopId))
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
             .ToList();
 
@@ -417,9 +429,11 @@ public sealed class TdxTransitProvider(
 
     private static IReadOnlyList<TransitArrivalResponse> MapBusArrivals(
         TdxBusArrival item,
-        DateTimeOffset fetchedAt)
+        DateTimeOffset fetchedAt,
+        string? canonicalStopId = null)
     {
-        var stopId = item.StopUID ?? item.StopID;
+        var providerStopId = FirstText(item.StopUID, item.StopID);
+        var stopId = FirstText(canonicalStopId, providerStopId);
         var stopName = PreferredName(item.StopName);
         if (string.IsNullOrWhiteSpace(stopId) || string.IsNullOrWhiteSpace(stopName))
         {
@@ -464,6 +478,57 @@ public sealed class TdxTransitProvider(
                     estimate.IsLastBus);
             })
             .ToList();
+    }
+
+    private static HashSet<string> GetEquivalentBusStopIds(
+        IReadOnlyList<TdxBusStopOfRoute> routes,
+        int direction,
+        string selectedStopId)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            selectedStopId
+        };
+        var stops = routes
+            .Where(item => item.Direction == direction)
+            .SelectMany(item => item.Stops)
+            .ToList();
+        var selected = stops.FirstOrDefault(stop => string.Equals(
+            FirstText(stop.StopUID, stop.StopID),
+            selectedStopId,
+            StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            return result;
+        }
+
+        var selectedKey = LogicalStopKey(
+            selected.StopSequence,
+            PreferredName(selected.StopName));
+        foreach (var stop in stops.Where(stop => string.Equals(
+                     LogicalStopKey(stop.StopSequence, PreferredName(stop.StopName)),
+                     selectedKey,
+                     StringComparison.OrdinalIgnoreCase)))
+        {
+            var id = FirstText(stop.StopUID, stop.StopID);
+            if (id is not null)
+            {
+                result.Add(id);
+            }
+        }
+
+        return result;
+    }
+
+    private static string LogicalStopKey(int sequence, string name) =>
+        $"{sequence}:{NormalizeStopName(name)}";
+
+    private static string NormalizeStopName(string value)
+    {
+        var normalized = value
+            .Normalize(NormalizationForm.FormKC)
+            .Replace('臺', '台');
+        return string.Concat(normalized.Where(character => !char.IsWhiteSpace(character)));
     }
 
     private static MetroStationResponse? MapMetroStation(TdxMetroStation station)
