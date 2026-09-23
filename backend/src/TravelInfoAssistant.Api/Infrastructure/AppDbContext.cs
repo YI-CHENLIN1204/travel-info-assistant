@@ -87,7 +87,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 "捷運",
                 2,
                 IntegrationStatus.Integrated),
-            Capability("c95f5dbc-b3dc-4d5b-be90-3720d5b9f535", taipeiId, "rail", "台鐵", 3),
+            Capability(
+                "c95f5dbc-b3dc-4d5b-be90-3720d5b9f535",
+                taipeiId,
+                "rail",
+                "台鐵",
+                3,
+                IntegrationStatus.Integrated),
             Capability("09120313-ac73-4b78-a50d-524ff51087c7", tokyoId, "metro", "地鐵", 1),
             Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2));
     }

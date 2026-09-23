@@ -165,6 +165,79 @@ public sealed class TdxMetroStationTimetable
     public DateTimeOffset? UpdateTime { get; init; }
 }
 
+public sealed class TdxTraStationResponse
+{
+    public DateTimeOffset? UpdateTime { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public IReadOnlyList<TdxTraStation> Stations { get; init; } = [];
+}
+
+public sealed class TdxTraStation
+{
+    public string? StationUID { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public TdxPosition? StationPosition { get; init; }
+    public string? StationAddress { get; init; }
+}
+
+public sealed class TdxTraDailyStationTimetableResponse
+{
+    public DateTimeOffset? UpdateTime { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public string? TrainDate { get; init; }
+    public IReadOnlyList<TdxTraStationTimetable> StationTimetables { get; init; } = [];
+}
+
+public sealed class TdxTraStationTimetable
+{
+    public string? RouteID { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public int? Direction { get; init; }
+    public IReadOnlyList<TdxTraTimetableEntry> TimeTables { get; init; } = [];
+}
+
+public sealed class TdxTraTimetableEntry
+{
+    public int Sequence { get; init; }
+    public string? TrainNo { get; init; }
+    public string? DestinationStationID { get; init; }
+    public TdxLocalizedName? DestinationStationName { get; init; }
+    public string? TrainTypeID { get; init; }
+    public string? TrainTypeCode { get; init; }
+    public TdxLocalizedName? TrainTypeName { get; init; }
+    public string? ArrivalTime { get; init; }
+    public string? DepartureTime { get; init; }
+    public int SuspendedFlag { get; init; }
+}
+
+public sealed class TdxTraStationLiveBoardResponse
+{
+    public DateTimeOffset? UpdateTime { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public IReadOnlyList<TdxTraStationLiveBoard> StationLiveBoards { get; init; } = [];
+}
+
+public sealed class TdxTraStationLiveBoard
+{
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public string? TrainNo { get; init; }
+    public int? Direction { get; init; }
+    public string? TrainTypeID { get; init; }
+    public string? TrainTypeCode { get; init; }
+    public TdxLocalizedName? TrainTypeName { get; init; }
+    public string? EndingStationID { get; init; }
+    public TdxLocalizedName? EndingStationName { get; init; }
+    public string? Platform { get; init; }
+    public string? ScheduleArrivalTime { get; init; }
+    public string? ScheduleDepartureTime { get; init; }
+    public int DelayTime { get; init; }
+    public int? RunningStatus { get; init; }
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
 public sealed class TdxTokenResponse
 {
     [JsonPropertyName("access_token")]

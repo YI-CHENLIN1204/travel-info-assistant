@@ -2,7 +2,7 @@
 
 以台灣旅客為主要使用者、可從 LINE 快速開啟的旅遊資訊助手。系統將整合台灣與海外大眾運輸、全球直飛航班、天氣、旅遊警示及當地應急資訊。
 
-> 目前進度：Phase 1、2 已完成；Phase 3 已完成台北公車與台北捷運的 TDX 第一版。航班與海外交通仍維持明確的未整合狀態，不使用假資料冒充即時資訊。
+> 目前進度：Phase 1、2、3 已完成；Phase 3 包含台北公車、台北捷運與台鐵的 TDX 第一版。航班與海外交通仍維持明確的未整合狀態，不使用假資料冒充即時資訊。
 
 ## MVP 邊界
 
@@ -29,6 +29,7 @@
 
 - 台北公車：路線搜尋、方向、站牌順序與即時到站預估。
 - 台北捷運：車站搜尋、即時列車與表定時刻降級。
+- 台鐵：全台車站搜尋、即時列車、誤點與月台資訊，以及表定時刻降級。
 - 到站顯示遵守「60 分鐘以上表定、60 分鐘內即時、少於 1 分鐘即將進站」。
 - TDX OAuth token 共用、Redis／記憶體雙層快取、同鍵 single-flight 防止快取擊穿。
 - 每分鐘 4 次內部限流、2.7 點軟停止線、實際 requests 與 response bytes 用量估算。
@@ -81,7 +82,7 @@ dotnet run --project src/TravelInfoAssistant.Api
 
 Vite 會把 `/api` 代理到 `http://localhost:8080`。
 
-未設定 TDX 金鑰時，系統仍可啟動，公車與捷運入口會保留並顯示「暫時無法更新」，不會產生假資料。
+未設定 TDX 金鑰時，系統仍可啟動，公車、捷運與台鐵入口會保留並顯示「暫時無法更新」，不會產生假資料。
 
 ## 已實作 API
 
@@ -93,6 +94,8 @@ Vite 會把 `/api` 代理到 `http://localhost:8080`。
 | GET | `/api/v1/transit/bus/arrivals?cityId=&routeName=&direction=&stopId=` | 公車到站資訊 |
 | GET | `/api/v1/transit/metro/stations?cityId=&q=` | 台北捷運車站搜尋 |
 | GET | `/api/v1/transit/metro/arrivals?cityId=&stationId=` | 捷運即時／表定資訊 |
+| GET | `/api/v1/transit/rail/stations?cityId=&q=` | 台鐵車站搜尋 |
+| GET | `/api/v1/transit/rail/arrivals?cityId=&stationId=` | 台鐵即時／表定資訊 |
 | GET | `/api/v1/transit/tdx/status` | TDX 設定與本月估算用量 |
 
 ## 驗證
@@ -119,7 +122,7 @@ dotnet test
 
 1. ✅ Phase 1：可執行的前後端、PostgreSQL、Redis、城市 API 與基礎介面。
 2. ✅ Phase 2：城市能力矩陣、首頁與定位切換。
-3. 🚧 Phase 3：台北 TDX 公車與捷運已完成；台鐵待實作。
+3. ✅ Phase 3：台北 TDX 公車、捷運與台鐵查詢。
 4. Phase 4：全球直飛航班與 AeroDataBox 額度防護。
 5. Phase 5：天氣、旅遊警示及應急資訊。
 6. Phase 6：東京 ODPT。

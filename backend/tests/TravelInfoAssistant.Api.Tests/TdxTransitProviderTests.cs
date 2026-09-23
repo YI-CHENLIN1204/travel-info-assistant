@@ -180,23 +180,136 @@ public sealed class TdxTransitProviderTests
         Assert.Equal(["內湖", "中和"], inbound.Data.Select(item => item.NameZh));
     }
 
+    [Fact]
+    public async Task GetRailStationsAsync_MapsV3StationResponse()
+    {
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v3/Rail/TRA/Station"] = new TdxTraStationResponse
+            {
+                SrcUpdateTime = DateTimeOffset.Parse("2026-09-23T09:00:00+08:00"),
+                Stations =
+                [
+                    new TdxTraStation
+                    {
+                        StationUID = "TRA1000",
+                        StationID = "1000",
+                        StationName = new TdxLocalizedName { ZhTw = "臺北", En = "Taipei" },
+                        StationAddress = "臺北市中正區北平西路3號",
+                        StationPosition = new TdxPosition
+                        {
+                            PositionLat = 25.0478,
+                            PositionLon = 121.5170
+                        }
+                    }
+                ]
+            }
+        });
+
+        var result = await provider.GetRailStationsAsync(CancellationToken.None);
+
+        var station = Assert.Single(result.Data);
+        Assert.Equal("1000", station.Id);
+        Assert.Equal("臺北", station.NameZh);
+        Assert.Equal("Taipei", station.NameEn);
+        Assert.Equal(25.0478, station.Latitude);
+    }
+
+    [Fact]
+    public async Task GetRailArrivalsAsync_CombinesScheduleWithLiveDelayAndPlatform()
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T02:00:00Z");
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v3/Rail/TRA/DailyStationTimetable/Today/Station/1000"] =
+                    new TdxTraDailyStationTimetableResponse
+                    {
+                        SrcUpdateTime = DateTimeOffset.Parse("2026-09-23T08:00:00+08:00"),
+                        StationTimetables =
+                        [
+                            new TdxTraStationTimetable
+                            {
+                                StationID = "1000",
+                                StationName = Name("臺北"),
+                                Direction = 0,
+                                TimeTables =
+                                [
+                                    new TdxTraTimetableEntry
+                                    {
+                                        Sequence = 1,
+                                        TrainNo = "123",
+                                        TrainTypeID = "1100",
+                                        TrainTypeName = Name("自強"),
+                                        DestinationStationName = Name("高雄"),
+                                        ArrivalTime = "10:10"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                ["v3/Rail/TRA/StationLiveBoard/Station/1000"] =
+                    new TdxTraStationLiveBoardResponse
+                    {
+                        SrcUpdateTime = DateTimeOffset.Parse("2026-09-23T10:01:00+08:00"),
+                        StationLiveBoards =
+                        [
+                            new TdxTraStationLiveBoard
+                            {
+                                StationID = "1000",
+                                StationName = Name("臺北"),
+                                TrainNo = "123",
+                                Direction = 0,
+                                TrainTypeID = "1100",
+                                TrainTypeName = Name("自強"),
+                                EndingStationName = Name("高雄"),
+                                Platform = "2B",
+                                ScheduleArrivalTime = "10:10",
+                                DelayTime = 5,
+                                RunningStatus = 1,
+                                UpdateTime = DateTimeOffset.Parse("2026-09-23T10:01:00+08:00")
+                            }
+                        ]
+                    }
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetRailArrivalsAsync("1000", CancellationToken.None);
+
+        var arrival = Assert.Single(result.Data);
+        Assert.Equal("rail", arrival.Mode);
+        Assert.Equal("123", arrival.RouteName);
+        Assert.Equal("自強", arrival.LineName);
+        Assert.Equal("高雄", arrival.DestinationName);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:10:00Z"), arrival.ScheduledAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:15:00Z"), arrival.EstimatedAt);
+        Assert.Equal("誤點 5 分", arrival.ServiceStatus);
+        Assert.Equal("2B", arrival.Platform);
+        Assert.Equal("realtime", result.DataStatus);
+    }
+
     private static TdxTransitProvider CreateProvider(
         IReadOnlyList<TdxBusStopOfRoute> stops,
         IReadOnlyList<TdxBusArrival> arrivals,
         IReadOnlyList<TdxBusRoute>? routes = null)
     {
-        var apiClient = new StubTdxApiClient(new Dictionary<string, object>
+        var responses = new Dictionary<string, object>
         {
             ["v2/Bus/Route/City/Taipei"] = routes ?? Array.Empty<TdxBusRoute>(),
             ["v2/Bus/StopOfRoute/City/Taipei/214"] = stops,
             ["v2/Bus/EstimatedTimeOfArrival/City/Taipei/214"] = arrivals
-        });
-        return new TdxTransitProvider(
-            apiClient,
-            new PassThroughProviderCache(),
-            TimeProvider.System,
-            NullLogger<TdxTransitProvider>.Instance);
+        };
+        return CreateProviderWithResponses(responses, TimeProvider.System);
     }
+
+    private static TdxTransitProvider CreateProviderWithResponses(
+        IReadOnlyDictionary<string, object> responses,
+        TimeProvider? timeProvider = null) =>
+        new(
+            new StubTdxApiClient(responses),
+            new PassThroughProviderCache(),
+            timeProvider ?? TimeProvider.System,
+            NullLogger<TdxTransitProvider>.Instance);
 
     private static IReadOnlyList<TdxBusStopOfRoute> CreateStopFeed() =>
     [
@@ -254,6 +367,11 @@ public sealed class TdxTransitProviderTests
                 DateTimeOffset.Parse("2026-09-22T13:00:00Z"),
                 0));
         }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class PassThroughProviderCache : IProviderCache

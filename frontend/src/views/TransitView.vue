@@ -15,7 +15,13 @@ import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrival
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import { useCityStore } from '@/stores/city'
 import { useTransitStore, type TransitModeKey } from '@/stores/transit'
-import type { MetroStation, TransitArrival, TransitRoute, TransitStop } from '@/types/api'
+import type {
+  MetroStation,
+  RailStation,
+  TransitArrival,
+  TransitRoute,
+  TransitStop,
+} from '@/types/api'
 
 const cityStore = useCityStore()
 const transitStore = useTransitStore()
@@ -26,7 +32,9 @@ const integratedServices = computed(() =>
   cityStore.currentCity.services.filter(
     (service) =>
       service.integrationStatus === 'integrated' &&
-      (service.serviceKey === 'bus' || service.serviceKey === 'metro'),
+      (service.serviceKey === 'bus' ||
+        service.serviceKey === 'metro' ||
+        service.serviceKey === 'rail'),
   ),
 )
 
@@ -91,13 +99,11 @@ async function activateMode(mode: TransitModeKey): Promise<void> {
   transitStore.activeMode = mode
   transitStore.arrivals = []
   transitStore.resultMeta = null
-  if (mode === 'bus') {
-    transitStore.selectedStation = null
-  } else {
-    transitStore.selectedRoute = null
-    transitStore.selectedStop = null
-    transitStore.stops = []
-  }
+  transitStore.selectedRoute = null
+  transitStore.selectedStop = null
+  transitStore.stops = []
+  transitStore.selectedStation = null
+  transitStore.selectedRailStation = null
   await loadModeIndex(mode)
 }
 
@@ -108,6 +114,9 @@ async function loadModeIndex(mode: TransitModeKey): Promise<void> {
   }
   if (mode === 'metro' && transitStore.stations.length === 0) {
     await transitStore.searchMetroStations(cityId)
+  }
+  if (mode === 'rail' && transitStore.railStations.length === 0) {
+    await transitStore.searchRailStations(cityId)
   }
 }
 
@@ -141,11 +150,21 @@ function selectStation(station: MetroStation): void {
   void transitStore.chooseMetroStation(cityStore.currentCity.id, station)
 }
 
+function submitRailSearch(): void {
+  void transitStore.searchRailStations(cityStore.currentCity.id)
+}
+
+function selectRailStation(station: RailStation): void {
+  void transitStore.chooseRailStation(cityStore.currentCity.id, station)
+}
+
 function refreshArrivals(): void {
   if (transitStore.activeMode === 'bus') {
     void transitStore.refreshBusArrivals(cityStore.currentCity.id)
-  } else {
+  } else if (transitStore.activeMode === 'metro') {
     void transitStore.refreshMetroArrivals(cityStore.currentCity.id)
+  } else {
+    void transitStore.refreshRailArrivals(cityStore.currentCity.id)
   }
 }
 
@@ -188,7 +207,7 @@ function formatTimestamp(value: string | null | undefined): string {
         <StatusPill :tone="statusTone" :label="statusLabel" />
         <h2>{{ cityStore.currentCity.nameZh }}大眾運輸</h2>
         <p>
-          查詢公車與捷運班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
+          查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
         </p>
       </div>
       <div class="intro-icon"><MapPinned :size="34" /></div>
@@ -219,6 +238,18 @@ function formatTimestamp(value: string | null | undefined): string {
         >
           <TrainFront :size="20" />
           <span>捷運</span>
+        </button>
+        <button
+          v-if="availableModes.includes('rail')"
+          class="transit-mode-tab"
+          :class="{ active: transitStore.activeMode === 'rail' }"
+          type="button"
+          role="tab"
+          :aria-selected="transitStore.activeMode === 'rail'"
+          @click="activateMode('rail')"
+        >
+          <TrainFront :size="20" />
+          <span>台鐵</span>
         </button>
       </div>
 
@@ -355,7 +386,7 @@ function formatTimestamp(value: string | null | undefined): string {
         </div>
       </template>
 
-      <template v-else>
+      <template v-else-if="transitStore.activeMode === 'metro'">
         <form class="transit-search-form" @submit.prevent="submitMetroSearch">
           <label>
             <span>捷運站名或車站代碼</span>
@@ -442,6 +473,102 @@ function formatTimestamp(value: string | null | undefined): string {
 
         <div v-else-if="!transitStore.loading" class="inline-empty standalone">
           {{ transitStore.resultMeta?.message ?? '沒有符合條件的捷運站。' }}
+        </div>
+      </template>
+
+      <template v-else>
+        <form class="transit-search-form" @submit.prevent="submitRailSearch">
+          <label>
+            <span>台鐵站名或車站代碼</span>
+            <span class="input-shell">
+              <Search :size="18" />
+              <input
+                v-model="transitStore.railQuery"
+                maxlength="50"
+                autocomplete="off"
+                placeholder="例如：台北、1000"
+              />
+            </span>
+          </label>
+          <button class="button button-primary search-button" type="submit" :disabled="transitStore.loading">
+            {{ transitStore.loading ? '查詢中' : '查詢車站' }}
+          </button>
+        </form>
+
+        <div v-if="transitStore.railStations.length" class="transit-results-layout">
+          <section class="selection-panel">
+            <div class="panel-heading-row">
+              <div>
+                <span class="eyebrow">TRA STATIONS</span>
+                <h3>選擇車站</h3>
+              </div>
+              <span>{{ transitStore.railStations.length }} 筆</span>
+            </div>
+            <div class="route-result-list">
+              <button
+                v-for="station in transitStore.railStations"
+                :key="station.id"
+                class="route-result"
+                :class="{ selected: transitStore.selectedRailStation?.id === station.id }"
+                type="button"
+                @click="selectRailStation(station)"
+              >
+                <strong>{{ station.nameZh }}</strong>
+                <span>{{ station.nameEn ?? station.address ?? '臺灣鐵路' }}</span>
+                <small>{{ station.id }}</small>
+              </button>
+            </div>
+          </section>
+
+          <section class="arrival-panel">
+            <template v-if="transitStore.selectedRailStation">
+              <div class="panel-heading-row arrival-heading">
+                <div>
+                  <span class="eyebrow">{{ transitStore.selectedRailStation.id }}</span>
+                  <h3>{{ transitStore.selectedRailStation.nameZh }}列車資訊</h3>
+                </div>
+                <button
+                  class="icon-button refresh-button"
+                  type="button"
+                  aria-label="更新台鐵列車資訊"
+                  :disabled="transitStore.loading"
+                  @click="refreshArrivals"
+                >
+                  <RefreshCw :size="18" />
+                </button>
+              </div>
+
+              <div class="arrival-list metro-arrivals">
+                <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
+                  <div class="arrival-icon"><TrainFront :size="20" /></div>
+                  <div class="arrival-main">
+                    <strong>
+                      {{ arrival.routeName ? `${arrival.routeName} 次` : '車次待確認' }}
+                      · {{ arrival.lineName ?? '台鐵列車' }}
+                    </strong>
+                    <span>
+                      {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}
+                      {{ arrival.platform ? ` · ${arrival.platform} 月台` : '' }}
+                    </span>
+                  </div>
+                  <div class="arrival-time">
+                    <strong>{{ getArrivalView(arrival).label }}</strong>
+                    <span :class="`data-mode-${getArrivalView(arrival).mode}`">
+                      {{ getArrivalView(arrival).mode === 'realtime' ? arrival.serviceStatus : '表定時間' }}
+                    </span>
+                  </div>
+                </article>
+                <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
+                  {{ transitStore.resultMeta?.message ?? '目前查無這個車站的台鐵列車資料。' }}
+                </div>
+              </div>
+            </template>
+            <div v-else class="inline-empty large">請先從左側選擇一座台鐵車站。</div>
+          </section>
+        </div>
+
+        <div v-else-if="!transitStore.loading" class="inline-empty standalone">
+          {{ transitStore.resultMeta?.message ?? '沒有符合條件的台鐵車站。' }}
         </div>
       </template>
 

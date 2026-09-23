@@ -1,8 +1,8 @@
 # TDX 台北交通整合
 
-- 實作狀態：台北公車、台北捷運 MVP
+- 實作狀態：台北公車、台北捷運、台鐵 MVP
 - 方案查核日：2026-09-21
-- 範圍外：訂票、票價、導航、即時車輛地圖、轉乘規劃、台鐵
+- 範圍外：訂票、票價、導航、即時車輛地圖、轉乘規劃
 
 ## 查詢流程
 
@@ -23,18 +23,21 @@ flowchart TD
 
 ## 使用的官方端點
 
-| 功能 | TDX basic v2 endpoint | 新鮮快取 | 中斷保留 |
+| 功能 | TDX basic endpoint | 新鮮快取 | 中斷保留 |
 |---|---|---:|---:|
-| 公車路線 | `Bus/Route/City/Taipei` | 1 日 | 7 日 |
-| 路線站序 | `Bus/StopOfRoute/City/Taipei/{RouteName}` | 1 日 | 7 日 |
-| 公車到站 | `Bus/EstimatedTimeOfArrival/City/Taipei/{RouteName}` | 2 分鐘 | 15 分鐘 |
-| 捷運車站 | `Rail/Metro/Station/TRTC` | 7 日 | 30 日 |
-| 捷運即時列車 | `Rail/Metro/LiveBoard/TRTC` | 2 分鐘 | 15 分鐘 |
-| 捷運表定時刻 | `Rail/Metro/StationTimeTable/TRTC` | 1 日 | 7 日 |
+| 公車路線 | v2 `Bus/Route/City/Taipei` | 1 日 | 7 日 |
+| 路線站序 | v2 `Bus/StopOfRoute/City/Taipei/{RouteName}` | 1 日 | 7 日 |
+| 公車到站 | v2 `Bus/EstimatedTimeOfArrival/City/Taipei/{RouteName}` | 2 分鐘 | 15 分鐘 |
+| 捷運車站 | v2 `Rail/Metro/Station/TRTC` | 7 日 | 30 日 |
+| 捷運即時列車 | v2 `Rail/Metro/LiveBoard/TRTC` | 2 分鐘 | 15 分鐘 |
+| 捷運表定時刻 | v2 `Rail/Metro/StationTimeTable/TRTC` | 1 日 | 7 日 |
+| 台鐵車站 | v3 `Rail/TRA/Station` | 7 日 | 30 日 |
+| 台鐵當日站點時刻 | v3 `Rail/TRA/DailyStationTimetable/Today/Station/{StationID}` | 4 小時 | 1 日 |
+| 台鐵車站即時看板 | v3 `Rail/TRA/StationLiveBoard/Station/{StationID}` | 2 分鐘 | 15 分鐘 |
 
-每個請求都使用 `$select`，車站型端點再使用 `$filter`，避免下載未使用欄位。公車到站資料依「路線＋方向＋站牌」在自有 API 端篩選，但 Provider 快取以整條路線為單位，因此同一路線的旅客可共用一次 TDX 回應。
+v2 請求使用 `$select`，車站型端點再使用 `$filter`，避免下載未使用欄位；v3 台鐵端點依官方 wrapper 格式解析。公車到站資料依「路線＋方向＋站牌」在自有 API 端篩選，但 Provider 快取以整條路線為單位，因此同一路線的旅客可共用一次 TDX 回應。
 
-TDX 的公車 `EstimateTime` 單位為秒，捷運 LiveBoard 的 `EstimateTime` 單位為分鐘；Provider 會先轉成絕對時間，前端不直接解讀原始欄位。
+TDX 的公車 `EstimateTime` 單位為秒，捷運 LiveBoard 的 `EstimateTime` 單位為分鐘；台鐵則以表定時間加上 `DelayTime` 產生預估時間。Provider 會先轉成絕對時間，前端不直接解讀原始欄位。台鐵即時看板無資料或暫時失敗時，會自動退回當日表定時刻。
 
 ## 免費額度保護
 
@@ -97,6 +100,8 @@ GET /api/v1/transit/bus/stops?cityId={taipeiCityId}&routeName=307&direction=0
 GET /api/v1/transit/bus/arrivals?cityId={taipeiCityId}&routeName=307&direction=0&stopId={stopUid}
 GET /api/v1/transit/metro/stations?cityId={taipeiCityId}&q=台北
 GET /api/v1/transit/metro/arrivals?cityId={taipeiCityId}&stationId=BL12
+GET /api/v1/transit/rail/stations?cityId={taipeiCityId}&q=臺北
+GET /api/v1/transit/rail/arrivals?cityId={taipeiCityId}&stationId=1000
 ```
 
 ## 官方參考資料

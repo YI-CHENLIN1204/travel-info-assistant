@@ -22,6 +22,16 @@ public sealed class TdxTimeParserTests
     }
 
     [Fact]
+    public void ParseOccurrenceOnReferenceDate_DoesNotRollTodaysPastTrainToTomorrow()
+    {
+        var reference = DateTimeOffset.Parse("2026-09-23T14:00:00Z");
+
+        var result = TdxTimeParser.ParseOccurrenceOnReferenceDate("10:00", reference);
+
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:00:00Z"), result);
+    }
+
+    [Fact]
     public void IsServiceDay_UsesTaipeiLocalWeekday()
     {
         var sundayUtcButMondayInTaipei = DateTimeOffset.Parse("2026-09-20T16:30:00Z");

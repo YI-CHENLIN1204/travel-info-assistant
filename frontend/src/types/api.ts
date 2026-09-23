@@ -93,9 +93,18 @@ export interface MetroStation {
   longitude: number | null
 }
 
+export interface RailStation {
+  id: string
+  nameZh: string
+  nameEn: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
 export interface TransitArrival {
   id: string
-  mode: 'bus' | 'metro'
+  mode: 'bus' | 'metro' | 'rail'
   stopId: string
   stopName: string
   routeId: string | null
@@ -109,6 +118,7 @@ export interface TransitArrival {
   sourceUpdatedAt: string | null
   serviceStatus: string
   isLastService: boolean
+  platform: string | null
 }
 
 export interface TdxProviderStatus {
