@@ -83,10 +83,10 @@ Codespaces 使用專用 Compose 覆寫檔：
 docker compose -f compose.yaml -f compose.codespaces.yaml up -d --build
 ```
 
-- VS Code 會自動將 Web 的 `5173` 轉送為 HTTP，並只開啟一次瀏覽器。
+- `.devcontainer/devcontainer.json` 會自動將 Web 的 `5173` 轉送為 HTTP，並只開啟一次瀏覽器。
 - 瀏覽器中的 Codespaces 網址仍會顯示 `https://...app.github.dev`；這是 GitHub 對外提供的 HTTPS，容器內的 Nginx 仍使用 HTTP，請勿將 5173 的 Port Protocol 改成 HTTPS。
 - PostgreSQL `5432`、Redis `6379` 與 API `8080` 只供 Codespace 內部服務使用，不會自動對外轉送。
-- 若既有 Codespace 曾手動轉送 5173，更新程式碼後請關閉舊的 5173 轉送並重新載入 VS Code 視窗一次，之後會由專案設定自動管理。
+- 既有 Codespace 第一次取得這項設定時，請執行一次 **Codespaces: Rebuild Container**；重建後 5173 會由 `forwardPorts` 管理，不再恢復舊的「使用者轉送」。
 
 ### 分開開發
 
