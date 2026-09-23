@@ -37,7 +37,8 @@ public static class AppDbInitializer
     {
         var taipeiTransit = await dbContext.CityServiceCapabilities
             .Where(item => item.City.Code == "taipei")
-            .Where(item => item.ServiceKey == "bus" || item.ServiceKey == "metro")
+            .Where(item => item.ServiceKey == "bus" || item.ServiceKey == "metro" ||
+                           item.ServiceKey == "rail")
             .ToListAsync();
 
         var changed = false;

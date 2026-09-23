@@ -112,6 +112,38 @@ public sealed class TransitService(
         return await tdxProvider.GetMetroArrivalsAsync(stationId.Trim(), cancellationToken);
     }
 
+    public async Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchRailStationsAsync(
+        Guid cityId,
+        string? query,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsTaipeiAsync(cityId, "rail", cancellationToken))
+        {
+            return Unavailable<RailStationResponse>("這個城市目前尚未整合台鐵查詢。");
+        }
+
+        var result = await tdxProvider.GetRailStationsAsync(cancellationToken);
+        var search = query?.Trim();
+        var filtered = result.Data
+            .Where(item => string.IsNullOrWhiteSpace(search) || MatchesStation(item, search))
+            .Take(50)
+            .ToList();
+        return CopyMetadata(result, filtered);
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
+        Guid cityId,
+        string stationId,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsTaipeiAsync(cityId, "rail", cancellationToken))
+        {
+            return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合台鐵查詢。");
+        }
+
+        return await tdxProvider.GetRailArrivalsAsync(stationId.Trim(), cancellationToken);
+    }
+
     public Task<TdxProviderStatusResponse> GetTdxStatusAsync(CancellationToken cancellationToken) =>
         usageMeter.GetStatusAsync(cancellationToken);
 
@@ -144,9 +176,24 @@ public sealed class TransitService(
         Contains(station.NameEn, search) ||
         Contains(station.Address, search);
 
-    private static bool Contains(string? value, string search) =>
-        !string.IsNullOrWhiteSpace(value) &&
-        value.Contains(search, StringComparison.OrdinalIgnoreCase);
+    private static bool MatchesStation(RailStationResponse station, string search) =>
+        Contains(station.Id, search) ||
+        Contains(station.NameZh, search) ||
+        Contains(station.NameEn, search) ||
+        Contains(station.Address, search);
+
+    private static bool Contains(string? value, string search)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return value.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               value.Replace('臺', '台').Contains(
+                   search.Replace('臺', '台'),
+                   StringComparison.OrdinalIgnoreCase);
+    }
 
     private static ProviderQueryResult<IReadOnlyList<T>> CopyMetadata<T>(
         ProviderQueryResult<IReadOnlyList<T>> source,

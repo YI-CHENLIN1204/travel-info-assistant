@@ -36,5 +36,15 @@ public interface ITransitService
         string stationId,
         CancellationToken cancellationToken);
 
+    Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchRailStationsAsync(
+        Guid cityId,
+        string? query,
+        CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
+        Guid cityId,
+        string stationId,
+        CancellationToken cancellationToken);
+
     Task<TdxProviderStatusResponse> GetTdxStatusAsync(CancellationToken cancellationToken);
 }

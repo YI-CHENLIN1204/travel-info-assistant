@@ -13,6 +13,25 @@ public static class TdxTimeParser
         string? timeText,
         DateTimeOffset referenceUtc)
     {
+        var candidate = ParseOccurrenceOnReferenceDate(timeText, referenceUtc);
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        var value = candidate.Value;
+        if (value < referenceUtc.AddMinutes(-5))
+        {
+            value = value.AddDays(1);
+        }
+
+        return value;
+    }
+
+    public static DateTimeOffset? ParseOccurrenceOnReferenceDate(
+        string? timeText,
+        DateTimeOffset referenceUtc)
+    {
         if (!TryParseTime(timeText, out var time))
         {
             return null;
@@ -21,14 +40,7 @@ public static class TdxTimeParser
         var localReference = ToTaipei(referenceUtc);
         var localDateTime = localReference.Date.Add(time);
         var offset = TaipeiTimeZone.GetUtcOffset(localDateTime);
-        var candidate = new DateTimeOffset(localDateTime, offset);
-
-        if (candidate < localReference.AddMinutes(-5))
-        {
-            candidate = candidate.AddDays(1);
-        }
-
-        return candidate.ToUniversalTime();
+        return new DateTimeOffset(localDateTime, offset).ToUniversalTime();
     }
 
     public static bool IsServiceDay(TdxServiceDay? serviceDay, DateTimeOffset referenceUtc)

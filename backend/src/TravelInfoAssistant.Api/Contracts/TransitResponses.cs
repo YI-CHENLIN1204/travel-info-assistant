@@ -38,6 +38,14 @@ public sealed record MetroStationResponse(
     double? Latitude,
     double? Longitude);
 
+public sealed record RailStationResponse(
+    string Id,
+    string NameZh,
+    string? NameEn,
+    string? Address,
+    double? Latitude,
+    double? Longitude);
+
 public sealed record TransitArrivalResponse(
     string Id,
     string Mode,
@@ -53,7 +61,8 @@ public sealed record TransitArrivalResponse(
     DateTimeOffset? EstimatedAt,
     DateTimeOffset? SourceUpdatedAt,
     string ServiceStatus,
-    bool IsLastService);
+    bool IsLastService,
+    string? Platform = null);
 
 public sealed record TdxProviderStatusResponse(
     bool Configured,

@@ -74,7 +74,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
         <StatusPill :tone="systemTone" :label="appStore.apiStatus === 'online' ? '系統連線正常' : '開發環境未連線'" />
         <h2>從{{ cityStore.currentCity.nameZh }}出發，<br />旅途中需要的資訊都在這裡。</h2>
         <p>
-          MVP 已提供台北公車與捷運查詢。所有班次資訊都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
+          MVP 已提供台北公車、捷運與台鐵查詢。所有班次資訊都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
         </p>
       </div>
       <div class="welcome-visual" aria-hidden="true">

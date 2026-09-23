@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using TravelInfoAssistant.Api.Contracts;
@@ -15,6 +16,8 @@ public sealed class TdxTransitProvider(
     private static readonly TimeSpan StaticRetainFor = TimeSpan.FromDays(7);
     private static readonly TimeSpan MetroStationFreshFor = TimeSpan.FromDays(7);
     private static readonly TimeSpan MetroStationRetainFor = TimeSpan.FromDays(30);
+    private static readonly TimeSpan RailTimetableFreshFor = TimeSpan.FromHours(4);
+    private static readonly TimeSpan RailTimetableRetainFor = TimeSpan.FromDays(1);
     private static readonly TimeSpan RealtimeFreshFor = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan RealtimeRetainFor = TimeSpan.FromMinutes(15);
 
@@ -203,6 +206,163 @@ public sealed class TdxTransitProvider(
             liveBoard.Stale,
             liveBoard.Message ?? timetable.Message);
     }
+
+    public Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> GetRailStationsAsync(
+        CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            "transit:tdx:rail:stations:tra:v1",
+            MetroStationFreshFor,
+            MetroStationRetainFor,
+            Array.Empty<RailStationResponse>(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<TdxTraStationResponse>(
+                    "v3/Rail/TRA/Station",
+                    new Dictionary<string, string?>
+                    {
+                        ["$top"] = "1000",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                var stations = response.Data.Stations
+                    .Select(MapRailStation)
+                    .Where(item => item is not null)
+                    .Cast<RailStationResponse>()
+                    .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .OrderBy(item => item.NameZh, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return new ProviderPayload<IReadOnlyList<RailStationResponse>>(
+                    stations,
+                    "scheduled",
+                    response.Data.SrcUpdateTime ?? response.Data.UpdateTime ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
+        string stationId,
+        CancellationToken cancellationToken)
+    {
+        var timetable = await GetRailTimetableAsync(stationId, cancellationToken);
+        var liveBoard = await GetRailLiveBoardAsync(stationId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var scheduled = BuildScheduledRailArrivals(
+            stationId,
+            timetable.Data.StationTimetables,
+            timetable.SourceUpdatedAt,
+            now);
+
+        if (liveBoard.Data.StationLiveBoards.Count == 0)
+        {
+            if (scheduled.Count > 0)
+            {
+                return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+                    scheduled,
+                    timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
+                    timetable.SourceUpdatedAt,
+                    timetable.FetchedAt,
+                    timetable.Stale,
+                    liveBoard.DataStatus == "unavailable"
+                        ? "台鐵即時資料暫時無法更新，目前顯示表定時刻。"
+                        : "目前沒有台鐵即時資料，顯示表定時刻。");
+            }
+
+            return ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>.Unavailable(
+                Array.Empty<TransitArrivalResponse>(),
+                liveBoard.Message ?? timetable.Message ?? "目前查無可顯示的台鐵班次。",
+                timeProvider);
+        }
+
+        var arrivals = liveBoard.Data.StationLiveBoards
+            .Select((item, index) => MapRailLiveArrival(
+                item,
+                stationId,
+                scheduled,
+                liveBoard.SourceUpdatedAt,
+                now,
+                index))
+            .Where(item => item is not null)
+            .Cast<TransitArrivalResponse>()
+            .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
+            .Take(12)
+            .ToList();
+
+        return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+            arrivals,
+            liveBoard.DataStatus,
+            liveBoard.SourceUpdatedAt,
+            liveBoard.FetchedAt,
+            liveBoard.Stale,
+            liveBoard.Message ?? timetable.Message);
+    }
+
+    private Task<ProviderQueryResult<TdxTraDailyStationTimetableResponse>> GetRailTimetableAsync(
+        string stationId,
+        CancellationToken cancellationToken)
+    {
+        var localDate = TdxTimeParser.ToTaipei(timeProvider.GetUtcNow())
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return GetCachedSafelyAsync(
+            $"transit:tdx:rail:timetable:tra:{KeyPart(stationId)}:{localDate}:v1",
+            RailTimetableFreshFor,
+            RailTimetableRetainFor,
+            new TdxTraDailyStationTimetableResponse(),
+            async token =>
+            {
+                var path = "v3/Rail/TRA/DailyStationTimetable/Today/Station/" +
+                           Uri.EscapeDataString(stationId);
+                var response = await apiClient.GetAsync<TdxTraDailyStationTimetableResponse>(
+                    path,
+                    new Dictionary<string, string?>
+                    {
+                        ["$top"] = "500",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<TdxTraDailyStationTimetableResponse>(
+                    response.Data,
+                    "scheduled",
+                    response.Data.SrcUpdateTime ?? response.Data.UpdateTime ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+    }
+
+    private Task<ProviderQueryResult<TdxTraStationLiveBoardResponse>> GetRailLiveBoardAsync(
+        string stationId,
+        CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            $"transit:tdx:rail:live:tra:{KeyPart(stationId)}:v1",
+            RealtimeFreshFor,
+            RealtimeRetainFor,
+            new TdxTraStationLiveBoardResponse(),
+            async token =>
+            {
+                var path = "v3/Rail/TRA/StationLiveBoard/Station/" +
+                           Uri.EscapeDataString(stationId);
+                var response = await apiClient.GetAsync<TdxTraStationLiveBoardResponse>(
+                    path,
+                    new Dictionary<string, string?>
+                    {
+                        ["$top"] = "200",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<TdxTraStationLiveBoardResponse>(
+                    response.Data,
+                    "realtime",
+                    Latest(response.Data.StationLiveBoards.Select(item => item.UpdateTime))
+                        ?? response.Data.SrcUpdateTime
+                        ?? response.Data.UpdateTime
+                        ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
 
     private Task<ProviderQueryResult<IReadOnlyList<TdxMetroLiveBoard>>> GetMetroLiveBoardAsync(
         string stationId,
@@ -586,6 +746,127 @@ public sealed class TdxTransitProvider(
                 station.StationPosition?.PositionLon);
     }
 
+    private static RailStationResponse? MapRailStation(TdxTraStation station)
+    {
+        var id = station.StationID ?? station.StationUID;
+        var nameZh = PreferredName(station.StationName);
+        return string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(nameZh)
+            ? null
+            : new RailStationResponse(
+                id,
+                nameZh,
+                station.StationName?.En,
+                station.StationAddress,
+                station.StationPosition?.PositionLat,
+                station.StationPosition?.PositionLon);
+    }
+
+    private static IReadOnlyList<TransitArrivalResponse> BuildScheduledRailArrivals(
+        string stationId,
+        IReadOnlyList<TdxTraStationTimetable> timetables,
+        DateTimeOffset? sourceUpdatedAt,
+        DateTimeOffset now)
+    {
+        var arrivals = new List<TransitArrivalResponse>();
+        foreach (var timetable in timetables)
+        {
+            foreach (var entry in timetable.TimeTables.Where(item => item.SuspendedFlag != 1))
+            {
+                var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
+                    entry.ArrivalTime ?? entry.DepartureTime,
+                    now);
+                if (scheduledAt is null || scheduledAt < now.AddMinutes(-2) ||
+                    scheduledAt > now.AddHours(4))
+                {
+                    continue;
+                }
+
+                var trainNo = FirstText(entry.TrainNo);
+                var responseStationId = FirstText(timetable.StationID, stationId)!;
+                arrivals.Add(new TransitArrivalResponse(
+                    $"rail-schedule:{responseStationId}:{trainNo ?? entry.Sequence.ToString(CultureInfo.InvariantCulture)}:{timetable.Direction}:{entry.Sequence}",
+                    "rail",
+                    responseStationId,
+                    FirstText(PreferredName(timetable.StationName), responseStationId)!,
+                    trainNo,
+                    trainNo,
+                    FirstText(entry.TrainTypeID, entry.TrainTypeCode),
+                    FirstText(PreferredName(entry.TrainTypeName), entry.TrainTypeCode),
+                    PreferredName(entry.DestinationStationName),
+                    timetable.Direction,
+                    scheduledAt,
+                    null,
+                    sourceUpdatedAt,
+                    "表定班次",
+                    false));
+            }
+        }
+
+        return arrivals
+            .OrderBy(item => item.ScheduledAt)
+            .Take(12)
+            .ToList();
+    }
+
+    private static TransitArrivalResponse? MapRailLiveArrival(
+        TdxTraStationLiveBoard item,
+        string requestedStationId,
+        IReadOnlyList<TransitArrivalResponse> scheduled,
+        DateTimeOffset? feedUpdatedAt,
+        DateTimeOffset now,
+        int index)
+    {
+        var stationId = FirstText(item.StationID, requestedStationId);
+        if (string.IsNullOrWhiteSpace(stationId))
+        {
+            return null;
+        }
+
+        var matchingSchedule = scheduled
+            .Where(value => string.IsNullOrWhiteSpace(item.TrainNo) ||
+                            string.Equals(
+                                value.RouteName,
+                                item.TrainNo,
+                                StringComparison.OrdinalIgnoreCase))
+            .OrderBy(value => value.ScheduledAt)
+            .FirstOrDefault(value => value.ScheduledAt >= now.AddMinutes(-2));
+        var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
+                              item.ScheduleArrivalTime ?? item.ScheduleDepartureTime,
+                              now)
+                          ?? matchingSchedule?.ScheduledAt;
+        var delayMinutes = Math.Max(0, item.DelayTime);
+        var estimatedAt = scheduledAt?.AddMinutes(delayMinutes);
+        var stationName = FirstText(
+            PreferredName(item.StationName),
+            matchingSchedule?.StopName,
+            stationId)!;
+        var trainNo = FirstText(item.TrainNo, matchingSchedule?.RouteName);
+        var sourceUpdatedAt = item.UpdateTime ?? feedUpdatedAt;
+
+        return new TransitArrivalResponse(
+            $"rail-live:{stationId}:{trainNo ?? index.ToString(CultureInfo.InvariantCulture)}:{item.Direction}:{index}",
+            "rail",
+            stationId,
+            stationName,
+            trainNo,
+            trainNo,
+            FirstText(item.TrainTypeID, item.TrainTypeCode, matchingSchedule?.LineId),
+            FirstText(
+                PreferredName(item.TrainTypeName),
+                item.TrainTypeCode,
+                matchingSchedule?.LineName),
+            FirstText(
+                PreferredName(item.EndingStationName),
+                matchingSchedule?.DestinationName),
+            item.Direction ?? matchingSchedule?.Direction,
+            scheduledAt,
+            estimatedAt,
+            sourceUpdatedAt,
+            GetRailServiceStatus(item.RunningStatus, item.DelayTime),
+            false,
+            item.Platform is "00" ? null : item.Platform);
+    }
+
     private static IReadOnlyList<TransitArrivalResponse> BuildScheduledMetroArrivals(
         string stationId,
         IReadOnlyList<TdxMetroStationTimetable> timetables,
@@ -727,6 +1008,15 @@ public sealed class TdxTransitProvider(
         2 => "交管不停靠",
         3 => "末班車已過",
         4 => "今日未營運",
+        _ => "狀態待確認"
+    };
+
+    private static string GetRailServiceStatus(int? status, int delayMinutes) => status switch
+    {
+        2 => "列車已取消",
+        1 => delayMinutes > 0 ? $"誤點 {delayMinutes} 分" : "列車誤點",
+        _ when delayMinutes > 0 => $"誤點 {delayMinutes} 分",
+        0 => "準點",
         _ => "狀態待確認"
     };
 

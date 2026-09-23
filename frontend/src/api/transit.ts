@@ -2,6 +2,7 @@ import { apiRequest } from './client'
 import type {
   ApiResponse,
   MetroStation,
+  RailStation,
   TdxProviderStatus,
   TransitArrival,
   TransitMode,
@@ -58,6 +59,20 @@ export function getMetroArrivals(
   stationId: string,
 ): Promise<ApiResponse<TransitArrival[]>> {
   return apiRequest(`/v1/transit/metro/arrivals?${params({ cityId, stationId })}`)
+}
+
+export function searchRailStations(
+  cityId: string,
+  query: string,
+): Promise<ApiResponse<RailStation[]>> {
+  return apiRequest(`/v1/transit/rail/stations?${params({ cityId, q: query })}`)
+}
+
+export function getRailArrivals(
+  cityId: string,
+  stationId: string,
+): Promise<ApiResponse<TransitArrival[]>> {
+  return apiRequest(`/v1/transit/rail/arrivals?${params({ cityId, stationId })}`)
 }
 
 export function getTdxStatus(): Promise<ApiResponse<TdxProviderStatus>> {

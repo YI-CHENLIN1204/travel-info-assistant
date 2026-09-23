@@ -4,32 +4,38 @@ import {
   getBusArrivals,
   getBusStops,
   getMetroArrivals,
+  getRailArrivals,
   getTdxStatus,
   searchBusRoutes as requestBusRoutes,
   searchMetroStations as requestMetroStations,
+  searchRailStations as requestRailStations,
 } from '@/api/transit'
 import type {
   ApiMeta,
   MetroStation,
+  RailStation,
   TdxProviderStatus,
   TransitArrival,
   TransitRoute,
   TransitStop,
 } from '@/types/api'
 
-export type TransitModeKey = 'bus' | 'metro'
+export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
 export const useTransitStore = defineStore('transit', () => {
   const activeMode = ref<TransitModeKey>('bus')
   const busQuery = ref('')
   const metroQuery = ref('')
+  const railQuery = ref('')
   const routes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
+  const railStations = ref<RailStation[]>([])
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
   const stops = ref<TransitStop[]>([])
   const selectedStop = ref<TransitStop | null>(null)
   const selectedStation = ref<MetroStation | null>(null)
+  const selectedRailStation = ref<RailStation | null>(null)
   const arrivals = ref<TransitArrival[]>([])
   const resultMeta = ref<ApiMeta | null>(null)
   const providerStatus = ref<TdxProviderStatus | null>(null)
@@ -39,11 +45,13 @@ export const useTransitStore = defineStore('transit', () => {
   function resetResults(): void {
     routes.value = []
     stations.value = []
+    railStations.value = []
     selectedRoute.value = null
     selectedDirection.value = 0
     stops.value = []
     selectedStop.value = null
     selectedStation.value = null
+    selectedRailStation.value = null
     arrivals.value = []
     resultMeta.value = null
     error.value = null
@@ -139,6 +147,31 @@ export const useTransitStore = defineStore('transit', () => {
     }
   }
 
+  async function searchRailStations(cityId: string): Promise<void> {
+    await run(async () => {
+      const response = await requestRailStations(cityId, railQuery.value.trim())
+      railStations.value = response.data
+      selectedRailStation.value = null
+      arrivals.value = []
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function chooseRailStation(cityId: string, station: RailStation): Promise<void> {
+    selectedRailStation.value = station
+    await run(async () => {
+      const response = await getRailArrivals(cityId, station.id)
+      arrivals.value = response.data
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function refreshRailArrivals(cityId: string): Promise<void> {
+    if (selectedRailStation.value) {
+      await chooseRailStation(cityId, selectedRailStation.value)
+    }
+  }
+
   async function loadProviderStatus(): Promise<void> {
     try {
       providerStatus.value = (await getTdxStatus()).data
@@ -164,13 +197,16 @@ export const useTransitStore = defineStore('transit', () => {
     activeMode,
     busQuery,
     metroQuery,
+    railQuery,
     routes,
     stations,
+    railStations,
     selectedRoute,
     selectedDirection,
     stops,
     selectedStop,
     selectedStation,
+    selectedRailStation,
     arrivals,
     resultMeta,
     providerStatus,
@@ -185,6 +221,9 @@ export const useTransitStore = defineStore('transit', () => {
     searchMetroStations,
     chooseMetroStation,
     refreshMetroArrivals,
+    searchRailStations,
+    chooseRailStation,
+    refreshRailArrivals,
     loadProviderStatus,
   }
 })
