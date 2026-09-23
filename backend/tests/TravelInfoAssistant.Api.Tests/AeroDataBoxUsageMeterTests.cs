@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using Xunit;
@@ -71,12 +70,13 @@ public sealed class AeroDataBoxUsageMeterTests
     private static AeroDataBoxUsageMeter CreateMeter(AeroDataBoxOptions settings)
     {
         var distributed = new MemoryDistributedCache(
-            Options.Create(new MemoryDistributedCacheOptions()));
-        var memory = new MemoryCache(Options.Create(new MemoryCacheOptions()));
+            Microsoft.Extensions.Options.Options.Create(new MemoryDistributedCacheOptions()));
+        var memory = new MemoryCache(
+            Microsoft.Extensions.Options.Options.Create(new MemoryCacheOptions()));
         return new AeroDataBoxUsageMeter(
             distributed,
             memory,
-            Options.Create(settings),
+            Microsoft.Extensions.Options.Options.Create(settings),
             TimeProvider.System,
             NullLogger<AeroDataBoxUsageMeter>.Instance);
     }
