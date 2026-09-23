@@ -2,12 +2,12 @@
 
 - 文件版本：1.0
 - 凍結日期：2026-09-21
-- 外部方案查核日：2026-09-21（實際額度與授權仍以申請帳號當下的 Provider／Marketplace 後台為準）
+- 外部方案查核日：2026-09-23（實際額度與授權仍以申請帳號當下的 Provider／Marketplace 後台為準）
 - 專案性質：個人履歷作品、非商業 MVP
 - 主要使用者：以 LINE 為主要入口的台灣自由行及旅行團旅客
 - MVP 原則：零 API 費用、真實資料、中央快取、前後端完全分離、可平滑升級付費方案
 
-> 實作進度（2026-09-23）：Phase 1、2、3 已完成；Phase 3 包含台北公車、台北捷運與台鐵第一版。實際 TDX endpoint、快取與額度設定請見 [TDX 整合說明](TDX_INTEGRATION.md)。
+> 實作進度（2026-09-23）：Phase 1～4 已完成；包含台北公車、台北捷運、台鐵及全球直飛航班第一版。實際 Provider endpoint、快取與額度設定請見 [TDX 整合說明](TDX_INTEGRATION.md)與 [AeroDataBox 航班整合說明](FLIGHTS_INTEGRATION.md)。
 
 ---
 
@@ -174,7 +174,7 @@ Itinerary
 
 #### 航班資料取得
 
-- 正式 Provider：AeroDataBox RapidAPI Basic。
+- 正式 Provider：AeroDataBox；預設透過 RapidAPI gateway，也可切換官方 Direct API。
 - 不使用假資料冒充即時航班。
 - 一個完整日期拆成兩個 12 小時 FIDS 查詢。
 - 外部快取鍵使用「出發機場＋日期＋12 小時區段」，後端再依目的地篩選，因此相同出發機場及日期可服務多個目的地查詢。
@@ -265,15 +265,14 @@ MVP 規則：
 
 ### 7.2 AeroDataBox
 
-RapidAPI Basic 免費方案：
+目前程式採用下列保守預設值；RapidAPI／AeroDataBox 的公開方案與帳號實際額度可能變更，部署前必須以訂閱後台覆寫設定：
 
-- 400 API units／計費週期。
-- 1,600 requests 硬上限。
-- 航班狀態與 FIDS 為 Tier 2，每次 2 units。
+- 400 API units 作為專案內部硬停止線。
+- 航班狀態與 FIDS 依目前 endpoint tier 設定，每次預扣 2 units。
 - 一個完整日期 FIDS 需要兩次呼叫，共 4 units。
 - 快取／資料保留不得超過方案允許的 7 天。
 - 必須顯示 AeroDataBox 資料來源。
-- 免費方案僅用於目前非商業履歷 MVP。
+- 免費方案僅用於目前非商業履歷 MVP；程式不會自動訂閱或升級付費方案。
 
 MVP 預算：
 
@@ -291,7 +290,7 @@ MVP 預算：
 - 每次外部請求前先以端點 Tier 預扣 units，完成後再依 Provider 回應校正，避免併發請求同時穿越上限。
 - 啟用金鑰前須再次核對 RapidAPI 訂閱頁的方案、週期、硬上限與 overage 設定；若免費方案條件改變，系統停用外部呼叫，不自動改訂付費方案。
 
-RapidAPI 另有 10,240 MB／月平台流量額度。系統以 9,000 MB 為內部停止線，避免任何平台流量費。
+系統另以 9,000 MB 作為預設內部流量停止線；必須依實際 Marketplace 方案調低或調整，不能將此預設視為 Provider 保證額度。
 
 ### 7.3 其他來源
 

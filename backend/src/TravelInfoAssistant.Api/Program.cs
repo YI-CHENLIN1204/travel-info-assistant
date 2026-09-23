@@ -5,8 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Infrastructure;
 using TravelInfoAssistant.Api.Options;
+using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
+using TravelInfoAssistant.Api.Services.Flights;
 using TravelInfoAssistant.Api.Services.Transit;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,10 +27,23 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.Configure<TdxOptions>(builder.Configuration.GetSection(TdxOptions.SectionName));
+builder.Services.Configure<AeroDataBoxOptions>(
+    builder.Configuration.GetSection(AeroDataBoxOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("aerodatabox-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<AeroDataBoxOptions>>().Value;
         client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
     })
@@ -63,12 +78,18 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<ISystemHealthService, SystemHealthService>();
 builder.Services.AddScoped<ITransitService, TransitService>();
+builder.Services.AddScoped<IFlightService, FlightService>();
 builder.Services.AddSingleton<IProviderCache, ProviderCache>();
+builder.Services.AddSingleton<IAirportCatalog, AirportCatalog>();
 builder.Services.AddSingleton<ITdxRateGate, TdxRateGate>();
 builder.Services.AddSingleton<ITdxUsageMeter, TdxUsageMeter>();
 builder.Services.AddSingleton<ITdxTokenProvider, TdxTokenProvider>();
 builder.Services.AddSingleton<ITdxApiClient, TdxApiClient>();
 builder.Services.AddSingleton<ITdxTransitProvider, TdxTransitProvider>();
+builder.Services.AddSingleton<IAeroDataBoxRateGate, AeroDataBoxRateGate>();
+builder.Services.AddSingleton<IAeroDataBoxUsageMeter, AeroDataBoxUsageMeter>();
+builder.Services.AddSingleton<IAeroDataBoxApiClient, AeroDataBoxApiClient>();
+builder.Services.AddSingleton<IAeroDataBoxFlightProvider, AeroDataBoxFlightProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

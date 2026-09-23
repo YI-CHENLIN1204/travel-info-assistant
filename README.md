@@ -2,7 +2,7 @@
 
 以台灣旅客為主要使用者、可從 LINE 快速開啟的旅遊資訊助手。系統將整合台灣與海外大眾運輸、全球直飛航班、天氣、旅遊警示及當地應急資訊。
 
-> 目前進度：Phase 1、2、3 已完成；Phase 3 包含台北公車、台北捷運與台鐵的 TDX 第一版。航班與海外交通仍維持明確的未整合狀態，不使用假資料冒充即時資訊。
+> 目前進度：Phase 1～4 已完成；包含台北公車、台北捷運、台鐵，以及全球直飛航班與單一航班編號查詢。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
 
 ## MVP 邊界
 
@@ -37,6 +37,17 @@
 
 實作與額度細節請參閱 [TDX 整合說明](docs/TDX_INTEGRATION.md)。
 
+## 已完成的全球航班功能
+
+- 以本地 OurAirports 字典搜尋全球 4,000 多座有定期服務且具 IATA 代碼的機場，不消耗航班 API 額度。
+- 依出發機場、抵達機場與日期查詢直飛航班，或依航班編號與日期查詢。
+- 顯示表定／預估／實際當地時間、跨日、狀態、航廈、登機門、航空公司與機型。
+- AeroDataBox FIDS 全日查詢拆成兩個 12 小時區段，快取鍵以「出發機場＋日期＋區段」共用。
+- Redis／記憶體雙層快取、同鍵 single-flight、Tier units 預扣、速率限制、流量與計費週期用量保護。
+- Provider 未設定、額度用完或連線中斷時不產生假航班；合法舊快取仍可安全降級顯示。
+
+設定方式、快取與額度策略請參閱 [AeroDataBox 航班整合說明](docs/FLIGHTS_INTEGRATION.md)。
+
 ## 專案結構
 
 ```text
@@ -56,7 +67,7 @@ travel-info-assistant/
 
 ```bash
 cp .env.example .env
-# 編輯 .env，填入 TDX_CLIENT_ID 與 TDX_CLIENT_SECRET 才會取得真實交通資料
+# 編輯 .env；TDX 與 AeroDataBox 金鑰分別控制大眾運輸及全球航班真實資料
 docker compose up --build
 ```
 
@@ -82,7 +93,7 @@ dotnet run --project src/TravelInfoAssistant.Api
 
 Vite 會把 `/api` 代理到 `http://localhost:8080`。
 
-未設定 TDX 金鑰時，系統仍可啟動，公車、捷運與台鐵入口會保留並顯示「暫時無法更新」，不會產生假資料。
+未設定第三方金鑰時系統仍可啟動；相關入口會保留並明確顯示無法更新，不會產生假資料。機場自動完成不需要 AeroDataBox 金鑰。
 
 ## 已實作 API
 
@@ -97,6 +108,10 @@ Vite 會把 `/api` 代理到 `http://localhost:8080`。
 | GET | `/api/v1/transit/rail/stations?cityId=&q=` | 台鐵車站搜尋 |
 | GET | `/api/v1/transit/rail/arrivals?cityId=&stationId=` | 台鐵即時／表定資訊 |
 | GET | `/api/v1/transit/tdx/status` | TDX 設定與本月估算用量 |
+| GET | `/api/v1/airports?q=&limit=` | 全球機場自動完成 |
+| GET | `/api/v1/flights/search?origin=&destination=&date=` | 全球直飛航班查詢 |
+| GET | `/api/v1/flights/{flightNumber}?date=` | 航班編號查詢 |
+| GET | `/api/v1/flights/provider/status` | AeroDataBox 設定與本期用量 |
 
 ## 驗證
 
@@ -123,7 +138,7 @@ dotnet test
 1. ✅ Phase 1：可執行的前後端、PostgreSQL、Redis、城市 API 與基礎介面。
 2. ✅ Phase 2：城市能力矩陣、首頁與定位切換。
 3. ✅ Phase 3：台北 TDX 公車、捷運與台鐵查詢。
-4. Phase 4：全球直飛航班與 AeroDataBox 額度防護。
+4. ✅ Phase 4：全球直飛航班與 AeroDataBox 額度防護。
 5. Phase 5：天氣、旅遊警示及應急資訊。
 6. Phase 6：東京 ODPT。
 7. Phase 7：測試、部署與履歷展示。

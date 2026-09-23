@@ -42,6 +42,14 @@ services:
       Cors__Origins__0: http://localhost:${WEB_PORT:-5173}
       Tdx__ClientId: ${TDX_CLIENT_ID:-}
       Tdx__ClientSecret: ${TDX_CLIENT_SECRET:-}
+      AeroDataBox__Gateway: ${AERODATABOX_GATEWAY:-RapidApi}
+      AeroDataBox__BaseUrl: ${AERODATABOX_BASE_URL:-https://aerodatabox.p.rapidapi.com/}
+      AeroDataBox__ApiKey: ${AERODATABOX_API_KEY:-}
+      AeroDataBox__BillingCycleDay: ${AERODATABOX_BILLING_CYCLE_DAY:-1}
+      AeroDataBox__MonthlySoftLimitUnits: ${AERODATABOX_MONTHLY_SOFT_LIMIT_UNITS:-360}
+      AeroDataBox__MonthlyHardLimitUnits: ${AERODATABOX_MONTHLY_HARD_LIMIT_UNITS:-400}
+      AeroDataBox__MonthlyTrafficSoftLimitBytes: ${AERODATABOX_MONTHLY_TRAFFIC_SOFT_LIMIT_BYTES:-9000000000}
+      AeroDataBox__RequestsPerSecond: ${AERODATABOX_REQUESTS_PER_SECOND:-1}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
