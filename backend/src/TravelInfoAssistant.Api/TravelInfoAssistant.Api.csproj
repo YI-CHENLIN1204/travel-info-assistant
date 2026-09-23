@@ -9,4 +9,12 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference IncludYOH“ZXÜ›ÜÛÙ‘^[œÚ[ÛœËØXÚ[™Ë”ÝXÚÑ^Ú[™ÙT™Y\Èˆ™\œÚ[ÛHŒLŒŒLˆˆÏ‚ˆXÚØYÙT™Y™\™[˜ÙH[˜ÛYOH“œÜÜ[‘[]Qœ˜[Y]ÛÜšÐÛÜ™K”ÜÝÜ™TÔSˆ™\œÚ[ÛHŒLŒŒÈˆÏ‚ˆXÚØYÙT™Y™\™[˜ÙH[˜ÛYOH”ÝØ\ÚXÚÛK\Ü™]ÛÜ™Hˆ™\œÚ[ÛHŒLŒ‹ŒÈˆÏ‚ˆÒ][QÜ›Ý\‚‚ˆ][QÜ›Ý\‚ˆÛÛ[\]OH‘]KØZ\œÜË›Z[‹šœÛÛˆˆÛÜUÓÝ]]\™XÝÜžOH”™\Ù\™S™]Ù\ÝˆÏ‚ˆÒ][QÜ›Ý\‚Ô›Ú™XÝ‚
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.12" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="Data/airports.min.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
