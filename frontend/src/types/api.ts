@@ -133,3 +133,72 @@ export interface TdxProviderStatus {
   overageEnabled: boolean
   pricingVerifiedAt: string
 }
+
+export interface Airport {
+  iata: string
+  icao: string | null
+  name: string
+  municipality: string | null
+  countryCode: string | null
+  latitude: number | null
+  longitude: number | null
+  timeZone: string | null
+}
+
+export interface FlightTime {
+  local: string | null
+  utc: string | null
+}
+
+export interface FlightMovement {
+  airport: Airport
+  scheduled: FlightTime | null
+  estimated: FlightTime | null
+  actual: FlightTime | null
+  terminal: string | null
+  gate: string | null
+}
+
+export interface FlightAirline {
+  name: string
+  iata: string | null
+  icao: string | null
+}
+
+export interface FlightAircraft {
+  registration: string | null
+  model: string | null
+}
+
+export interface FlightSegment {
+  id: string
+  flightNumber: string
+  callSign: string | null
+  status: string
+  airline: FlightAirline | null
+  aircraft: FlightAircraft | null
+  departure: FlightMovement
+  arrival: FlightMovement
+  sourceUpdatedAt: string | null
+}
+
+export interface FlightItinerary {
+  id: string
+  stops: number
+  segments: FlightSegment[]
+}
+
+export interface AeroDataBoxProviderStatus {
+  configured: boolean
+  gateway: string
+  billingCycle: string
+  requestCount: number
+  usedUnits: number
+  softLimitUnits: number
+  hardLimitUnits: number
+  responseBytes: number
+  trafficSoftLimitBytes: number
+  requestsPerSecond: number
+  overageEnabled: boolean
+  pricingVerifiedAt: string
+}
