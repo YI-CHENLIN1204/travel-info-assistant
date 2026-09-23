@@ -1,0 +1,24 @@
+{
+  "remote.autoForwardPorts": true,
+  "remote.restoreForwardedPorts": true,
+  "remote.portsAttributes": {
+    "5173": {
+      "label": "Travel Info Web",
+      "protocol": "http",
+      "onAutoForward": "openBrowserOnce"
+    },
+    "8080": {
+      "label": "Travel Info API (internal)",
+      "protocol": "http",
+      "onAutoForward": "ignore"
+    },
+    "5432": {
+      "label": "PostgreSQL (internal)",
+      "onAutoForward": "ignore"
+    },
+    "6379": {
+      "label": "Redis (internal)",
+      "onAutoForward": "ignore"
+    }
+  }
+}
