@@ -7,6 +7,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 {
     public DbSet<City> Cities => Set<City>();
     public DbSet<CityServiceCapability> CityServiceCapabilities => Set<CityServiceCapability>();
+    public DbSet<EmergencyContact> EmergencyContacts => Set<EmergencyContact>();
+    public DbSet<OverseasOffice> OverseasOffices => Set<OverseasOffice>();
+    public DbSet<EmergencyGuide> EmergencyGuides => Set<EmergencyGuide>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +36,44 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .WithMany(item => item.ServiceCapabilities)
             .HasForeignKey(item => item.CityId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var emergencyContact = modelBuilder.Entity<EmergencyContact>();
+        emergencyContact.ToTable("emergency_contacts");
+        emergencyContact.HasKey(item => item.Id);
+        emergencyContact.HasIndex(item => new { item.CountryCode, item.CityCode, item.SortOrder });
+        emergencyContact.Property(item => item.CountryCode).HasMaxLength(2);
+        emergencyContact.Property(item => item.CityCode).HasMaxLength(50);
+        emergencyContact.Property(item => item.Category).HasMaxLength(50);
+        emergencyContact.Property(item => item.DisplayName).HasMaxLength(150);
+        emergencyContact.Property(item => item.PhoneNumber).HasMaxLength(100);
+        emergencyContact.Property(item => item.Note).HasMaxLength(500);
+        emergencyContact.Property(item => item.SourceName).HasMaxLength(150);
+        emergencyContact.Property(item => item.SourceUrl).HasMaxLength(500);
+
+        var overseasOffice = modelBuilder.Entity<OverseasOffice>();
+        overseasOffice.ToTable("overseas_offices");
+        overseasOffice.HasKey(item => item.Id);
+        overseasOffice.HasIndex(item => new { item.CountryCode, item.CityCode }).IsUnique();
+        overseasOffice.Property(item => item.CountryCode).HasMaxLength(2);
+        overseasOffice.Property(item => item.CityCode).HasMaxLength(50);
+        overseasOffice.Property(item => item.NameZh).HasMaxLength(200);
+        overseasOffice.Property(item => item.Address).HasMaxLength(500);
+        overseasOffice.Property(item => item.MainPhone).HasMaxLength(100);
+        overseasOffice.Property(item => item.EmergencyPhone).HasMaxLength(200);
+        overseasOffice.Property(item => item.Note).HasMaxLength(600);
+        overseasOffice.Property(item => item.SourceName).HasMaxLength(150);
+        overseasOffice.Property(item => item.SourceUrl).HasMaxLength(500);
+
+        var emergencyGuide = modelBuilder.Entity<EmergencyGuide>();
+        emergencyGuide.ToTable("emergency_guides");
+        emergencyGuide.HasKey(item => item.Id);
+        emergencyGuide.HasIndex(item => new { item.CountryCode, item.Slug }).IsUnique();
+        emergencyGuide.Property(item => item.CountryCode).HasMaxLength(2);
+        emergencyGuide.Property(item => item.Slug).HasMaxLength(80);
+        emergencyGuide.Property(item => item.Title).HasMaxLength(150);
+        emergencyGuide.Property(item => item.Summary).HasMaxLength(600);
+        emergencyGuide.Property(item => item.SourceName).HasMaxLength(150);
+        emergencyGuide.Property(item => item.SourceUrl).HasMaxLength(500);
 
         SeedData(modelBuilder);
     }
@@ -108,6 +149,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 "旅遊警示",
                 5,
                 IntegrationStatus.Integrated),
+            Capability(
+                "f3166896-c438-4db1-840e-84b881685899",
+                taipeiId,
+                "emergency",
+                "應急資訊",
+                6,
+                IntegrationStatus.Integrated),
             Capability("09120313-ac73-4b78-a50d-524ff51087c7", tokyoId, "metro", "地鐵", 1),
             Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2),
             Capability(
@@ -123,6 +171,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 "alerts",
                 "旅遊警示",
                 4,
+                IntegrationStatus.Integrated),
+            Capability(
+                "ffcd687d-e144-4a4b-b21b-e30f394ae10a",
+                tokyoId,
+                "emergency",
+                "應急資訊",
+                5,
                 IntegrationStatus.Integrated));
     }
 

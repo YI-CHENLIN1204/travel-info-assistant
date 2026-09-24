@@ -4,7 +4,7 @@ import TransitView from '@/views/TransitView.vue'
 import FlightsView from '@/views/FlightsView.vue'
 import WeatherView from '@/views/WeatherView.vue'
 import AlertsView from '@/views/AlertsView.vue'
-import ModulePlaceholderView from '@/views/ModulePlaceholderView.vue'
+import EmergencyView from '@/views/EmergencyView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,8 +27,7 @@ const router = createRouter({
     {
       path: '/emergency',
       name: 'emergency',
-      component: ModulePlaceholderView,
-      props: { module: 'emergency' },
+      component: EmergencyView,
       meta: { title: '應急資訊' },
     },
   ],

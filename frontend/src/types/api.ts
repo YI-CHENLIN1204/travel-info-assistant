@@ -257,3 +257,46 @@ export interface TravelAlert {
   updatedAt: string | null
   sourceUrl: string
 }
+
+export interface EmergencyContact {
+  id: string
+  category: string
+  displayName: string
+  phoneNumber: string
+  note: string | null
+  sourceName: string
+  sourceUrl: string
+  verifiedOn: string
+}
+
+export interface OverseasOffice {
+  id: string
+  nameZh: string
+  address: string
+  mainPhone: string
+  emergencyPhone: string
+  note: string | null
+  sourceName: string
+  sourceUrl: string
+  verifiedOn: string
+}
+
+export interface EmergencyGuide {
+  id: string
+  slug: string
+  title: string
+  summary: string
+  steps: string[]
+  sourceName: string
+  sourceUrl: string
+  verifiedOn: string
+}
+
+export interface EmergencyInfo {
+  locationName: string
+  countryCode: string
+  contacts: EmergencyContact[]
+  overseasOffice: OverseasOffice | null
+  guides: EmergencyGuide[]
+  lastVerifiedOn: string
+}
