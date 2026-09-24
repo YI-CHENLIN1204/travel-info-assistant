@@ -40,7 +40,7 @@ const modules = [
     to: '/weather',
     icon: CloudSun,
     accent: 'amber',
-    detail: 'Phase 5 串接真實資料',
+    detail: 'Phase 5 · MET Norway 真實資料',
   },
   {
     title: '旅遊警示',
@@ -48,7 +48,7 @@ const modules = [
     to: '/alerts',
     icon: ShieldAlert,
     accent: 'coral',
-    detail: 'Phase 5 串接真實資料',
+    detail: 'Phase 5 尚未整合',
   },
   {
     title: '應急資訊',
@@ -56,7 +56,7 @@ const modules = [
     to: '/emergency',
     icon: Siren,
     accent: 'violet',
-    detail: 'Phase 5 串接真實資料',
+    detail: 'Phase 5 尚未整合',
   },
 ]
 
@@ -74,7 +74,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
         <StatusPill :tone="systemTone" :label="appStore.apiStatus === 'online' ? '系統連線正常' : '開發環境未連線'" />
         <h2>從{{ cityStore.currentCity.nameZh }}出發，<br />旅途中需要的資訊都在這裡。</h2>
         <p>
-          MVP 已提供台北公車、捷運與台鐵查詢。所有班次資訊都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
+          MVP 已提供台北大眾運輸、全球直飛航班與天氣預報。所有資料都會標示來源與更新時間，尚未串接的服務不會用假資料代替。
         </p>
       </div>
       <div class="welcome-visual" aria-hidden="true">

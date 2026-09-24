@@ -2,7 +2,7 @@
 
 以台灣旅客為主要使用者、可從 LINE 快速開啟的旅遊資訊助手。系統將整合台灣與海外大眾運輸、全球直飛航班、天氣、旅遊警示及當地應急資訊。
 
-> 目前進度：Phase 1～4 已完成；包含台北公車、台北捷運、台鐵，以及全球直飛航班與單一航班編號查詢。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
+> 目前進度：Phase 1～4 已完成，Phase 5 的全球天氣預報已上線；包含台北公車、台北捷運、台鐵、全球直飛航班、單一航班編號與天氣查詢。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
 
 ## MVP 邊界
 
@@ -47,6 +47,13 @@
 - Provider 未設定、額度用完或連線中斷時不產生假航班；合法舊快取仍可安全降級顯示。
 
 設定方式、快取與額度策略請參閱 [AeroDataBox 航班整合說明](docs/FLIGHTS_INTEGRATION.md)。
+
+## 已完成的天氣功能
+
+- 以目前城市或瀏覽器定位座標查詢 MET Norway 全球天氣預報。
+- 顯示目前體感、濕度、降雨、風向風速，以及未來 12 小時與 6 日預報。
+- 依來源的 `Expires` 共用快取，座標統一至四位小數，避免相同地點重複請求。
+- Provider 中斷時優先顯示合法舊快取並標示降級狀態，不產生假天氣資料。
 
 ## 專案結構
 
@@ -126,6 +133,8 @@ Vite 會把 `/api` 代理到 `http://localhost:8080`。
 | GET | `/api/v1/flights/search?origin=&destination=&date=` | 全球直飛航班查詢 |
 | GET | `/api/v1/flights/{flightNumber}?date=` | 航班編號查詢 |
 | GET | `/api/v1/flights/provider/status` | AeroDataBox 設定與本期用量 |
+| GET | `/api/v1/weather?cityId=` | 城市中心天氣預報 |
+| GET | `/api/v1/weather/location?lat=&lon=` | 指定座標天氣預報 |
 
 ## 驗證
 
@@ -153,6 +162,6 @@ dotnet test
 2. ✅ Phase 2：城市能力矩陣、首頁與定位切換。
 3. ✅ Phase 3：台北 TDX 公車、捷運與台鐵查詢。
 4. ✅ Phase 4：全球直飛航班與 AeroDataBox 額度防護。
-5. Phase 5：天氣、旅遊警示及應急資訊。
+5. 🚧 Phase 5：天氣已完成；旅遊警示及應急資訊待整合。
 6. Phase 6：東京 ODPT。
 7. Phase 7：測試、部署與履歷展示。
