@@ -244,3 +244,16 @@ export interface WeatherForecast {
   hourly: WeatherHourlyForecast[]
   daily: WeatherDailyForecast[]
 }
+
+export interface TravelAlert {
+  id: string
+  level: number
+  levelLabel: string
+  countryCode: string
+  countryNameZh: string
+  countryNameEn: string
+  regionName: string
+  summary: string
+  updatedAt: string | null
+  sourceUrl: string
+}

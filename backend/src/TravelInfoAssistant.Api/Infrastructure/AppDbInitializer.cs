@@ -53,22 +53,42 @@ public static class AppDbInitializer
             changed = true;
         }
 
-        var weatherDefinitions = new[]
+        var integratedDefinitions = new[]
         {
             new
             {
                 CityCode = "taipei",
                 Id = Guid.Parse("2ad9a7d4-b49b-4da5-a554-f046f00689b8"),
+                ServiceKey = "weather",
+                DisplayName = "天氣",
                 SortOrder = 4
             },
             new
             {
                 CityCode = "tokyo",
                 Id = Guid.Parse("bf60bfe0-0e19-43a3-86dc-434b3f6bba5d"),
+                ServiceKey = "weather",
+                DisplayName = "天氣",
                 SortOrder = 3
+            },
+            new
+            {
+                CityCode = "taipei",
+                Id = Guid.Parse("a93d797c-d305-4a82-a082-f2bc5279d1fb"),
+                ServiceKey = "alerts",
+                DisplayName = "旅遊警示",
+                SortOrder = 5
+            },
+            new
+            {
+                CityCode = "tokyo",
+                Id = Guid.Parse("05c4a5b2-5c5e-477d-a968-95f96276bb31"),
+                ServiceKey = "alerts",
+                DisplayName = "旅遊警示",
+                SortOrder = 4
             }
         };
-        foreach (var definition in weatherDefinitions)
+        foreach (var definition in integratedDefinitions)
         {
             var city = await dbContext.Cities
                 .FirstOrDefaultAsync(item => item.Code == definition.CityCode);
@@ -77,17 +97,17 @@ public static class AppDbInitializer
                 continue;
             }
 
-            var weather = await dbContext.CityServiceCapabilities
+            var capability = await dbContext.CityServiceCapabilities
                 .FirstOrDefaultAsync(item =>
-                    item.CityId == city.Id && item.ServiceKey == "weather");
-            if (weather is null)
+                    item.CityId == city.Id && item.ServiceKey == definition.ServiceKey);
+            if (capability is null)
             {
                 dbContext.CityServiceCapabilities.Add(new CityServiceCapability
                 {
                     Id = definition.Id,
                     CityId = city.Id,
-                    ServiceKey = "weather",
-                    DisplayName = "天氣",
+                    ServiceKey = definition.ServiceKey,
+                    DisplayName = definition.DisplayName,
                     IntegrationStatus = IntegrationStatus.Integrated,
                     AvailabilityStatus = AvailabilityStatus.Available,
                     SortOrder = definition.SortOrder
@@ -96,11 +116,11 @@ public static class AppDbInitializer
                 continue;
             }
 
-            if (weather.IntegrationStatus != IntegrationStatus.Integrated ||
-                weather.AvailabilityStatus != AvailabilityStatus.Available)
+            if (capability.IntegrationStatus != IntegrationStatus.Integrated ||
+                capability.AvailabilityStatus != AvailabilityStatus.Available)
             {
-                weather.IntegrationStatus = IntegrationStatus.Integrated;
-                weather.AvailabilityStatus = AvailabilityStatus.Available;
+                capability.IntegrationStatus = IntegrationStatus.Integrated;
+                capability.AvailabilityStatus = AvailabilityStatus.Available;
                 changed = true;
             }
         }

@@ -48,7 +48,7 @@ const modules = [
     to: '/alerts',
     icon: ShieldAlert,
     accent: 'coral',
-    detail: 'Phase 5 尚未整合',
+    detail: 'Phase 5 · BOCA 官方警示',
   },
   {
     title: '應急資訊',

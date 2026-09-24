@@ -3,6 +3,7 @@ import HomeView from '@/views/HomeView.vue'
 import TransitView from '@/views/TransitView.vue'
 import FlightsView from '@/views/FlightsView.vue'
 import WeatherView from '@/views/WeatherView.vue'
+import AlertsView from '@/views/AlertsView.vue'
 import ModulePlaceholderView from '@/views/ModulePlaceholderView.vue'
 
 const router = createRouter({
@@ -20,8 +21,7 @@ const router = createRouter({
     {
       path: '/alerts',
       name: 'alerts',
-      component: ModulePlaceholderView,
-      props: { module: 'alerts' },
+      component: AlertsView,
       meta: { title: '旅遊警示' },
     },
     {

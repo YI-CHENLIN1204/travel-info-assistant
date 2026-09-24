@@ -6,9 +6,11 @@ using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Infrastructure;
 using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
+using TravelInfoAssistant.Api.Providers.Boca;
 using TravelInfoAssistant.Api.Providers.MetNorway;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
+using TravelInfoAssistant.Api.Services.Alerts;
 using TravelInfoAssistant.Api.Services.Flights;
 using TravelInfoAssistant.Api.Services.Transit;
 using TravelInfoAssistant.Api.Services.Weather;
@@ -33,6 +35,8 @@ builder.Services.Configure<AeroDataBoxOptions>(
     builder.Configuration.GetSection(AeroDataBoxOptions.SectionName));
 builder.Services.Configure<MetNorwayOptions>(
     builder.Configuration.GetSection(MetNorwayOptions.SectionName));
+builder.Services.Configure<BocaOptions>(
+    builder.Configuration.GetSection(BocaOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -59,6 +63,17 @@ builder.Services
     .AddHttpClient("met-norway-api", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<MetNorwayOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("boca-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<BocaOptions>>().Value;
         client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
     })
@@ -95,6 +110,7 @@ builder.Services.AddScoped<ISystemHealthService, SystemHealthService>();
 builder.Services.AddScoped<ITransitService, TransitService>();
 builder.Services.AddScoped<IFlightService, FlightService>();
 builder.Services.AddScoped<IWeatherService, WeatherService>();
+builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
 builder.Services.AddSingleton<IProviderCache, ProviderCache>();
 builder.Services.AddSingleton<IAirportCatalog, AirportCatalog>();
 builder.Services.AddSingleton<ITdxRateGate, TdxRateGate>();
@@ -109,6 +125,8 @@ builder.Services.AddSingleton<IAeroDataBoxFlightProvider, AeroDataBoxFlightProvi
 builder.Services.AddSingleton<IMetNorwayRateGate, MetNorwayRateGate>();
 builder.Services.AddSingleton<IMetNorwayApiClient, MetNorwayApiClient>();
 builder.Services.AddSingleton<IMetNorwayWeatherProvider, MetNorwayWeatherProvider>();
+builder.Services.AddSingleton<IBocaApiClient, BocaApiClient>();
+builder.Services.AddSingleton<IBocaAlertsProvider, BocaAlertsProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")
