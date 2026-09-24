@@ -11,7 +11,7 @@ public static partial class BocaAlertMapper
     private static readonly CountryProfile[] Countries =
     [
         new("JP", "日本", "Japan"),
-        new("KR", "韓國", "Korea"),
+        new("KR", "韓國", "Korea (South Korea)"),
         new("TH", "泰國", "Thailand"),
         new("US", "美國", "United States"),
         new("FR", "法國", "France"),
