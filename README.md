@@ -84,6 +84,7 @@ docker compose -f compose.yaml -f compose.codespaces.yaml up -d --build
 ```
 
 - `.devcontainer/devcontainer.json` 會自動將 Web 的 `5173` 轉送為 HTTP，並只開啟一次瀏覽器。
+- Codespaces 覆寫檔讓 Web 的 Nginx 直接監聽主機 `5173`，不再經過 Docker port publishing／`docker-proxy`。
 - 瀏覽器中的 Codespaces 網址仍會顯示 `https://...app.github.dev`；這是 GitHub 對外提供的 HTTPS，容器內的 Nginx 仍使用 HTTP，請勿將 5173 的 Port Protocol 改成 HTTPS。
 - PostgreSQL `5432`、Redis `6379` 與 API `8080` 只供 Codespace 內部服務使用，不會自動對外轉送。
 - 既有 Codespace 第一次取得這項設定時，請執行一次 **Codespaces: Rebuild Container**；重建後 5173 會由 `forwardPorts` 管理，不再恢復舊的「使用者轉送」。
