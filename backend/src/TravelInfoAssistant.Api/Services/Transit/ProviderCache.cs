@@ -9,7 +9,8 @@ public sealed record ProviderPayload<T>(
     T Data,
     string DataStatus,
     DateTimeOffset? SourceUpdatedAt,
-    DateTimeOffset FetchedAt);
+    DateTimeOffset FetchedAt,
+    DateTimeOffset? ExpiresAt = null);
 
 public interface IProviderCache
 {
@@ -60,7 +61,8 @@ public sealed class ProviderCache(
                     fresh.Data,
                     fresh.DataStatus,
                     fresh.SourceUpdatedAt,
-                    fresh.FetchedAt);
+                    fresh.FetchedAt,
+                    fresh.ExpiresAt);
                 await WriteAsync(key, envelope, retainFor, cancellationToken);
 
                 return new ProviderQueryResult<T>(
@@ -90,8 +92,18 @@ public sealed class ProviderCache(
         }
     }
 
-    private bool IsFresh<T>(CacheEnvelope<T>? envelope, TimeSpan freshFor) =>
-        envelope is not null && timeProvider.GetUtcNow() - envelope.FetchedAt <= freshFor;
+    private bool IsFresh<T>(CacheEnvelope<T>? envelope, TimeSpan freshFor)
+    {
+        if (envelope is null)
+        {
+            return false;
+        }
+
+        var expiresAt = envelope.ExpiresAt is > envelope.FetchedAt
+            ? envelope.ExpiresAt.Value
+            : envelope.FetchedAt.Add(freshFor);
+        return timeProvider.GetUtcNow() <= expiresAt;
+    }
 
     private static ProviderQueryResult<T> FromCache<T>(
         CacheEnvelope<T> envelope,
@@ -161,5 +173,6 @@ public sealed class ProviderCache(
         T Data,
         string DataStatus,
         DateTimeOffset? SourceUpdatedAt,
-        DateTimeOffset FetchedAt);
+        DateTimeOffset FetchedAt,
+        DateTimeOffset? ExpiresAt = null);
 }

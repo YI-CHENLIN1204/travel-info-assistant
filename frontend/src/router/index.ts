@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import TransitView from '@/views/TransitView.vue'
 import FlightsView from '@/views/FlightsView.vue'
+import WeatherView from '@/views/WeatherView.vue'
 import ModulePlaceholderView from '@/views/ModulePlaceholderView.vue'
 
 const router = createRouter({
@@ -13,8 +14,7 @@ const router = createRouter({
     {
       path: '/weather',
       name: 'weather',
-      component: ModulePlaceholderView,
-      props: { module: 'weather' },
+      component: WeatherView,
       meta: { title: '天氣' },
     },
     {

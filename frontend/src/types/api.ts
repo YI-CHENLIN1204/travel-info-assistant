@@ -202,3 +202,45 @@ export interface AeroDataBoxProviderStatus {
   overageEnabled: boolean
   pricingVerifiedAt: string
 }
+
+export interface WeatherCurrent {
+  time: string
+  temperatureCelsius: number | null
+  apparentTemperatureCelsius: number | null
+  precipitationMillimeters: number | null
+  precipitationProbabilityPercent: number | null
+  humidityPercent: number | null
+  windSpeedMetersPerSecond: number | null
+  windFromDirectionDegrees: number | null
+  conditionCode: string
+  conditionLabel: string
+}
+
+export interface WeatherHourlyForecast {
+  time: string
+  temperatureCelsius: number | null
+  precipitationMillimeters: number | null
+  precipitationProbabilityPercent: number | null
+  conditionCode: string
+  conditionLabel: string
+}
+
+export interface WeatherDailyForecast {
+  date: string
+  minimumTemperatureCelsius: number | null
+  maximumTemperatureCelsius: number | null
+  precipitationMillimeters: number | null
+  precipitationProbabilityPercent: number | null
+  conditionCode: string
+  conditionLabel: string
+}
+
+export interface WeatherForecast {
+  locationName: string
+  latitude: number
+  longitude: number
+  timeZone: string
+  current: WeatherCurrent
+  hourly: WeatherHourlyForecast[]
+  daily: WeatherDailyForecast[]
+}

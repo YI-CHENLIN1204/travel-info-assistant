@@ -50,6 +50,7 @@ services:
       AeroDataBox__MonthlyHardLimitUnits: ${AERODATABOX_MONTHLY_HARD_LIMIT_UNITS:-400}
       AeroDataBox__MonthlyTrafficSoftLimitBytes: ${AERODATABOX_MONTHLY_TRAFFIC_SOFT_LIMIT_BYTES:-9000000000}
       AeroDataBox__RequestsPerSecond: ${AERODATABOX_REQUESTS_PER_SECOND:-1}
+      MetNorway__UserAgent: ${METNORWAY_USER_AGENT:-TravelInfoAssistant/0.1 https://github.com/YI-CHENLIN1204/travel-info-assistant}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:

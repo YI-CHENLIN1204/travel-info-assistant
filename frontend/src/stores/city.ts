@@ -18,11 +18,16 @@ const fallbackTaipei: City = {
 }
 
 type LocationStatus = 'idle' | 'requesting' | 'resolved' | 'denied' | 'unavailable' | 'unsupported'
+export interface CurrentCoordinates {
+  latitude: number
+  longitude: number
+}
 
 export const useCityStore = defineStore('city', () => {
   const cities = ref<City[]>([])
   const selectedCityId = ref<string | null>(null)
   const suggestedCity = ref<City | null>(null)
+  const currentCoordinates = ref<CurrentCoordinates | null>(null)
   const locationStatus = ref<LocationStatus>('idle')
   const loading = ref(false)
 
@@ -60,6 +65,10 @@ export const useCityStore = defineStore('city', () => {
     locationStatus.value = 'requesting'
     try {
       const position = await getBrowserPosition()
+      currentCoordinates.value = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }
       const result = await resolveCity(position.coords.latitude, position.coords.longitude)
 
       if (!result.supported || !result.city) {
@@ -91,6 +100,7 @@ export const useCityStore = defineStore('city', () => {
     currentCity,
     selectedCityId,
     suggestedCity,
+    currentCoordinates,
     locationStatus,
     loading,
     initialize,

@@ -94,8 +94,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 "台鐵",
                 3,
                 IntegrationStatus.Integrated),
+            Capability(
+                "2ad9a7d4-b49b-4da5-a554-f046f00689b8",
+                taipeiId,
+                "weather",
+                "天氣",
+                4,
+                IntegrationStatus.Integrated),
             Capability("09120313-ac73-4b78-a50d-524ff51087c7", tokyoId, "metro", "地鐵", 1),
-            Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2));
+            Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2),
+            Capability(
+                "bf60bfe0-0e19-43a3-86dc-434b3f6bba5d",
+                tokyoId,
+                "weather",
+                "天氣",
+                3,
+                IntegrationStatus.Integrated));
     }
 
     private static CityServiceCapability Capability(
