@@ -18,7 +18,10 @@ public sealed class AeroDataBoxFlight
     public bool IsCargo { get; init; }
     public AeroDataBoxAirline? Airline { get; init; }
     public AeroDataBoxAircraft? Aircraft { get; init; }
-    public DateTimeOffset? LastUpdatedUtc { get; init; }
+    // AeroDataBox occasionally returns a valid UTC timestamp that is not in the
+    // strict ISO 8601 profile accepted by System.Text.Json. Keep the provider
+    // value as text so one metadata field cannot invalidate the whole flight.
+    public string? LastUpdatedUtc { get; init; }
 }
 
 public sealed class AeroDataBoxMovement

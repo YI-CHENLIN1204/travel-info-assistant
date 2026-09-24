@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using Xunit;
@@ -14,6 +15,24 @@ public sealed class AeroDataBoxFlightMapperTests
         "TW",
         25.0777,
         121.233);
+
+    [Fact]
+    public void Deserialize_PreservesNonStandardProviderTimestamp()
+    {
+        const string json = """
+            {
+              "number": "BR891",
+              "lastUpdatedUtc": "2026-09-23 23:40:00Z"
+            }
+            """;
+
+        var flight = JsonSerializer.Deserialize<AeroDataBoxFlight>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.NotNull(flight);
+        Assert.Equal("2026-09-23 23:40:00Z", flight.LastUpdatedUtc);
+    }
 
     [Fact]
     public void MapFidsFlight_MapsDirectLegAndEstimatedTimes()
@@ -65,7 +84,7 @@ public sealed class AeroDataBoxFlightMapperTests
                 "1",
                 "42",
                 "2026-09-23T13:28+09:00"),
-            LastUpdatedUtc = DateTimeOffset.Parse("2026-09-23T04:40:00Z")
+            LastUpdatedUtc = "2026-09-23T04:40:00Z"
         };
 
         var result = AeroDataBoxFlightMapper.MapFlight(flight);
@@ -75,6 +94,47 @@ public sealed class AeroDataBoxFlightMapperTests
         Assert.Equal("2026-09-23T13:28+09:00", result.Arrival.Actual?.Local);
         Assert.Null(result.Arrival.Estimated);
         Assert.Equal("42", result.Arrival.Gate);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-09-23T04:40:00Z"),
+            result.SourceUpdatedAt);
+    }
+
+    [Fact]
+    public void MapFlight_AcceptsProviderTimestampWithSpaceSeparator()
+    {
+        var flight = new AeroDataBoxFlight
+        {
+            Number = "BR891",
+            Status = "Expected",
+            Departure = Movement("TPE", "RCTP", "2026-09-24T07:00+08:00", "2", "C6"),
+            Arrival = Movement("HKG", "VHHH", "2026-09-24T08:55+08:00", "1", null),
+            LastUpdatedUtc = "2026-09-23 23:40:00Z"
+        };
+
+        var result = AeroDataBoxFlightMapper.MapFlight(flight);
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            DateTimeOffset.Parse("2026-09-23T23:40:00Z"),
+            result.SourceUpdatedAt);
+    }
+
+    [Fact]
+    public void MapFlight_IgnoresInvalidProviderTimestamp()
+    {
+        var flight = new AeroDataBoxFlight
+        {
+            Number = "BR891",
+            Status = "Expected",
+            Departure = Movement("TPE", "RCTP", "2026-09-24T07:00+08:00", "2", "C6"),
+            Arrival = Movement("HKG", "VHHH", "2026-09-24T08:55+08:00", "1", null),
+            LastUpdatedUtc = "not-a-timestamp"
+        };
+
+        var result = AeroDataBoxFlightMapper.MapFlight(flight);
+
+        Assert.NotNull(result);
+        Assert.Null(result.SourceUpdatedAt);
     }
 
     [Fact]

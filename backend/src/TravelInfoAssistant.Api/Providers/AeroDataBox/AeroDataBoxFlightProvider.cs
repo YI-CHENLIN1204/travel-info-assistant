@@ -125,7 +125,8 @@ public sealed class AeroDataBoxFlightProvider(
                 return new ProviderPayload<IReadOnlyList<FlightItineraryResponse>>(
                     flights,
                     source.Any(AeroDataBoxFlightMapper.HasLiveData) ? "realtime" : "scheduled",
-                    Latest(source.Select(item => item.LastUpdatedUtc)) ?? response.LastModified,
+                    Latest(source.Select(AeroDataBoxFlightMapper.GetLastUpdatedUtc)) ??
+                    response.LastModified,
                     response.FetchedAt);
             },
             cancellationToken);

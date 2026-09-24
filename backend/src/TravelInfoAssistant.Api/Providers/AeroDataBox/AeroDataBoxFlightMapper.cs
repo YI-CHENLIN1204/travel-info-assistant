@@ -68,6 +68,9 @@ public static class AeroDataBoxFlightMapper
         HasLiveQuality(flight.Arrival) ||
         HasLiveQuality(flight.Movement);
 
+    public static DateTimeOffset? GetLastUpdatedUtc(AeroDataBoxFlight flight) =>
+        ParseUtcTimestamp(flight.LastUpdatedUtc);
+
     private static FlightSegmentResponse Map(
         AeroDataBoxFlight flight,
         FlightMovementResponse departure,
@@ -100,7 +103,7 @@ public static class AeroDataBoxFlightMapper
             aircraft,
             departure,
             arrival,
-            flight.LastUpdatedUtc);
+            GetLastUpdatedUtc(flight));
     }
 
     private static FlightMovementResponse MapMovement(
@@ -169,6 +172,24 @@ public static class AeroDataBoxFlightMapper
     private static bool HasLiveQuality(AeroDataBoxMovement? movement) =>
         movement?.Quality.Any(item =>
             string.Equals(item, "Live", StringComparison.OrdinalIgnoreCase)) == true;
+
+    private static DateTimeOffset? ParseUtcTimestamp(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AllowWhiteSpaces |
+            DateTimeStyles.AssumeUniversal |
+            DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
+    }
 
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
