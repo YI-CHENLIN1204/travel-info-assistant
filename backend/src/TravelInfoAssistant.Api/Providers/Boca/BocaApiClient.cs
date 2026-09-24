@@ -23,7 +23,7 @@ public sealed class BocaApiClient(
         {
             var client = httpClientFactory.CreateClient("boca-api");
             using var request = new HttpRequestMessage(HttpMethod.Get, options.Value.RssPath);
-            request.Headers.UserAgent.ParseAdd(options.Value.UserAgent);
+            request.Headers.TryAddWithoutValidation("User-Agent", options.Value.UserAgent);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/rss+xml"));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
             if (_etag is not null)
