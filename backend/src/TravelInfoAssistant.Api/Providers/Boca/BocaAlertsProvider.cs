@@ -18,7 +18,7 @@ public sealed class BocaAlertsProvider(
         try
         {
             return await cache.GetOrCreateAsync<IReadOnlyList<TravelAlertResponse>>(
-                "alerts:boca:rss:v1",
+                "alerts:boca:rss:v2",
                 FreshFor,
                 RetainFor,
                 async token =>
