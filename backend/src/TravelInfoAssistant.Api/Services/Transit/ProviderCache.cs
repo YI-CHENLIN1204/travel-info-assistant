@@ -99,7 +99,8 @@ public sealed class ProviderCache(
             return false;
         }
 
-        var expiresAt = envelope.ExpiresAt is > envelope.FetchedAt
+        var expiresAt = envelope.ExpiresAt.HasValue &&
+                        envelope.ExpiresAt.Value > envelope.FetchedAt
             ? envelope.ExpiresAt.Value
             : envelope.FetchedAt.Add(freshFor);
         return timeProvider.GetUtcNow() <= expiresAt;
