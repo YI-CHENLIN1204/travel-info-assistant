@@ -10,7 +10,7 @@ namespace TravelInfoAssistant.Api.Controllers;
 public sealed class WeatherController(IWeatherService weatherService) : ControllerBase
 {
     [HttpGet]
-    [ProducesResponseType<ApiResponse<WeatherResponse?>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<WeatherResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<WeatherResponse?>>> GetCityWeather(
         [FromQuery] Guid cityId,
@@ -26,7 +26,7 @@ public sealed class WeatherController(IWeatherService weatherService) : Controll
     }
 
     [HttpGet("location")]
-    [ProducesResponseType<ApiResponse<WeatherResponse?>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<WeatherResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<WeatherResponse?>>> GetLocationWeather(
         [FromQuery] double lat,
