@@ -36,7 +36,10 @@ public sealed record MetroStationResponse(
     string? NameEn,
     string? Address,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    string? Code = null,
+    string? RailwayId = null,
+    string? RailwayName = null);
 
 public sealed record RailStationResponse(
     string Id,

@@ -31,6 +31,11 @@ public interface ITransitService
         string? query,
         CancellationToken cancellationToken);
 
+    Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> SearchMetroRoutesAsync(
+        Guid cityId,
+        string? query,
+        CancellationToken cancellationToken);
+
     Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetMetroArrivalsAsync(
         Guid cityId,
         string stationId,

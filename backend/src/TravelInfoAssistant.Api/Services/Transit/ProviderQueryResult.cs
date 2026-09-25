@@ -6,17 +6,20 @@ public sealed record ProviderQueryResult<T>(
     DateTimeOffset? SourceUpdatedAt,
     DateTimeOffset FetchedAt,
     bool Stale,
-    string? Message)
+    string? Message,
+    string Source = "TDX")
 {
     public static ProviderQueryResult<T> Unavailable(
         T fallback,
         string message,
-        TimeProvider timeProvider) =>
+        TimeProvider timeProvider,
+        string source = "TDX") =>
         new(
             fallback,
             "unavailable",
             null,
             timeProvider.GetUtcNow(),
             false,
-            message);
+            message,
+            source);
 }

@@ -8,6 +8,7 @@ using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
 using TravelInfoAssistant.Api.Providers.MetNorway;
+using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
 using TravelInfoAssistant.Api.Services.Alerts;
@@ -38,6 +39,8 @@ builder.Services.Configure<MetNorwayOptions>(
     builder.Configuration.GetSection(MetNorwayOptions.SectionName));
 builder.Services.Configure<BocaOptions>(
     builder.Configuration.GetSection(BocaOptions.SectionName));
+builder.Services.Configure<OdptOptions>(
+    builder.Configuration.GetSection(OdptOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -75,6 +78,17 @@ builder.Services
     .AddHttpClient("boca-api", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<BocaOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("odpt-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<OdptOptions>>().Value;
         client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
     })
@@ -129,6 +143,8 @@ builder.Services.AddSingleton<IMetNorwayApiClient, MetNorwayApiClient>();
 builder.Services.AddSingleton<IMetNorwayWeatherProvider, MetNorwayWeatherProvider>();
 builder.Services.AddSingleton<IBocaApiClient, BocaApiClient>();
 builder.Services.AddSingleton<IBocaAlertsProvider, BocaAlertsProvider>();
+builder.Services.AddSingleton<IOdptApiClient, OdptApiClient>();
+builder.Services.AddSingleton<IOdptTransitProvider, OdptTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

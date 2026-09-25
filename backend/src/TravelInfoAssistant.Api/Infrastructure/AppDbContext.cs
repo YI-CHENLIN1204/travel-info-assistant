@@ -156,7 +156,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 "應急資訊",
                 6,
                 IntegrationStatus.Integrated),
-            Capability("09120313-ac73-4b78-a50d-524ff51087c7", tokyoId, "metro", "地鐵", 1),
+            Capability(
+                "09120313-ac73-4b78-a50d-524ff51087c7",
+                tokyoId,
+                "metro",
+                "地鐵",
+                1,
+                IntegrationStatus.Integrated),
             Capability("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb", tokyoId, "bus", "都營巴士", 2),
             Capability(
                 "bf60bfe0-0e19-43a3-86dc-434b3f6bba5d",

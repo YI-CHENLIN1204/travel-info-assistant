@@ -1,4 +1,5 @@
 using TravelInfoAssistant.Api.Contracts;
+using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 
 namespace TravelInfoAssistant.Api.Services.Transit;
@@ -6,6 +7,7 @@ namespace TravelInfoAssistant.Api.Services.Transit;
 public sealed class TransitService(
     ICityService cityService,
     ITdxTransitProvider tdxProvider,
+    IOdptTransitProvider odptProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -85,15 +87,43 @@ public sealed class TransitService(
         string? query,
         CancellationToken cancellationToken)
     {
-        if (!await IsTaipeiAsync(cityId, "metro", cancellationToken))
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
+        ProviderQueryResult<IReadOnlyList<MetroStationResponse>> result;
+        if (cityCode == "taipei")
+        {
+            result = await tdxProvider.GetMetroStationsAsync(cancellationToken);
+        }
+        else if (cityCode == "tokyo")
+        {
+            result = await odptProvider.GetMetroStationsAsync(cancellationToken);
+        }
+        else
         {
             return Unavailable<MetroStationResponse>("這個城市目前尚未整合捷運查詢。");
         }
 
-        var result = await tdxProvider.GetMetroStationsAsync(cancellationToken);
         var search = query?.Trim();
         var filtered = result.Data
             .Where(item => string.IsNullOrWhiteSpace(search) || MatchesStation(item, search))
+            .Take(50)
+            .ToList();
+        return CopyMetadata(result, filtered);
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> SearchMetroRoutesAsync(
+        Guid cityId,
+        string? query,
+        CancellationToken cancellationToken)
+    {
+        if (await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken) != "tokyo")
+        {
+            return Unavailable<TransitRouteResponse>("目前僅提供東京地鐵路線搜尋。", "ODPT");
+        }
+
+        var result = await odptProvider.GetMetroRoutesAsync(cancellationToken);
+        var search = query?.Trim();
+        var filtered = result.Data
+            .Where(item => string.IsNullOrWhiteSpace(search) || MatchesRoute(item, search))
             .Take(50)
             .ToList();
         return CopyMetadata(result, filtered);
@@ -104,7 +134,13 @@ public sealed class TransitService(
         string stationId,
         CancellationToken cancellationToken)
     {
-        if (!await IsTaipeiAsync(cityId, "metro", cancellationToken))
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
+        if (cityCode == "tokyo")
+        {
+            return Unavailable<TransitArrivalResponse>("東京地鐵即時到站將在下一階段整合。", "ODPT");
+        }
+
+        if (cityCode != "taipei")
         {
             return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合捷運查詢。");
         }
@@ -157,11 +193,26 @@ public sealed class TransitService(
             item.ServiceKey == serviceKey && item.IntegrationStatus == "integrated");
     }
 
-    private ProviderQueryResult<IReadOnlyList<T>> Unavailable<T>(string message) =>
+    private async Task<string?> GetIntegratedCityCodeAsync(
+        Guid cityId,
+        string serviceKey,
+        CancellationToken cancellationToken)
+    {
+        var city = await cityService.GetCityAsync(cityId, cancellationToken);
+        return city?.Services.Any(item =>
+            item.ServiceKey == serviceKey && item.IntegrationStatus == "integrated") == true
+            ? city.Code
+            : null;
+    }
+
+    private ProviderQueryResult<IReadOnlyList<T>> Unavailable<T>(
+        string message,
+        string source = "TDX") =>
         ProviderQueryResult<IReadOnlyList<T>>.Unavailable(
             Array.Empty<T>(),
             message,
-            timeProvider);
+            timeProvider,
+            source);
 
     private static bool MatchesRoute(TransitRouteResponse route, string search) =>
         Contains(route.NameZh, search) ||
@@ -174,7 +225,10 @@ public sealed class TransitService(
         Contains(station.Id, search) ||
         Contains(station.NameZh, search) ||
         Contains(station.NameEn, search) ||
-        Contains(station.Address, search);
+        Contains(station.Address, search) ||
+        Contains(station.Code, search) ||
+        Contains(station.RailwayId, search) ||
+        Contains(station.RailwayName, search);
 
     private static bool MatchesStation(RailStationResponse station, string search) =>
         Contains(station.Id, search) ||
@@ -204,5 +258,6 @@ public sealed class TransitService(
             source.SourceUpdatedAt,
             source.FetchedAt,
             source.Stale,
-            source.Message);
+            source.Message,
+            source.Source);
 }

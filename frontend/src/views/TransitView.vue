@@ -46,13 +46,26 @@ const activeService = computed(() =>
   integratedServices.value.find((service) => service.serviceKey === transitStore.activeMode),
 )
 
+const isTokyo = computed(() => cityStore.currentCity.code === 'tokyo')
 const providerConfigured = computed(() => transitStore.providerStatus?.configured === true)
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
   if (availableModes.value.length === 0) return 'neutral'
+  if (isTokyo.value) {
+    if (!transitStore.resultMeta || transitStore.resultMeta.source !== 'ODPT') return 'neutral'
+    return transitStore.resultMeta.dataStatus === 'unavailable' ? 'warning' : 'ready'
+  }
   return providerConfigured.value ? 'ready' : 'warning'
 })
 const statusLabel = computed(() => {
   if (availableModes.value.length === 0) return '此城市尚未整合'
+  if (isTokyo.value) {
+    if (!transitStore.resultMeta || transitStore.resultMeta.source !== 'ODPT') {
+      return 'ODPT 連線確認中'
+    }
+    return transitStore.resultMeta.dataStatus === 'unavailable'
+      ? 'ODPT 金鑰或服務待確認'
+      : 'ODPT 官方資料已啟用'
+  }
   return providerConfigured.value ? 'TDX 真實資料已啟用' : 'TDX 金鑰待設定'
 })
 const serviceSignature = computed(() =>
@@ -73,7 +86,7 @@ watch(
   [() => cityStore.currentCity.id, serviceSignature],
   async () => {
     transitStore.resetResults()
-    await transitStore.loadProviderStatus()
+    if (!isTokyo.value) await transitStore.loadProviderStatus()
     const firstMode = availableModes.value[0]
     if (!firstMode) return
 
@@ -113,7 +126,11 @@ async function loadModeIndex(mode: TransitModeKey): Promise<void> {
     await transitStore.searchBusRoutes(cityId)
   }
   if (mode === 'metro' && transitStore.stations.length === 0) {
-    await transitStore.searchMetroStations(cityId)
+    if (isTokyo.value) {
+      await transitStore.searchTokyoMetro(cityId)
+    } else {
+      await transitStore.searchMetroStations(cityId)
+    }
   }
   if (mode === 'rail' && transitStore.railStations.length === 0) {
     await transitStore.searchRailStations(cityId)
@@ -143,7 +160,11 @@ function selectStop(stop: TransitStop): void {
 }
 
 function submitMetroSearch(): void {
-  void transitStore.searchMetroStations(cityStore.currentCity.id)
+  if (isTokyo.value) {
+    void transitStore.searchTokyoMetro(cityStore.currentCity.id)
+  } else {
+    void transitStore.searchMetroStations(cityStore.currentCity.id)
+  }
 }
 
 function selectStation(station: MetroStation): void {
@@ -207,7 +228,12 @@ function formatTimestamp(value: string | null | undefined): string {
         <StatusPill :tone="statusTone" :label="statusLabel" />
         <h2>{{ cityStore.currentCity.nameZh }}大眾運輸</h2>
         <p>
-          查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
+          <template v-if="isTokyo">
+            查詢 Tokyo Metro 路線與車站；資料由後端統一向 ODPT 取得並共用快取。
+          </template>
+          <template v-else>
+            查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
+          </template>
         </p>
       </div>
       <div class="intro-icon"><MapPinned :size="34" /></div>
@@ -383,6 +409,86 @@ function formatTimestamp(value: string | null | undefined): string {
 
         <div v-else-if="!transitStore.loading" class="inline-empty standalone">
           {{ transitStore.resultMeta?.message ?? '沒有符合條件的公車路線。' }}
+        </div>
+      </template>
+
+      <template v-else-if="transitStore.activeMode === 'metro' && isTokyo">
+        <form class="transit-search-form" @submit.prevent="submitMetroSearch">
+          <label>
+            <span>東京地鐵路線、車站名或車站代碼</span>
+            <span class="input-shell">
+              <Search :size="18" />
+              <input
+                v-model="transitStore.metroQuery"
+                maxlength="50"
+                autocomplete="off"
+                placeholder="例如：銀座、Tokyo、G09"
+              />
+            </span>
+          </label>
+          <button class="button button-primary search-button" type="submit" :disabled="transitStore.loading">
+            {{ transitStore.loading ? '查詢中' : '查詢路線與車站' }}
+          </button>
+        </form>
+
+        <div
+          v-if="transitStore.metroRoutes.length || transitStore.stations.length"
+          class="transit-results-layout"
+        >
+          <section class="selection-panel">
+            <div class="panel-heading-row">
+              <div>
+                <span class="eyebrow">TOKYO METRO LINES</span>
+                <h3>路線</h3>
+              </div>
+              <span>{{ transitStore.metroRoutes.length }} 筆</span>
+            </div>
+            <div class="route-result-list">
+              <article
+                v-for="route in transitStore.metroRoutes"
+                :key="route.id"
+                class="route-result static-result"
+              >
+                <strong>{{ route.nameZh }}</strong>
+                <span>{{ route.nameEn ?? 'Tokyo Metro' }}</span>
+                <small>{{ route.originName ?? '起點待確認' }} → {{ route.destinationName ?? '終點待確認' }}</small>
+              </article>
+              <div v-if="!transitStore.metroRoutes.length" class="inline-empty">
+                沒有符合條件的路線。
+              </div>
+            </div>
+          </section>
+
+          <section class="arrival-panel">
+            <div class="panel-heading-row">
+              <div>
+                <span class="eyebrow">TOKYO METRO STATIONS</span>
+                <h3>車站</h3>
+              </div>
+              <span>{{ transitStore.stations.length }} 筆</span>
+            </div>
+            <div class="route-result-list">
+              <article
+                v-for="station in transitStore.stations"
+                :key="station.id"
+                class="route-result static-result"
+              >
+                <strong>{{ station.nameZh }}</strong>
+                <span>{{ station.nameEn ?? station.railwayName ?? 'Tokyo Metro' }}</span>
+                <small>
+                  {{ station.code ?? '代碼待確認' }}
+                  <template v-if="station.railwayName"> · {{ station.railwayName }}</template>
+                </small>
+              </article>
+              <div v-if="!transitStore.stations.length" class="inline-empty">
+                沒有符合條件的車站。
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div v-else-if="!transitStore.loading" class="inline-empty standalone">
+          {{ transitStore.resultMeta?.message ?? '沒有符合條件的東京地鐵路線或車站。' }}
         </div>
       </template>
 
@@ -589,7 +695,7 @@ function formatTimestamp(value: string | null | undefined): string {
       <p>這不代表{{ cityStore.currentCity.nameZh }}沒有大眾運輸，而是目前版本尚未完成該城市的資料源串接。</p>
     </section>
 
-    <section class="transit-insights">
+    <section v-if="!isTokyo" class="transit-insights">
       <article class="quota-panel">
         <div class="panel-icon"><Gauge :size="21" /></div>
         <div>
@@ -624,6 +730,30 @@ function formatTimestamp(value: string | null | undefined): string {
           <li><strong>60 分鐘內</strong><span>顯示即時預估</span></li>
           <li><strong>少於 1 分鐘</strong><span>顯示「即將進站」</span></li>
           <li><strong>即時資料過期</strong><span>降級為表定時間</span></li>
+        </ul>
+      </article>
+    </section>
+
+    <section v-else class="transit-insights">
+      <article class="quota-panel">
+        <div class="panel-icon"><Database :size="21" /></div>
+        <div>
+          <span class="eyebrow">OFFICIAL OPEN DATA</span>
+          <h3>ODPT 東京地鐵資料</h3>
+        </div>
+        <p>路線與車站資料由後端共用快取；畫面不會讓每位使用者直接呼叫 ODPT。</p>
+      </article>
+
+      <article class="rule-panel compact-rule-panel">
+        <div>
+          <span class="eyebrow">MVP SCOPE</span>
+          <h3>本階段查詢範圍</h3>
+        </div>
+        <ul>
+          <li><strong>官方資料</strong><span>Tokyo Metro 路線與車站</span></li>
+          <li><strong>搜尋方式</strong><span>日文、英文、車站代碼</span></li>
+          <li><strong>快取備援</strong><span>來源暫時失效時保留舊資料</span></li>
+          <li><strong>下一階段</strong><span>即時到站與時刻資訊</span></li>
         </ul>
       </article>
     </section>

@@ -1195,6 +1195,15 @@ p {
   box-shadow: 0 8px 22px rgba(20, 92, 84, 0.08);
 }
 
+.route-result.static-result {
+  cursor: default;
+}
+
+.route-result.static-result:hover {
+  border-color: #e0e9e7;
+  box-shadow: none;
+}
+
 .route-result.selected {
   background: var(--teal-soft);
 }

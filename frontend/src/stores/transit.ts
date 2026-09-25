@@ -7,6 +7,7 @@ import {
   getRailArrivals,
   getTdxStatus,
   searchBusRoutes as requestBusRoutes,
+  searchMetroRoutes as requestMetroRoutes,
   searchMetroStations as requestMetroStations,
   searchRailStations as requestRailStations,
 } from '@/api/transit'
@@ -28,6 +29,7 @@ export const useTransitStore = defineStore('transit', () => {
   const metroQuery = ref('')
   const railQuery = ref('')
   const routes = ref<TransitRoute[]>([])
+  const metroRoutes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
   const railStations = ref<RailStation[]>([])
   const selectedRoute = ref<TransitRoute | null>(null)
@@ -44,6 +46,7 @@ export const useTransitStore = defineStore('transit', () => {
 
   function resetResults(): void {
     routes.value = []
+    metroRoutes.value = []
     stations.value = []
     railStations.value = []
     selectedRoute.value = null
@@ -132,6 +135,24 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
+  async function searchTokyoMetro(cityId: string): Promise<void> {
+    await run(async () => {
+      const query = metroQuery.value.trim()
+      const [routeResponse, stationResponse] = await Promise.all([
+        requestMetroRoutes(cityId, query),
+        requestMetroStations(cityId, query),
+      ])
+      metroRoutes.value = routeResponse.data
+      stations.value = stationResponse.data
+      selectedStation.value = null
+      arrivals.value = []
+      resultMeta.value =
+        routeResponse.meta.dataStatus === 'unavailable'
+          ? routeResponse.meta
+          : stationResponse.meta
+    })
+  }
+
   async function chooseMetroStation(cityId: string, station: MetroStation): Promise<void> {
     selectedStation.value = station
     await run(async () => {
@@ -199,6 +220,7 @@ export const useTransitStore = defineStore('transit', () => {
     metroQuery,
     railQuery,
     routes,
+    metroRoutes,
     stations,
     railStations,
     selectedRoute,
@@ -219,6 +241,7 @@ export const useTransitStore = defineStore('transit', () => {
     chooseBusStop,
     refreshBusArrivals,
     searchMetroStations,
+    searchTokyoMetro,
     chooseMetroStation,
     refreshMetroArrivals,
     searchRailStations,

@@ -126,6 +126,23 @@ public sealed class TransitController(ITransitService transitService) : Controll
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("metro/routes")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitRouteResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitRouteResponse>>>> SearchMetroRoutes(
+        [FromQuery] Guid cityId,
+        [FromQuery] string? q,
+        CancellationToken cancellationToken)
+    {
+        if (q?.Length > 50)
+        {
+            ModelState.AddModelError(nameof(q), "搜尋文字不可超過 50 個字元。");
+            return ValidationProblem(ModelState);
+        }
+
+        var result = await transitService.SearchMetroRoutesAsync(cityId, q, cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
     [HttpGet("metro/arrivals")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TransitArrivalResponse>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitArrivalResponse>>>> GetMetroArrivals(
@@ -201,7 +218,7 @@ public sealed class TransitController(ITransitService transitService) : Controll
             result.Data,
             new ApiMeta(
                 result.DataStatus,
-                "TDX",
+                result.Source,
                 result.SourceUpdatedAt,
                 result.FetchedAt,
                 result.Stale,

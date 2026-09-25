@@ -91,6 +91,9 @@ export interface MetroStation {
   address: string | null
   latitude: number | null
   longitude: number | null
+  code: string | null
+  railwayId: string | null
+  railwayName: string | null
 }
 
 export interface RailStation {

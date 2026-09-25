@@ -2,7 +2,7 @@
 
 以台灣旅客為主要使用者、可從 LINE 快速開啟的旅遊資訊助手。系統將整合台灣與海外大眾運輸、全球直飛航班、天氣、旅遊警示及當地應急資訊。
 
-> 目前進度：Phase 1～5 已完成；包含台北公車、台北捷運、台鐵、全球直飛航班、單一航班編號、全球天氣、BOCA 旅遊警示與台北／東京應急資訊。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
+> 目前進度：Phase 1～5 已完成，Phase 6 已完成第一小段；包含台北公車、台北捷運、台鐵、東京地鐵路線／車站搜尋、全球直飛航班、單一航班編號、全球天氣、BOCA 旅遊警示與台北／東京應急資訊。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
 
 ## MVP 邊界
 
@@ -30,6 +30,7 @@
 - 台北公車：路線搜尋、方向、站牌順序與即時到站預估。
 - 台北捷運：車站搜尋、即時列車與表定時刻降級。
 - 台鐵：全台車站搜尋、即時列車、誤點與月台資訊，以及表定時刻降級。
+- 東京地鐵：以 ODPT 官方資料搜尋 Tokyo Metro 路線、日／英文車站名稱及車站代碼；即時到站尚未納入本階段。
 - 到站顯示遵守「60 分鐘以上表定、60 分鐘內即時、少於 1 分鐘即將進站」。
 - TDX OAuth token 共用、Redis／記憶體雙層快取、同鍵 single-flight 防止快取擊穿。
 - 每分鐘 4 次內部限流、2.7 點軟停止線、實際 requests 與 response bytes 用量估算。
@@ -82,7 +83,7 @@ travel-info-assistant/
 
 ```bash
 cp .env.example .env
-# 編輯 .env；TDX 與 AeroDataBox 金鑰分別控制大眾運輸及全球航班真實資料
+# 編輯 .env；TDX、ODPT 與 AeroDataBox 金鑰分別控制交通及全球航班真實資料
 docker compose up --build
 ```
 
@@ -132,7 +133,8 @@ Vite 會把 `/api` 代理到 `http://localhost:8080`。
 | GET | `/api/v1/transit/bus/routes?cityId=&q=` | 台北公車路線搜尋 |
 | GET | `/api/v1/transit/bus/stops?cityId=&routeName=&direction=` | 路線方向與站牌 |
 | GET | `/api/v1/transit/bus/arrivals?cityId=&routeName=&direction=&stopId=` | 公車到站資訊 |
-| GET | `/api/v1/transit/metro/stations?cityId=&q=` | 台北捷運車站搜尋 |
+| GET | `/api/v1/transit/metro/routes?cityId=&q=` | 東京地鐵路線搜尋 |
+| GET | `/api/v1/transit/metro/stations?cityId=&q=` | 台北／東京捷運車站搜尋 |
 | GET | `/api/v1/transit/metro/arrivals?cityId=&stationId=` | 捷運即時／表定資訊 |
 | GET | `/api/v1/transit/rail/stations?cityId=&q=` | 台鐵車站搜尋 |
 | GET | `/api/v1/transit/rail/arrivals?cityId=&stationId=` | 台鐵即時／表定資訊 |
@@ -174,5 +176,5 @@ dotnet test
 3. ✅ Phase 3：台北 TDX 公車、捷運與台鐵查詢。
 4. ✅ Phase 4：全球直飛航班與 AeroDataBox 額度防護。
 5. ✅ Phase 5：全球天氣、BOCA 旅遊警示與台北／東京應急資訊。
-6. Phase 6：東京 ODPT。
+6. 🚧 Phase 6：東京 ODPT（已完成路線與車站搜尋；即時到站待續）。
 7. Phase 7：測試、部署與履歷展示。

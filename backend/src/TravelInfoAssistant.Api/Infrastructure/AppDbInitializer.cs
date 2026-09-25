@@ -60,6 +60,14 @@ public static class AppDbInitializer
         {
             new
             {
+                CityCode = "tokyo",
+                Id = Guid.Parse("09120313-ac73-4b78-a50d-524ff51087c7"),
+                ServiceKey = "metro",
+                DisplayName = "地鐵",
+                SortOrder = 1
+            },
+            new
+            {
                 CityCode = "taipei",
                 Id = Guid.Parse("2ad9a7d4-b49b-4da5-a554-f046f00689b8"),
                 ServiceKey = "weather",

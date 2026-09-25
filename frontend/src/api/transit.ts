@@ -54,6 +54,13 @@ export function searchMetroStations(
   return apiRequest(`/v1/transit/metro/stations?${params({ cityId, q: query })}`)
 }
 
+export function searchMetroRoutes(
+  cityId: string,
+  query: string,
+): Promise<ApiResponse<TransitRoute[]>> {
+  return apiRequest(`/v1/transit/metro/routes?${params({ cityId, q: query })}`)
+}
+
 export function getMetroArrivals(
   cityId: string,
   stationId: string,
