@@ -137,7 +137,9 @@ public sealed class TransitService(
         var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
         if (cityCode == "tokyo")
         {
-            return Unavailable<TransitArrivalResponse>("東京地鐵即時到站將在下一階段整合。", "ODPT");
+            return await odptProvider.GetMetroDeparturesAsync(
+                stationId.Trim(),
+                cancellationToken);
         }
 
         if (cityCode != "taipei")

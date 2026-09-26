@@ -467,11 +467,14 @@ function formatTimestamp(value: string | null | undefined): string {
               </div>
               <span>{{ transitStore.stations.length }} 筆</span>
             </div>
-            <div class="route-result-list">
-              <article
+            <div class="route-result-list tokyo-station-list">
+              <button
                 v-for="station in transitStore.stations"
                 :key="station.id"
-                class="route-result static-result"
+                class="route-result"
+                :class="{ selected: transitStore.selectedStation?.id === station.id }"
+                type="button"
+                @click="selectStation(station)"
               >
                 <strong>{{ station.nameZh }}</strong>
                 <span>{{ station.nameEn ?? station.railwayName ?? 'Tokyo Metro' }}</span>
@@ -479,10 +482,55 @@ function formatTimestamp(value: string | null | undefined): string {
                   {{ station.code ?? '代碼待確認' }}
                   <template v-if="station.railwayName"> · {{ station.railwayName }}</template>
                 </small>
-              </article>
+              </button>
               <div v-if="!transitStore.stations.length" class="inline-empty">
                 沒有符合條件的車站。
               </div>
+            </div>
+
+            <div v-if="transitStore.selectedStation" class="tokyo-timetable">
+              <div class="panel-heading-row arrival-heading">
+                <div>
+                  <span class="eyebrow">
+                    {{ transitStore.selectedStation.code ?? transitStore.selectedStation.id }}
+                  </span>
+                  <h3>{{ transitStore.selectedStation.nameZh }}接下來班次</h3>
+                </div>
+                <button
+                  class="icon-button refresh-button"
+                  type="button"
+                  aria-label="更新東京地鐵時刻"
+                  :disabled="transitStore.loading"
+                  @click="refreshArrivals"
+                >
+                  <RefreshCw :size="18" />
+                </button>
+              </div>
+
+              <div class="arrival-list metro-arrivals">
+                <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
+                  <div class="arrival-icon"><TrainFront :size="20" /></div>
+                  <div class="arrival-main">
+                    <strong>{{ arrival.lineName ?? 'Tokyo Metro' }}</strong>
+                    <span>
+                      {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}
+                      {{ arrival.platform ? ` · ${arrival.platform} 月台` : '' }}
+                    </span>
+                  </div>
+                  <div class="arrival-time">
+                    <strong>{{ getArrivalView(arrival).label }}</strong>
+                    <span class="data-mode-scheduled">
+                      {{ arrival.isLastService ? '末班車 · 表定' : '表定時間' }}
+                    </span>
+                  </div>
+                </article>
+                <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
+                  {{ transitStore.resultMeta?.message ?? '目前查無接下來的表定班次。' }}
+                </div>
+              </div>
+            </div>
+            <div v-else-if="transitStore.stations.length" class="inline-empty tokyo-station-prompt">
+              選擇車站後查看當日表定班次。
             </div>
           </section>
         </div>
@@ -741,7 +789,7 @@ function formatTimestamp(value: string | null | undefined): string {
           <span class="eyebrow">OFFICIAL OPEN DATA</span>
           <h3>ODPT 東京地鐵資料</h3>
         </div>
-        <p>路線與車站資料由後端共用快取；畫面不會讓每位使用者直接呼叫 ODPT。</p>
+        <p>路線、車站與時刻表由後端共用快取；畫面不會讓每位使用者直接呼叫 ODPT。</p>
       </article>
 
       <article class="rule-panel compact-rule-panel">
@@ -750,10 +798,10 @@ function formatTimestamp(value: string | null | undefined): string {
           <h3>本階段查詢範圍</h3>
         </div>
         <ul>
-          <li><strong>官方資料</strong><span>Tokyo Metro 路線與車站</span></li>
+          <li><strong>官方資料</strong><span>Tokyo Metro 路線、車站與表定時刻</span></li>
           <li><strong>搜尋方式</strong><span>日文、英文、車站代碼</span></li>
           <li><strong>快取備援</strong><span>來源暫時失效時保留舊資料</span></li>
-          <li><strong>下一階段</strong><span>即時到站與時刻資訊</span></li>
+          <li><strong>下一階段</strong><span>即時列車位置與延誤資訊</span></li>
         </ul>
       </article>
     </section>

@@ -72,4 +72,119 @@ public sealed class OdptTransitMapperTests
         Assert.Equal(35.711482, result.Latitude);
         Assert.Equal(139.777122, result.Longitude);
     }
+
+    [Fact]
+    public void MapStationDepartures_UsesSaturdayTimetableAndFutureTrips()
+    {
+        const string json = """
+            [
+              {
+                "owl:sameAs": "odpt.StationTimetable:TokyoMetro.Ginza.Ueno.Outbound.Weekday",
+                "dc:date": "2026-09-20T12:00:00+09:00",
+                "odpt:railway": "odpt.Railway:TokyoMetro.Ginza",
+                "odpt:station": "odpt.Station:TokyoMetro.Ginza.Ueno",
+                "odpt:railDirection": "odpt.RailDirection:TokyoMetro.Asakusa",
+                "odpt:calendar": "odpt.Calendar:Weekday",
+                "odpt:stationTimetableObject": [
+                  {
+                    "odpt:departureTime": "10:00",
+                    "odpt:destinationStation": ["odpt.Station:TokyoMetro.Ginza.Asakusa"]
+                  }
+                ]
+              },
+              {
+                "owl:sameAs": "odpt.StationTimetable:TokyoMetro.Ginza.Ueno.Outbound.SaturdayHoliday",
+                "dc:date": "2026-09-20T12:00:00+09:00",
+                "odpt:railway": "odpt.Railway:TokyoMetro.Ginza",
+                "odpt:railwayTitle": { "ja": "銀座線", "en": "Ginza Line" },
+                "odpt:station": "odpt.Station:TokyoMetro.Ginza.Ueno",
+                "odpt:stationTitle": { "ja": "上野", "en": "Ueno" },
+                "odpt:railDirection": "odpt.RailDirection:TokyoMetro.Asakusa",
+                "odpt:calendar": "odpt.Calendar:SaturdayHoliday",
+                "odpt:stationTimetableObject": [
+                  {
+                    "odpt:departureTime": "08:30",
+                    "odpt:destinationStation": ["odpt.Station:TokyoMetro.Ginza.Asakusa"]
+                  },
+                  {
+                    "odpt:departureTime": "09:30",
+                    "odpt:destinationStation": ["odpt.Station:TokyoMetro.Ginza.Asakusa"],
+                    "odpt:trainNumber": "B901",
+                    "odpt:platformNumber": "1",
+                    "odpt:isLast": true
+                  }
+                ]
+              }
+            ]
+            """;
+
+        var timetables = JsonSerializer.Deserialize<IReadOnlyList<OdptStationTimetable>>(
+            json,
+            JsonOptions);
+        var result = OdptTransitMapper.MapStationDepartures(
+            Assert.IsAssignableFrom<IReadOnlyList<OdptStationTimetable>>(timetables),
+            [],
+            new Dictionary<string, string>
+            {
+                ["odpt.Station:TokyoMetro.Ginza.Asakusa"] = "浅草"
+            },
+            new DateTimeOffset(2026, 9, 26, 0, 0, 0, TimeSpan.Zero));
+
+        var departure = Assert.Single(result);
+        Assert.Equal("上野", departure.StopName);
+        Assert.Equal("銀座線", departure.LineName);
+        Assert.Equal("浅草", departure.DestinationName);
+        Assert.Equal("B901", departure.RouteName);
+        Assert.Equal("1", departure.Platform);
+        Assert.Equal(new DateTimeOffset(2026, 9, 26, 9, 30, 0, TimeSpan.FromHours(9)), departure.ScheduledAt);
+        Assert.True(departure.IsLastService);
+    }
+
+    [Fact]
+    public void MapStationDepartures_PrefersExplicitHolidayCalendar()
+    {
+        var stationId = "odpt.Station:TokyoMetro.Ginza.Ueno";
+        var timetables = new List<OdptStationTimetable>
+        {
+            CreateTimetable(stationId, "odpt.Calendar:Weekday", "10:00"),
+            CreateTimetable(stationId, "odpt.Calendar:Holiday", "11:00")
+        };
+        var calendars = new List<OdptCalendar>
+        {
+            new()
+            {
+                SameAs = "odpt.Calendar:Holiday",
+                Days = [new DateOnly(2026, 10, 2)]
+            }
+        };
+
+        var result = OdptTransitMapper.MapStationDepartures(
+            timetables,
+            calendars,
+            new Dictionary<string, string>(),
+            new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero));
+
+        var departure = Assert.Single(result);
+        Assert.Equal(new DateTimeOffset(2026, 10, 2, 11, 0, 0, TimeSpan.FromHours(9)), departure.ScheduledAt);
+    }
+
+    private static OdptStationTimetable CreateTimetable(
+        string stationId,
+        string calendar,
+        string departureTime) =>
+        new()
+        {
+            SameAs = $"odpt.StationTimetable:Test:{calendar}",
+            Railway = "odpt.Railway:TokyoMetro.Ginza",
+            Station = stationId,
+            Calendar = calendar,
+            Objects =
+            [
+                new OdptStationTimetableObject
+                {
+                    DepartureTime = departureTime,
+                    DestinationStations = ["odpt.Station:TokyoMetro.Ginza.Asakusa"]
+                }
+            ]
+        };
 }

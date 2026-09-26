@@ -10,4 +10,8 @@ public interface IOdptTransitProvider
 
     Task<ProviderQueryResult<IReadOnlyList<MetroStationResponse>>> GetMetroStationsAsync(
         CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetMetroDeparturesAsync(
+        string stationId,
+        CancellationToken cancellationToken);
 }

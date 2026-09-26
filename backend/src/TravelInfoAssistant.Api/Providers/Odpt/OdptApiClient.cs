@@ -10,10 +10,17 @@ public sealed record OdptHttpResult<T>(T Data, DateTimeOffset FetchedAt);
 
 public interface IOdptApiClient
 {
+    Task<OdptHttpResult<IReadOnlyList<OdptCalendar>>> GetCalendarsAsync(
+        CancellationToken cancellationToken);
+
     Task<OdptHttpResult<IReadOnlyList<OdptRailway>>> GetRailwaysAsync(
         CancellationToken cancellationToken);
 
     Task<OdptHttpResult<IReadOnlyList<OdptStation>>> GetStationsAsync(
+        CancellationToken cancellationToken);
+
+    Task<OdptHttpResult<IReadOnlyList<OdptStationTimetable>>> GetStationTimetablesAsync(
+        string stationId,
         CancellationToken cancellationToken);
 }
 
@@ -27,6 +34,13 @@ public sealed class OdptApiClient(
     {
         PropertyNameCaseInsensitive = true
     };
+
+    public Task<OdptHttpResult<IReadOnlyList<OdptCalendar>>> GetCalendarsAsync(
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<OdptCalendar>>(
+            "odpt:Calendar",
+            new Dictionary<string, string?>(),
+            cancellationToken);
 
     public Task<OdptHttpResult<IReadOnlyList<OdptRailway>>> GetRailwaysAsync(
         CancellationToken cancellationToken) =>
@@ -45,6 +59,18 @@ public sealed class OdptApiClient(
             new Dictionary<string, string?>
             {
                 ["odpt:operator"] = TokyoMetroOperator
+            },
+            cancellationToken);
+
+    public Task<OdptHttpResult<IReadOnlyList<OdptStationTimetable>>> GetStationTimetablesAsync(
+        string stationId,
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<OdptStationTimetable>>(
+            "odpt:StationTimetable",
+            new Dictionary<string, string?>
+            {
+                ["odpt:operator"] = TokyoMetroOperator,
+                ["odpt:station"] = stationId
             },
             cancellationToken);
 

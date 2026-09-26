@@ -1297,6 +1297,22 @@ p {
   overflow-y: auto;
 }
 
+.tokyo-station-list {
+  max-height: 250px;
+}
+
+.tokyo-timetable {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.tokyo-station-prompt {
+  min-height: 78px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .arrival-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
