@@ -42,6 +42,7 @@ public sealed class OdptTransitMapperTests
         Assert.Equal("渋谷", result.OriginName);
         Assert.Equal("浅草", result.DestinationName);
         Assert.Equal(2, result.Directions.Count);
+        Assert.Equal(["渋谷", "浅草"], result.StationNames);
         Assert.Equal("Tokyo Metro", Assert.Single(result.Operators));
     }
 

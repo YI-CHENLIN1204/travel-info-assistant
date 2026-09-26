@@ -565,7 +565,8 @@ public sealed class TdxTransitProvider(
             route.DepartureStopNameZh,
             route.DestinationStopNameZh,
             operators,
-            directions);
+            directions,
+            []);
     }
 
     private static TransitDirectionResponse MapBusDirection(

@@ -35,6 +35,9 @@ public static class OdptTransitMapper
             .OrderBy(item => item.Index)
             .Where(item => !string.IsNullOrWhiteSpace(item.StationTitle?.Ja))
             .ToList();
+        var stationNames = stations
+            .Select(item => item.StationTitle!.Ja!.Trim())
+            .ToList();
         var origin = stations.FirstOrDefault()?.StationTitle?.Ja;
         var destination = stations.LastOrDefault()?.StationTitle?.Ja;
         var directions = new List<TransitDirectionResponse>();
@@ -51,7 +54,8 @@ public static class OdptTransitMapper
             origin,
             destination,
             ["Tokyo Metro"],
-            directions);
+            directions,
+            stationNames);
     }
 
     public static MetroStationResponse? MapStation(OdptStation station)

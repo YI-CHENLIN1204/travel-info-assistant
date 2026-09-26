@@ -19,7 +19,8 @@ public sealed record TransitRouteResponse(
     string? OriginName,
     string? DestinationName,
     IReadOnlyList<string> Operators,
-    IReadOnlyList<TransitDirectionResponse> Directions);
+    IReadOnlyList<TransitDirectionResponse> Directions,
+    IReadOnlyList<string> StationNames);
 
 public sealed record TransitStopResponse(
     string Id,

@@ -452,6 +452,9 @@ function formatTimestamp(value: string | null | undefined): string {
                 <strong>{{ route.nameZh }}</strong>
                 <span>{{ route.nameEn ?? 'Tokyo Metro' }}</span>
                 <small>{{ route.originName ?? '起點待確認' }} → {{ route.destinationName ?? '終點待確認' }}</small>
+                <small v-if="route.stationNames.length" class="route-stations">
+                  {{ route.stationNames.join(' · ') }}
+                </small>
               </article>
               <div v-if="!transitStore.metroRoutes.length" class="inline-empty">
                 沒有符合條件的路線。

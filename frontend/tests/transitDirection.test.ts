@@ -8,6 +8,7 @@ const route: TransitRoute = {
   originName: '中和',
   destinationName: '內湖',
   operators: ['中興巴士'],
+  stationNames: [],
   directions: [
     {
       direction: 0,
