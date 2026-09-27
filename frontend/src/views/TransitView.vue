@@ -171,6 +171,13 @@ function selectStation(station: MetroStation): void {
   void transitStore.chooseMetroStation(cityStore.currentCity.id, station)
 }
 
+function selectTokyoRoute(route: TransitRoute): void {
+  transitStore.selectedTokyoRoute =
+    transitStore.selectedTokyoRoute?.id === route.id ? null : route
+  transitStore.selectedStation = null
+  transitStore.arrivals = []
+}
+
 function submitRailSearch(): void {
   void transitStore.searchRailStations(cityStore.currentCity.id)
 }
@@ -448,6 +455,12 @@ function formatTimestamp(value: string | null | undefined): string {
                 v-for="route in transitStore.metroRoutes"
                 :key="route.id"
                 class="route-result static-result"
+                :class="{ selected: transitStore.selectedTokyoRoute?.id === route.id }"
+                role="button"
+                tabindex="0"
+                @click="selectTokyoRoute(route)"
+                @keydown.enter.prevent="selectTokyoRoute(route)"
+                @keydown.space.prevent="selectTokyoRoute(route)"
               >
                 <strong>{{ route.nameZh }}</strong>
                 <span>{{ route.nameEn ?? 'Tokyo Metro' }}</span>
@@ -468,11 +481,11 @@ function formatTimestamp(value: string | null | undefined): string {
                 <span class="eyebrow">TOKYO METRO STATIONS</span>
                 <h3>車站</h3>
               </div>
-              <span>{{ transitStore.stations.length }} 筆</span>
+              <span>{{ transitStore.filteredTokyoStations.length }} 筆</span>
             </div>
             <div class="route-result-list tokyo-station-list">
               <button
-                v-for="station in transitStore.stations"
+                v-for="station in transitStore.filteredTokyoStations"
                 :key="station.id"
                 class="route-result"
                 :class="{ selected: transitStore.selectedStation?.id === station.id }"
@@ -486,8 +499,8 @@ function formatTimestamp(value: string | null | undefined): string {
                   <template v-if="station.railwayName"> · {{ station.railwayName }}</template>
                 </small>
               </button>
-              <div v-if="!transitStore.stations.length" class="inline-empty">
-                沒有符合條件的車站。
+              <div v-if="!transitStore.filteredTokyoStations.length" class="inline-empty">
+                {{ transitStore.selectedTokyoRoute ? '此路線沒有可顯示的車站。' : '沒有符合條件的車站。' }}
               </div>
             </div>
 

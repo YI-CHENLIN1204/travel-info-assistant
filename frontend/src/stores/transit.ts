@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   getBusArrivals,
@@ -23,6 +23,14 @@ import type {
 
 export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
+export function filterTokyoMetroStations(
+  stations: MetroStation[],
+  route: TransitRoute | null,
+): MetroStation[] {
+  if (!route) return stations
+  return stations.filter((station) => station.railwayId === route.id)
+}
+
 export const useTransitStore = defineStore('transit', () => {
   const activeMode = ref<TransitModeKey>('bus')
   const busQuery = ref('')
@@ -32,6 +40,10 @@ export const useTransitStore = defineStore('transit', () => {
   const metroRoutes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
   const railStations = ref<RailStation[]>([])
+  const selectedTokyoRoute = ref<TransitRoute | null>(null)
+  const filteredTokyoStations = computed(() =>
+    filterTokyoMetroStations(stations.value, selectedTokyoRoute.value),
+  )
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
   const stops = ref<TransitStop[]>([])
@@ -49,6 +61,7 @@ export const useTransitStore = defineStore('transit', () => {
     metroRoutes.value = []
     stations.value = []
     railStations.value = []
+    selectedTokyoRoute.value = null
     selectedRoute.value = null
     selectedDirection.value = 0
     stops.value = []
@@ -144,6 +157,7 @@ export const useTransitStore = defineStore('transit', () => {
       ])
       metroRoutes.value = routeResponse.data
       stations.value = stationResponse.data
+      selectedTokyoRoute.value = null
       selectedStation.value = null
       arrivals.value = []
       resultMeta.value =
@@ -223,6 +237,8 @@ export const useTransitStore = defineStore('transit', () => {
     metroRoutes,
     stations,
     railStations,
+    selectedTokyoRoute,
+    filteredTokyoStations,
     selectedRoute,
     selectedDirection,
     stops,
