@@ -84,6 +84,16 @@ describe('filterTokyoMetroStations', () => {
     ).toEqual(['station-1', 'station-2'])
   })
 
+  it('orders selected-route stations by the route station list', () => {
+    expect(
+      filterTokyoMetroStations(stations, {
+        ...route,
+        id: 'railway-ginza',
+        stationNames: ['表參道', '銀座'],
+      }).map((station) => station.id),
+    ).toEqual(['station-2', 'station-1'])
+  })
+
   it('returns all stations when no route is selected', () => {
     expect(filterTokyoMetroStations(stations, null)).toEqual(stations)
   })

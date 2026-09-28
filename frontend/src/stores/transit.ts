@@ -28,7 +28,26 @@ export function filterTokyoMetroStations(
   route: TransitRoute | null,
 ): MetroStation[] {
   if (!route) return stations
-  return stations.filter((station) => station.railwayId === route.id)
+
+  const stationOrder = new Map(
+    route.stationNames.map((stationName, index) => [stationName, index]),
+  )
+
+  return stations
+    .filter((station) => station.railwayId === route.id)
+    .map((station, index) => ({ station, index }))
+    .sort((left, right) => {
+      const leftOrder = stationOrder.get(left.station.nameZh)
+      const rightOrder = stationOrder.get(right.station.nameZh)
+
+      if (leftOrder === undefined && rightOrder === undefined) {
+        return left.index - right.index
+      }
+      if (leftOrder === undefined) return 1
+      if (rightOrder === undefined) return -1
+      return leftOrder - rightOrder
+    })
+    .map(({ station }) => station)
 }
 
 export const useTransitStore = defineStore('transit', () => {
