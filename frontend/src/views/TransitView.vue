@@ -172,10 +172,7 @@ function selectStation(station: MetroStation): void {
 }
 
 function selectTokyoRoute(route: TransitRoute): void {
-  transitStore.selectedTokyoRoute =
-    transitStore.selectedTokyoRoute?.id === route.id ? null : route
-  transitStore.selectedStation = null
-  transitStore.arrivals = []
+  transitStore.chooseTokyoRoute(route)
 }
 
 function submitRailSearch(): void {

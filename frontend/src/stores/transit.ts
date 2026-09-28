@@ -167,6 +167,20 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
+  function chooseTokyoRoute(route: TransitRoute): void {
+    const nextRoute = selectedTokyoRoute.value?.id === route.id ? null : route
+    selectedTokyoRoute.value = nextRoute
+
+    if (
+      selectedStation.value &&
+      nextRoute &&
+      selectedStation.value.railwayId !== nextRoute.id
+    ) {
+      selectedStation.value = null
+      arrivals.value = []
+    }
+  }
+
   async function chooseMetroStation(cityId: string, station: MetroStation): Promise<void> {
     selectedStation.value = station
     await run(async () => {
@@ -258,6 +272,7 @@ export const useTransitStore = defineStore('transit', () => {
     refreshBusArrivals,
     searchMetroStations,
     searchTokyoMetro,
+    chooseTokyoRoute,
     chooseMetroStation,
     refreshMetroArrivals,
     searchRailStations,

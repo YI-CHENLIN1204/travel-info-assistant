@@ -1,6 +1,7 @@
+import { createPinia, setActivePinia } from 'pinia'
 import { getBusDirectionLabel } from '@/services/transitDirection'
-import { filterTokyoMetroStations } from '@/stores/transit'
-import type { MetroStation, TransitRoute } from '@/types/api'
+import { filterTokyoMetroStations, useTransitStore } from '@/stores/transit'
+import type { MetroStation, TransitArrival, TransitRoute } from '@/types/api'
 
 const route: TransitRoute = {
   id: 'TPE214',
@@ -85,5 +86,29 @@ describe('filterTokyoMetroStations', () => {
 
   it('returns all stations when no route is selected', () => {
     expect(filterTokyoMetroStations(stations, null)).toEqual(stations)
+  })
+
+  it('clears only a station that does not belong to the newly selected route', () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const ginzaRoute = { ...route, id: 'railway-ginza' }
+    const hibiyaRoute = { ...route, id: 'railway-hibiya' }
+    const arrival = { id: 'arrival-1' } as TransitArrival
+
+    store.selectedTokyoRoute = ginzaRoute
+    store.selectedStation = stations[0]
+    store.arrivals = [arrival]
+    store.chooseTokyoRoute(hibiyaRoute)
+
+    expect(store.selectedStation).toBeNull()
+    expect(store.arrivals).toEqual([])
+
+    store.selectedTokyoRoute = ginzaRoute
+    store.selectedStation = stations[2]
+    store.arrivals = [arrival]
+    store.chooseTokyoRoute(hibiyaRoute)
+
+    expect(store.selectedStation).toEqual(stations[2])
+    expect(store.arrivals).toEqual([arrival])
   })
 })
