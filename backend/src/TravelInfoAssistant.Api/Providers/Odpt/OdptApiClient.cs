@@ -22,6 +22,9 @@ public interface IOdptApiClient
     Task<OdptHttpResult<IReadOnlyList<OdptStationTimetable>>> GetStationTimetablesAsync(
         string stationId,
         CancellationToken cancellationToken);
+
+    Task<OdptHttpResult<IReadOnlyList<OdptTrainInformation>>> GetTrainInformationAsync(
+        CancellationToken cancellationToken);
 }
 
 public sealed class OdptApiClient(
@@ -71,6 +74,16 @@ public sealed class OdptApiClient(
             {
                 ["odpt:operator"] = TokyoMetroOperator,
                 ["odpt:station"] = stationId
+            },
+            cancellationToken);
+
+    public Task<OdptHttpResult<IReadOnlyList<OdptTrainInformation>>> GetTrainInformationAsync(
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<OdptTrainInformation>>(
+            "odpt:TrainInformation",
+            new Dictionary<string, string?>
+            {
+                ["odpt:operator"] = TokyoMetroOperator
             },
             cancellationToken);
 

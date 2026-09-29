@@ -79,6 +79,33 @@ public static class OdptTransitMapper
             GetRailwayName(station.Railway));
     }
 
+    public static MetroServiceStatusResponse? MapTrainInformation(
+        OdptTrainInformation information,
+        DateTimeOffset now)
+    {
+        var id = information.SameAs?.Trim();
+        var lineId = information.Railway?.Trim();
+        var messageJa = information.TrainInformationText?.Ja?.Trim();
+        var messageEn = information.TrainInformationText?.En?.Trim();
+        if (string.IsNullOrWhiteSpace(id) ||
+            string.IsNullOrWhiteSpace(lineId) ||
+            (string.IsNullOrWhiteSpace(messageJa) && string.IsNullOrWhiteSpace(messageEn)) ||
+            !information.ValidUntil.HasValue ||
+            information.ValidUntil.Value <= now)
+        {
+            return null;
+        }
+
+        return new MetroServiceStatusResponse(
+            id,
+            lineId,
+            information.RailwayTitle?.Ja?.Trim() ?? GetRailwayName(lineId),
+            messageJa,
+            messageEn,
+            information.UpdatedAt,
+            information.ValidUntil);
+    }
+
     public static IReadOnlyList<TransitArrivalResponse> MapStationDepartures(
         IReadOnlyList<OdptStationTimetable> timetables,
         IReadOnlyList<OdptCalendar> calendars,

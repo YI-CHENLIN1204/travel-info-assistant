@@ -14,6 +14,8 @@ public sealed class OdptTransitProvider(
 {
     private static readonly TimeSpan FreshFor = TimeSpan.FromHours(24);
     private static readonly TimeSpan TimetableFreshFor = TimeSpan.FromHours(12);
+    private static readonly TimeSpan StatusFreshFor = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan StatusRetainFor = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan RetainFor = TimeSpan.FromDays(7);
 
     public async Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetMetroRoutesAsync(
@@ -164,6 +166,63 @@ public sealed class OdptTransitProvider(
         }
     }
 
+    public async Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!options.Value.IsConfigured)
+        {
+            return Unavailable<MetroServiceStatusResponse>("ODPT 尚未設定，暫時無法確認運行狀態。");
+        }
+
+        try
+        {
+            var result = await cache.GetOrCreateAsync<IReadOnlyList<MetroServiceStatusResponse>>(
+                "transit:odpt:tokyo-metro:status:v1",
+                StatusFreshFor,
+                StatusRetainFor,
+                async token =>
+                {
+                    var response = await apiClient.GetTrainInformationAsync(token);
+                    var data = response.Data
+                        .Select(item => OdptTransitMapper.MapTrainInformation(
+                            item,
+                            response.FetchedAt))
+                        .Where(item => item is not null)
+                        .Cast<MetroServiceStatusResponse>()
+                        .OrderBy(item => item.LineName)
+                        .ToList();
+                    return new ProviderPayload<IReadOnlyList<MetroServiceStatusResponse>>(
+                        data,
+                        "realtime",
+                        Latest(response.Data.Select(item => item.UpdatedAt)),
+                        response.FetchedAt,
+                        EarliestFuture(
+                            response.Data.Select(item => item.ValidUntil),
+                            response.FetchedAt));
+                },
+                cancellationToken);
+
+            if (result.Stale)
+            {
+                return Unavailable<MetroServiceStatusResponse>(
+                    "ODPT 運行狀態已過期，暫時無法確認。");
+            }
+
+            var message = result.Message;
+            if (result.Data.Count == 0 && string.IsNullOrWhiteSpace(message))
+            {
+                message = "目前沒有可顯示的東京 Metro 官方運行狀態。";
+            }
+
+            return result with { Message = message, Source = "ODPT" };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "ODPT Tokyo Metro status query failed.");
+            return Unavailable<MetroServiceStatusResponse>(GetPublicErrorMessage(exception));
+        }
+    }
+
     private Task<ProviderQueryResult<IReadOnlyList<OdptCalendar>>> GetCalendarsAsync(
         CancellationToken cancellationToken) =>
         cache.GetOrCreateAsync<IReadOnlyList<OdptCalendar>>(
@@ -190,6 +249,13 @@ public sealed class OdptTransitProvider(
 
     private static DateTimeOffset? Latest(IEnumerable<DateTimeOffset?> values) =>
         values.Where(value => value.HasValue).Max();
+
+    private static DateTimeOffset? EarliestFuture(
+        IEnumerable<DateTimeOffset?> values,
+        DateTimeOffset now) =>
+        values
+            .Where(value => value.HasValue && value.Value > now)
+            .Min();
 
     private static string GetPublicErrorMessage(Exception exception) => exception switch
     {

@@ -75,6 +75,61 @@ public sealed class OdptTransitMapperTests
     }
 
     [Fact]
+    public void MapTrainInformation_MapsOfficialStatusWithinValidityWindow()
+    {
+        const string json = """
+            {
+              "owl:sameAs": "odpt.TrainInformation:TokyoMetro.Ginza",
+              "dc:date": "2026-09-30T10:00:00+09:00",
+              "dct:valid": "2026-09-30T10:05:00+09:00",
+              "odpt:operator": "odpt.Operator:TokyoMetro",
+              "odpt:railway": "odpt.Railway:TokyoMetro.Ginza",
+              "odpt:railwayTitle": { "ja": "銀座線", "en": "Ginza Line" },
+              "odpt:trainInformationText": {
+                "ja": "平常どおり運転しています。",
+                "en": "Operating normally."
+              }
+            }
+            """;
+
+        var information = JsonSerializer.Deserialize<OdptTrainInformation>(json, JsonOptions);
+        var result = OdptTransitMapper.MapTrainInformation(
+            Assert.IsType<OdptTrainInformation>(information),
+            new DateTimeOffset(2026, 9, 30, 10, 2, 0, TimeSpan.FromHours(9)));
+
+        Assert.NotNull(result);
+        Assert.Equal("odpt.TrainInformation:TokyoMetro.Ginza", result.Id);
+        Assert.Equal("odpt.Railway:TokyoMetro.Ginza", result.LineId);
+        Assert.Equal("銀座線", result.LineName);
+        Assert.Equal("平常どおり運転しています。", result.MessageJa);
+        Assert.Equal("Operating normally.", result.MessageEn);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 30, 10, 0, 0, TimeSpan.FromHours(9)),
+            result.UpdatedAt);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 30, 10, 5, 0, TimeSpan.FromHours(9)),
+            result.ValidUntil);
+    }
+
+    [Fact]
+    public void MapTrainInformation_RejectsExpiredStatus()
+    {
+        var information = new OdptTrainInformation
+        {
+            SameAs = "odpt.TrainInformation:TokyoMetro.Ginza",
+            Railway = "odpt.Railway:TokyoMetro.Ginza",
+            TrainInformationText = new OdptLocalizedTitle { Ja = "遅延" },
+            ValidUntil = new DateTimeOffset(2026, 9, 30, 10, 5, 0, TimeSpan.FromHours(9))
+        };
+
+        var result = OdptTransitMapper.MapTrainInformation(
+            information,
+            new DateTimeOffset(2026, 9, 30, 10, 5, 0, TimeSpan.FromHours(9)));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void MapStationDepartures_UsesSaturdayTimetableAndFutureTrips()
     {
         const string json = """

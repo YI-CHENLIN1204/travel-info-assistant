@@ -148,3 +148,27 @@ public sealed class OdptStationTimetableObject
     [JsonPropertyName("odpt:platformName")]
     public OdptLocalizedTitle? PlatformName { get; init; }
 }
+
+public sealed class OdptTrainInformation
+{
+    [JsonPropertyName("owl:sameAs")]
+    public string? SameAs { get; init; }
+
+    [JsonPropertyName("dc:date")]
+    public DateTimeOffset? UpdatedAt { get; init; }
+
+    [JsonPropertyName("dct:valid")]
+    public DateTimeOffset? ValidUntil { get; init; }
+
+    [JsonPropertyName("odpt:railway")]
+    public string? Railway { get; init; }
+
+    [JsonPropertyName("odpt:railwayTitle")]
+    public OdptLocalizedTitle? RailwayTitle { get; init; }
+
+    [JsonPropertyName("odpt:operator")]
+    public string? Operator { get; init; }
+
+    [JsonPropertyName("odpt:trainInformationText")]
+    public OdptLocalizedTitle? TrainInformationText { get; init; }
+}

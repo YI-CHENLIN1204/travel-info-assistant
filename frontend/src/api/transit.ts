@@ -1,6 +1,7 @@
 import { apiRequest } from './client'
 import type {
   ApiResponse,
+  MetroServiceStatus,
   MetroStation,
   RailStation,
   TdxProviderStatus,
@@ -66,6 +67,12 @@ export function getMetroArrivals(
   stationId: string,
 ): Promise<ApiResponse<TransitArrival[]>> {
   return apiRequest(`/v1/transit/metro/arrivals?${params({ cityId, stationId })}`)
+}
+
+export function getMetroStatus(
+  cityId: string,
+): Promise<ApiResponse<MetroServiceStatus[]>> {
+  return apiRequest(`/v1/transit/metro/status?${params({ cityId })}`)
 }
 
 export function searchRailStations(

@@ -68,6 +68,15 @@ public sealed record TransitArrivalResponse(
     bool IsLastService,
     string? Platform = null);
 
+public sealed record MetroServiceStatusResponse(
+    string Id,
+    string? LineId,
+    string? LineName,
+    string? MessageJa,
+    string? MessageEn,
+    DateTimeOffset? UpdatedAt,
+    DateTimeOffset? ValidUntil);
+
 public sealed record TdxProviderStatusResponse(
     bool Configured,
     string BillingCycle,

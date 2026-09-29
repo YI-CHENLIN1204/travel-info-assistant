@@ -233,7 +233,7 @@ function formatTimestamp(value: string | null | undefined): string {
         <h2>{{ cityStore.currentCity.nameZh }}大眾運輸</h2>
         <p>
           <template v-if="isTokyo">
-            查詢 Tokyo Metro 路線與車站；資料由後端統一向 ODPT 取得並共用快取。
+            查詢 Tokyo Metro 路線、車站、表定班次與官方運行狀態；資料由後端統一向 ODPT 取得並共用快取。
           </template>
           <template v-else>
             查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
@@ -796,13 +796,44 @@ function formatTimestamp(value: string | null | undefined): string {
     </section>
 
     <section v-else class="transit-insights">
-      <article class="quota-panel">
-        <div class="panel-icon"><Database :size="21" /></div>
+      <article
+        v-for="status in transitStore.metroStatuses"
+        :key="status.id"
+        class="quota-panel"
+      >
+        <div class="panel-icon"><TrainFront :size="21" /></div>
         <div>
-          <span class="eyebrow">OFFICIAL OPEN DATA</span>
-          <h3>ODPT 東京地鐵資料</h3>
+          <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
+          <h3>{{ status.lineName ?? status.lineId ?? 'Tokyo Metro' }}</h3>
         </div>
-        <p>路線、車站與時刻表由後端共用快取；畫面不會讓每位使用者直接呼叫 ODPT。</p>
+        <p>
+          {{ status.messageJa ?? status.messageEn ?? '暫時無法確認運行狀態。' }}
+          <template v-if="status.messageEn && status.messageEn !== status.messageJa">
+            <br />{{ status.messageEn }}
+          </template>
+          <br />更新 {{ formatTimestamp(status.updatedAt) }} · 有效至
+          {{ formatTimestamp(status.validUntil) }}
+        </p>
+      </article>
+
+      <article v-if="!transitStore.metroStatuses.length" class="quota-panel">
+        <div class="panel-icon"><CircleAlert :size="21" /></div>
+        <div>
+          <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
+          <h3>
+            {{
+              transitStore.metroStatusMeta?.dataStatus === 'unavailable'
+                ? '暫時無法確認運行狀態'
+                : '目前沒有可顯示的運行狀態'
+            }}
+          </h3>
+        </div>
+        <p>
+          {{
+            transitStore.metroStatusMeta?.message ??
+            '尚未取得 Tokyo Metro 官方運行狀態。'
+          }}
+        </p>
       </article>
 
       <article class="rule-panel compact-rule-panel">
@@ -811,10 +842,10 @@ function formatTimestamp(value: string | null | undefined): string {
           <h3>本階段查詢範圍</h3>
         </div>
         <ul>
-          <li><strong>官方資料</strong><span>Tokyo Metro 路線、車站與表定時刻</span></li>
+          <li><strong>官方資料</strong><span>Tokyo Metro 路線、車站、表定時刻與運行狀態</span></li>
           <li><strong>搜尋方式</strong><span>日文、英文、車站代碼</span></li>
-          <li><strong>快取備援</strong><span>來源暫時失效時保留舊資料</span></li>
-          <li><strong>下一階段</strong><span>即時列車位置與延誤資訊</span></li>
+          <li><strong>狀態有效期</strong><span>過期或更新失敗時不顯示舊動態資料</span></li>
+          <li><strong>下一階段</strong><span>評估都營地下鐵列車位置與延誤資訊</span></li>
         </ul>
       </article>
     </section>

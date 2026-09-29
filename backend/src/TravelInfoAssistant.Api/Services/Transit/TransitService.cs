@@ -150,6 +150,20 @@ public sealed class TransitService(
         return await tdxProvider.GetMetroArrivalsAsync(stationId.Trim(), cancellationToken);
     }
 
+    public async Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
+        Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        if (await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken) != "tokyo")
+        {
+            return Unavailable<MetroServiceStatusResponse>(
+                "目前僅提供東京 Metro 官方運行狀態。",
+                "ODPT");
+        }
+
+        return await odptProvider.GetMetroStatusAsync(cancellationToken);
+    }
+
     public async Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchRailStationsAsync(
         Guid cityId,
         string? query,

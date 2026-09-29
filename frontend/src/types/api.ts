@@ -125,6 +125,16 @@ export interface TransitArrival {
   platform: string | null
 }
 
+export interface MetroServiceStatus {
+  id: string
+  lineId: string | null
+  lineName: string | null
+  messageJa: string | null
+  messageEn: string | null
+  updatedAt: string | null
+  validUntil: string | null
+}
+
 export interface TdxProviderStatus {
   configured: boolean
   billingCycle: string

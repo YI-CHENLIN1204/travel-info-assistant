@@ -4,6 +4,7 @@ import {
   getBusArrivals,
   getBusStops,
   getMetroArrivals,
+  getMetroStatus,
   getRailArrivals,
   getTdxStatus,
   searchBusRoutes as requestBusRoutes,
@@ -13,6 +14,7 @@ import {
 } from '@/api/transit'
 import type {
   ApiMeta,
+  MetroServiceStatus,
   MetroStation,
   RailStation,
   TdxProviderStatus,
@@ -58,6 +60,8 @@ export const useTransitStore = defineStore('transit', () => {
   const routes = ref<TransitRoute[]>([])
   const metroRoutes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
+  const metroStatuses = ref<MetroServiceStatus[]>([])
+  const metroStatusMeta = ref<ApiMeta | null>(null)
   const railStations = ref<RailStation[]>([])
   const selectedTokyoRoute = ref<TransitRoute | null>(null)
   const selectedTokyoRouteStations = ref<MetroStation[]>([])
@@ -83,6 +87,8 @@ export const useTransitStore = defineStore('transit', () => {
     routes.value = []
     metroRoutes.value = []
     stations.value = []
+    metroStatuses.value = []
+    metroStatusMeta.value = null
     railStations.value = []
     selectedTokyoRoute.value = null
     selectedTokyoRouteStations.value = []
@@ -175,12 +181,15 @@ export const useTransitStore = defineStore('transit', () => {
   async function searchTokyoMetro(cityId: string): Promise<void> {
     await run(async () => {
       const query = metroQuery.value.trim()
-      const [routeResponse, stationResponse] = await Promise.all([
+      const [routeResponse, stationResponse, statusResponse] = await Promise.all([
         requestMetroRoutes(cityId, query),
         requestMetroStations(cityId, query),
+        getMetroStatus(cityId),
       ])
       metroRoutes.value = routeResponse.data
       stations.value = stationResponse.data
+      metroStatuses.value = statusResponse.data
+      metroStatusMeta.value = statusResponse.meta
       selectedTokyoRoute.value = null
       selectedTokyoRouteStations.value = []
       selectedStation.value = null
@@ -286,6 +295,8 @@ export const useTransitStore = defineStore('transit', () => {
     routes,
     metroRoutes,
     stations,
+    metroStatuses,
+    metroStatusMeta,
     railStations,
     selectedTokyoRoute,
     filteredTokyoStations,

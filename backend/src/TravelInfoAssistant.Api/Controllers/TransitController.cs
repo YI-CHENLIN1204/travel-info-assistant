@@ -163,6 +163,16 @@ public sealed class TransitController(ITransitService transitService) : Controll
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("metro/status")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<MetroServiceStatusResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<MetroServiceStatusResponse>>>> GetMetroStatus(
+        [FromQuery] Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        var result = await transitService.GetMetroStatusAsync(cityId, cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
     [HttpGet("rail/stations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<RailStationResponse>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<RailStationResponse>>>> SearchRailStations(
