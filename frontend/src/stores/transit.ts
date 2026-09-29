@@ -60,8 +60,12 @@ export const useTransitStore = defineStore('transit', () => {
   const stations = ref<MetroStation[]>([])
   const railStations = ref<RailStation[]>([])
   const selectedTokyoRoute = ref<TransitRoute | null>(null)
+  const selectedTokyoRouteStations = ref<MetroStation[]>([])
   const filteredTokyoStations = computed(() =>
-    filterTokyoMetroStations(stations.value, selectedTokyoRoute.value),
+    filterTokyoMetroStations(
+      selectedTokyoRoute.value ? selectedTokyoRouteStations.value : stations.value,
+      selectedTokyoRoute.value,
+    ),
   )
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
@@ -81,6 +85,7 @@ export const useTransitStore = defineStore('transit', () => {
     stations.value = []
     railStations.value = []
     selectedTokyoRoute.value = null
+    selectedTokyoRouteStations.value = []
     selectedRoute.value = null
     selectedDirection.value = 0
     stops.value = []
@@ -177,6 +182,7 @@ export const useTransitStore = defineStore('transit', () => {
       metroRoutes.value = routeResponse.data
       stations.value = stationResponse.data
       selectedTokyoRoute.value = null
+      selectedTokyoRouteStations.value = []
       selectedStation.value = null
       arrivals.value = []
       resultMeta.value =
@@ -186,9 +192,10 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  function chooseTokyoRoute(route: TransitRoute): void {
+  async function chooseTokyoRoute(cityId: string, route: TransitRoute): Promise<void> {
     const nextRoute = selectedTokyoRoute.value?.id === route.id ? null : route
     selectedTokyoRoute.value = nextRoute
+    selectedTokyoRouteStations.value = []
 
     if (
       selectedStation.value &&
@@ -198,6 +205,16 @@ export const useTransitStore = defineStore('transit', () => {
       selectedStation.value = null
       arrivals.value = []
     }
+
+    if (!nextRoute) return
+
+    await run(async () => {
+      const response = await requestMetroStations(cityId, nextRoute.id)
+      if (selectedTokyoRoute.value?.id !== nextRoute.id) return
+
+      selectedTokyoRouteStations.value = response.data
+      resultMeta.value = response.meta
+    })
   }
 
   async function chooseMetroStation(cityId: string, station: MetroStation): Promise<void> {

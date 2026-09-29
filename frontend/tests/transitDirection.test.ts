@@ -1,7 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
+import * as transitApi from '@/api/transit'
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import { filterTokyoMetroStations, useTransitStore } from '@/stores/transit'
-import type { MetroStation, TransitArrival, TransitRoute } from '@/types/api'
+import type { ApiMeta, MetroStation, TransitArrival, TransitRoute } from '@/types/api'
 
 const route: TransitRoute = {
   id: 'TPE214',
@@ -25,6 +26,15 @@ const route: TransitRoute = {
       destinationName: '中和',
     },
   ],
+}
+
+const odptMeta: ApiMeta = {
+  dataStatus: 'scheduled',
+  source: 'ODPT',
+  sourceUpdatedAt: '2026-09-29T00:00:00+09:00',
+  fetchedAt: '2026-09-29T00:01:00+09:00',
+  stale: false,
+  message: null,
 }
 
 describe('getBusDirectionLabel', () => {
@@ -98,17 +108,49 @@ describe('filterTokyoMetroStations', () => {
     expect(filterTokyoMetroStations(stations, null)).toEqual(stations)
   })
 
-  it('clears only a station that does not belong to the newly selected route', () => {
+  it('loads and orders the complete station list for the selected route', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const ginzaRoute = {
+      ...route,
+      id: 'railway-ginza',
+      stationNames: ['表參道', '銀座'],
+    }
+    store.stations = [stations[2]]
+    const stationSearch = vi.spyOn(transitApi, 'searchMetroStations').mockResolvedValue({
+      data: [stations[0], stations[1]],
+      meta: odptMeta,
+    })
+
+    await store.chooseTokyoRoute('tokyo-id', ginzaRoute)
+
+    expect(stationSearch).toHaveBeenCalledWith('tokyo-id', 'railway-ginza')
+    expect(store.filteredTokyoStations.map((station) => station.id)).toEqual([
+      'station-2',
+      'station-1',
+    ])
+
+    await store.chooseTokyoRoute('tokyo-id', ginzaRoute)
+
+    expect(stationSearch).toHaveBeenCalledTimes(1)
+    expect(store.filteredTokyoStations).toEqual([stations[2]])
+  })
+
+  it('clears only a station that does not belong to the newly selected route', async () => {
     setActivePinia(createPinia())
     const store = useTransitStore()
     const ginzaRoute = { ...route, id: 'railway-ginza' }
     const hibiyaRoute = { ...route, id: 'railway-hibiya' }
     const arrival = { id: 'arrival-1' } as TransitArrival
+    vi.spyOn(transitApi, 'searchMetroStations').mockResolvedValue({
+      data: [stations[2]],
+      meta: odptMeta,
+    })
 
     store.selectedTokyoRoute = ginzaRoute
     store.selectedStation = stations[0]
     store.arrivals = [arrival]
-    store.chooseTokyoRoute(hibiyaRoute)
+    await store.chooseTokyoRoute('tokyo-id', hibiyaRoute)
 
     expect(store.selectedStation).toBeNull()
     expect(store.arrivals).toEqual([])
@@ -116,7 +158,7 @@ describe('filterTokyoMetroStations', () => {
     store.selectedTokyoRoute = ginzaRoute
     store.selectedStation = stations[2]
     store.arrivals = [arrival]
-    store.chooseTokyoRoute(hibiyaRoute)
+    await store.chooseTokyoRoute('tokyo-id', hibiyaRoute)
 
     expect(store.selectedStation).toEqual(stations[2])
     expect(store.arrivals).toEqual([arrival])

@@ -172,7 +172,7 @@ function selectStation(station: MetroStation): void {
 }
 
 function selectTokyoRoute(route: TransitRoute): void {
-  transitStore.chooseTokyoRoute(route)
+  void transitStore.chooseTokyoRoute(cityStore.currentCity.id, route)
 }
 
 function submitRailSearch(): void {
