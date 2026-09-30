@@ -103,7 +103,9 @@ public sealed class OdptApiClient(
             .Where(item => !string.IsNullOrWhiteSpace(item.Value))
             .Select(item =>
                 $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value!)}");
-        var requestUri = $"{relativePath}?{string.Join('&', values)}";
+        var requestUri = new Uri(
+            $"./{relativePath}?{string.Join('&', values)}",
+            UriKind.Relative);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
