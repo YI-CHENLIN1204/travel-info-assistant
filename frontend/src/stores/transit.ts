@@ -25,6 +25,8 @@ import type {
 
 export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
+export const tokyoMetroStatusRefreshMilliseconds = 60_000
+
 export function filterTokyoMetroStations(
   stations: MetroStation[],
   route: TransitRoute | null,
@@ -60,6 +62,16 @@ export function findTokyoMetroStatus(
   return statuses.find((status) => status.lineId === route.id) ?? null
 }
 
+export function isTokyoMetroStatusCurrent(
+  status: MetroServiceStatus,
+  now: Date,
+): boolean {
+  if (!status.validUntil) return false
+
+  const validUntil = Date.parse(status.validUntil)
+  return Number.isFinite(validUntil) && validUntil > now.getTime()
+}
+
 export const useTransitStore = defineStore('transit', () => {
   const activeMode = ref<TransitModeKey>('bus')
   const busQuery = ref('')
@@ -92,9 +104,12 @@ export const useTransitStore = defineStore('transit', () => {
   const resultMeta = ref<ApiMeta | null>(null)
   const providerStatus = ref<TdxProviderStatus | null>(null)
   const loading = ref(false)
+  const metroStatusLoading = ref(false)
   const error = ref<string | null>(null)
+  let metroStatusRefreshTimer: number | undefined
 
   function resetResults(): void {
+    stopTokyoMetroStatusRefresh()
     routes.value = []
     metroRoutes.value = []
     stations.value = []
@@ -212,6 +227,44 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
+  async function refreshTokyoMetroStatus(cityId: string): Promise<void> {
+    if (metroStatusLoading.value) return
+
+    metroStatusLoading.value = true
+    try {
+      const response = await getMetroStatus(cityId)
+      metroStatuses.value = response.data
+      metroStatusMeta.value = response.meta
+    } catch {
+      const previousMeta = metroStatusMeta.value
+      metroStatusMeta.value = {
+        dataStatus: 'unavailable',
+        source: previousMeta?.source ?? 'ODPT',
+        sourceUpdatedAt: previousMeta?.sourceUpdatedAt ?? null,
+        fetchedAt: new Date().toISOString(),
+        stale: true,
+        message: '目前無法更新官方運行狀態，請稍後再試。',
+      }
+    } finally {
+      metroStatusLoading.value = false
+    }
+  }
+
+  function startTokyoMetroStatusRefresh(cityId: string): void {
+    stopTokyoMetroStatusRefresh()
+    void refreshTokyoMetroStatus(cityId)
+    metroStatusRefreshTimer = window.setInterval(() => {
+      void refreshTokyoMetroStatus(cityId)
+    }, tokyoMetroStatusRefreshMilliseconds)
+  }
+
+  function stopTokyoMetroStatusRefresh(): void {
+    if (metroStatusRefreshTimer === undefined) return
+
+    window.clearInterval(metroStatusRefreshTimer)
+    metroStatusRefreshTimer = undefined
+  }
+
   async function chooseTokyoRoute(cityId: string, route: TransitRoute): Promise<void> {
     const nextRoute = selectedTokyoRoute.value?.id === route.id ? null : route
     selectedTokyoRoute.value = nextRoute
@@ -322,6 +375,7 @@ export const useTransitStore = defineStore('transit', () => {
     resultMeta,
     providerStatus,
     loading,
+    metroStatusLoading,
     error,
     resetResults,
     searchBusRoutes,
@@ -331,6 +385,9 @@ export const useTransitStore = defineStore('transit', () => {
     refreshBusArrivals,
     searchMetroStations,
     searchTokyoMetro,
+    refreshTokyoMetroStatus,
+    startTokyoMetroStatusRefresh,
+    stopTokyoMetroStatusRefresh,
     chooseTokyoRoute,
     chooseMetroStation,
     refreshMetroArrivals,

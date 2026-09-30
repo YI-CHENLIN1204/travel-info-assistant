@@ -4,6 +4,8 @@ import { getBusDirectionLabel } from '@/services/transitDirection'
 import {
   filterTokyoMetroStations,
   findTokyoMetroStatus,
+  isTokyoMetroStatusCurrent,
+  tokyoMetroStatusRefreshMilliseconds,
   useTransitStore,
 } from '@/stores/transit'
 import type {
@@ -46,6 +48,11 @@ const odptMeta: ApiMeta = {
   stale: false,
   message: null,
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 describe('getBusDirectionLabel', () => {
   it('uses each direction destination before a duplicated headsign', () => {
@@ -211,5 +218,60 @@ describe('findTokyoMetroStatus', () => {
     expect(
       findTokyoMetroStatus(statuses, { ...route, id: 'railway-marunouchi' }),
     ).toBeNull()
+  })
+
+  it('rejects a status when its official validity has expired', () => {
+    expect(
+      isTokyoMetroStatusCurrent(
+        statuses[0],
+        new Date('2026-09-30T12:04:59+09:00'),
+      ),
+    ).toBe(true)
+    expect(
+      isTokyoMetroStatusCurrent(
+        statuses[0],
+        new Date('2026-09-30T12:05:00+09:00'),
+      ),
+    ).toBe(false)
+    expect(
+      isTokyoMetroStatusCurrent(
+        { ...statuses[0], validUntil: null },
+        new Date('2026-09-30T12:04:00+09:00'),
+      ),
+    ).toBe(false)
+  })
+
+  it('refreshes only status data every minute and stops on request', async () => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const ginzaRoute = { ...route, id: 'railway-ginza' }
+    const selectedStation = {
+      id: 'station-1',
+      nameZh: '銀座',
+    } as MetroStation
+    const arrival = { id: 'arrival-1' } as TransitArrival
+    const statusRequest = vi.spyOn(transitApi, 'getMetroStatus').mockResolvedValue({
+      data: statuses,
+      meta: { ...odptMeta, dataStatus: 'realtime' },
+    })
+    store.selectedTokyoRoute = ginzaRoute
+    store.selectedStation = selectedStation
+    store.arrivals = [arrival]
+
+    store.startTokyoMetroStatusRefresh('tokyo-id')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(statusRequest).toHaveBeenCalledTimes(1)
+    expect(store.selectedTokyoRoute).toEqual(ginzaRoute)
+    expect(store.selectedStation).toEqual(selectedStation)
+    expect(store.arrivals).toEqual([arrival])
+
+    await vi.advanceTimersByTimeAsync(tokyoMetroStatusRefreshMilliseconds)
+    expect(statusRequest).toHaveBeenCalledTimes(2)
+
+    store.stopTokyoMetroStatusRefresh()
+    await vi.advanceTimersByTimeAsync(tokyoMetroStatusRefreshMilliseconds)
+    expect(statusRequest).toHaveBeenCalledTimes(2)
   })
 })
