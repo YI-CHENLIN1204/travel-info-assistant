@@ -480,6 +480,46 @@ function formatTimestamp(value: string | null | undefined): string {
               </div>
               <span>{{ transitStore.filteredTokyoStations.length }} 筆</span>
             </div>
+
+            <article
+              v-if="transitStore.selectedTokyoRoute"
+              class="quota-panel panel-heading-row"
+            >
+              <div class="panel-icon">
+                <TrainFront v-if="transitStore.selectedTokyoMetroStatus" :size="21" />
+                <CircleAlert v-else :size="21" />
+              </div>
+              <div>
+                <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
+                <h3>{{ transitStore.selectedTokyoRoute.nameZh }}</h3>
+              </div>
+              <p v-if="transitStore.selectedTokyoMetroStatus">
+                {{
+                  transitStore.selectedTokyoMetroStatus.messageJa ??
+                  transitStore.selectedTokyoMetroStatus.messageEn ??
+                  '暫時無法確認運行狀態。'
+                }}
+                <template
+                  v-if="
+                    transitStore.selectedTokyoMetroStatus.messageEn &&
+                    transitStore.selectedTokyoMetroStatus.messageEn !==
+                      transitStore.selectedTokyoMetroStatus.messageJa
+                  "
+                >
+                  <br />{{ transitStore.selectedTokyoMetroStatus.messageEn }}
+                </template>
+                <br />更新 {{ formatTimestamp(transitStore.selectedTokyoMetroStatus.updatedAt) }} ·
+                有效至 {{ formatTimestamp(transitStore.selectedTokyoMetroStatus.validUntil) }}
+              </p>
+              <p v-else>
+                {{
+                  transitStore.metroStatusMeta?.dataStatus === 'unavailable'
+                    ? (transitStore.metroStatusMeta.message ?? '暫時無法取得官方運行狀態。')
+                    : `目前沒有 ${transitStore.selectedTokyoRoute.nameZh} 可顯示的官方運行狀態。`
+                }}
+              </p>
+            </article>
+
             <div class="route-result-list tokyo-station-list">
               <button
                 v-for="station in transitStore.filteredTokyoStations"
@@ -795,59 +835,5 @@ function formatTimestamp(value: string | null | undefined): string {
       </article>
     </section>
 
-    <section v-else class="transit-insights">
-      <article
-        v-for="status in transitStore.metroStatuses"
-        :key="status.id"
-        class="quota-panel"
-      >
-        <div class="panel-icon"><TrainFront :size="21" /></div>
-        <div>
-          <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
-          <h3>{{ status.lineName ?? status.lineId ?? 'Tokyo Metro' }}</h3>
-        </div>
-        <p>
-          {{ status.messageJa ?? status.messageEn ?? '暫時無法確認運行狀態。' }}
-          <template v-if="status.messageEn && status.messageEn !== status.messageJa">
-            <br />{{ status.messageEn }}
-          </template>
-          <br />更新 {{ formatTimestamp(status.updatedAt) }} · 有效至
-          {{ formatTimestamp(status.validUntil) }}
-        </p>
-      </article>
-
-      <article v-if="!transitStore.metroStatuses.length" class="quota-panel">
-        <div class="panel-icon"><CircleAlert :size="21" /></div>
-        <div>
-          <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
-          <h3>
-            {{
-              transitStore.metroStatusMeta?.dataStatus === 'unavailable'
-                ? '暫時無法確認運行狀態'
-                : '目前沒有可顯示的運行狀態'
-            }}
-          </h3>
-        </div>
-        <p>
-          {{
-            transitStore.metroStatusMeta?.message ??
-            '尚未取得 Tokyo Metro 官方運行狀態。'
-          }}
-        </p>
-      </article>
-
-      <article class="rule-panel compact-rule-panel">
-        <div>
-          <span class="eyebrow">MVP SCOPE</span>
-          <h3>本階段查詢範圍</h3>
-        </div>
-        <ul>
-          <li><strong>官方資料</strong><span>Tokyo Metro 路線、車站、表定時刻與運行狀態</span></li>
-          <li><strong>搜尋方式</strong><span>日文、英文、車站代碼</span></li>
-          <li><strong>狀態有效期</strong><span>過期或更新失敗時不顯示舊動態資料</span></li>
-          <li><strong>下一階段</strong><span>評估都營地下鐵列車位置與延誤資訊</span></li>
-        </ul>
-      </article>
-    </section>
   </div>
 </template>

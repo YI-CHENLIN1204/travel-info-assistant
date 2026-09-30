@@ -52,6 +52,14 @@ export function filterTokyoMetroStations(
     .map(({ station }) => station)
 }
 
+export function findTokyoMetroStatus(
+  statuses: MetroServiceStatus[],
+  route: TransitRoute | null,
+): MetroServiceStatus | null {
+  if (!route) return null
+  return statuses.find((status) => status.lineId === route.id) ?? null
+}
+
 export const useTransitStore = defineStore('transit', () => {
   const activeMode = ref<TransitModeKey>('bus')
   const busQuery = ref('')
@@ -70,6 +78,9 @@ export const useTransitStore = defineStore('transit', () => {
       selectedTokyoRoute.value ? selectedTokyoRouteStations.value : stations.value,
       selectedTokyoRoute.value,
     ),
+  )
+  const selectedTokyoMetroStatus = computed(() =>
+    findTokyoMetroStatus(metroStatuses.value, selectedTokyoRoute.value),
   )
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
@@ -300,6 +311,7 @@ export const useTransitStore = defineStore('transit', () => {
     railStations,
     selectedTokyoRoute,
     filteredTokyoStations,
+    selectedTokyoMetroStatus,
     selectedRoute,
     selectedDirection,
     stops,

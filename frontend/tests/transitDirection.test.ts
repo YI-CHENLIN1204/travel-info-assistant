@@ -1,8 +1,18 @@
 import { createPinia, setActivePinia } from 'pinia'
 import * as transitApi from '@/api/transit'
 import { getBusDirectionLabel } from '@/services/transitDirection'
-import { filterTokyoMetroStations, useTransitStore } from '@/stores/transit'
-import type { ApiMeta, MetroStation, TransitArrival, TransitRoute } from '@/types/api'
+import {
+  filterTokyoMetroStations,
+  findTokyoMetroStatus,
+  useTransitStore,
+} from '@/stores/transit'
+import type {
+  ApiMeta,
+  MetroServiceStatus,
+  MetroStation,
+  TransitArrival,
+  TransitRoute,
+} from '@/types/api'
 
 const route: TransitRoute = {
   id: 'TPE214',
@@ -162,5 +172,44 @@ describe('filterTokyoMetroStations', () => {
 
     expect(store.selectedStation).toEqual(stations[2])
     expect(store.arrivals).toEqual([arrival])
+  })
+})
+
+describe('findTokyoMetroStatus', () => {
+  const statuses: MetroServiceStatus[] = [
+    {
+      id: 'status-ginza',
+      lineId: 'railway-ginza',
+      lineName: '銀座線',
+      messageJa: '現在、平常通り運転しています。',
+      messageEn: 'Normal service.',
+      updatedAt: '2026-09-30T12:00:00+09:00',
+      validUntil: '2026-09-30T12:05:00+09:00',
+    },
+    {
+      id: 'status-hibiya',
+      lineId: 'railway-hibiya',
+      lineName: '日比谷線',
+      messageJa: '列車に遅れが出ています。',
+      messageEn: 'Trains are delayed.',
+      updatedAt: '2026-09-30T12:00:00+09:00',
+      validUntil: '2026-09-30T12:05:00+09:00',
+    },
+  ]
+
+  it('returns only the status belonging to the selected route', () => {
+    expect(
+      findTokyoMetroStatus(statuses, { ...route, id: 'railway-ginza' })?.id,
+    ).toBe('status-ginza')
+    expect(
+      findTokyoMetroStatus(statuses, { ...route, id: 'railway-hibiya' })?.id,
+    ).toBe('status-hibiya')
+  })
+
+  it('returns no status when no route is selected or the line has no status', () => {
+    expect(findTokyoMetroStatus(statuses, null)).toBeNull()
+    expect(
+      findTokyoMetroStatus(statuses, { ...route, id: 'railway-marunouchi' }),
+    ).toBeNull()
   })
 })
