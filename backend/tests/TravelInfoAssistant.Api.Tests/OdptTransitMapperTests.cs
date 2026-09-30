@@ -47,6 +47,28 @@ public sealed class OdptTransitMapperTests
     }
 
     [Fact]
+    public void MapRailway_MapsToeiOperator()
+    {
+        var railway = new OdptRailway
+        {
+            SameAs = "odpt.Railway:Toei.Asakusa",
+            Operator = "odpt.Operator:Toei",
+            RailwayTitle = new OdptLocalizedTitle
+            {
+                Ja = "浅草線",
+                En = "Asakusa Line"
+            }
+        };
+
+        var result = OdptTransitMapper.MapRailway(railway);
+
+        Assert.NotNull(result);
+        Assert.Equal("浅草線", result.NameZh);
+        Assert.Equal("Asakusa Line", result.NameEn);
+        Assert.Equal("都營地下鐵", Assert.Single(result.Operators));
+    }
+
+    [Fact]
     public void MapStation_MapsCodeCoordinatesAndRailway()
     {
         const string json = """
@@ -72,6 +94,24 @@ public sealed class OdptTransitMapperTests
         Assert.Equal("銀座線", result.RailwayName);
         Assert.Equal(35.711482, result.Latitude);
         Assert.Equal(139.777122, result.Longitude);
+    }
+
+    [Fact]
+    public void MapStation_UsesToeiRailwayNameFallback()
+    {
+        var station = new OdptStation
+        {
+            SameAs = "odpt.Station:Toei.Oedo.Shinjuku",
+            StationTitle = new OdptLocalizedTitle { Ja = "新宿", En = "Shinjuku" },
+            StationCode = "E27",
+            Operator = "odpt.Operator:Toei",
+            Railway = "odpt.Railway:Toei.Oedo"
+        };
+
+        var result = OdptTransitMapper.MapStation(station);
+
+        Assert.NotNull(result);
+        Assert.Equal("大江戸線", result.RailwayName);
     }
 
     [Fact]

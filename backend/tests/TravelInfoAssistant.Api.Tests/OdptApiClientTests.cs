@@ -23,23 +23,59 @@ public sealed class OdptApiClientTests
             TimeProvider.System);
 
         await client.GetCalendarsAsync(CancellationToken.None);
-        await client.GetRailwaysAsync(CancellationToken.None);
-        await client.GetStationsAsync(CancellationToken.None);
-        await client.GetStationTimetablesAsync(
-            "odpt.Station:TokyoMetro.Ginza.Ueno",
+        await client.GetRailwaysAsync(
+            "odpt.Operator:TokyoMetro",
             CancellationToken.None);
-        await client.GetTrainInformationAsync(CancellationToken.None);
+        await client.GetStationsAsync(
+            "odpt.Operator:Toei",
+            CancellationToken.None);
+        await client.GetStationsByIdsAsync(
+            [
+                "odpt.Station:Keisei.Main.KeiseiTakasago",
+                "odpt.Station:Hokuso.Hokuso.ImbaNihonIdai"
+            ],
+            CancellationToken.None);
+        await client.GetStationTimetablesAsync(
+            "odpt.Operator:Toei",
+            "odpt.Station:Toei.Asakusa.Asakusa",
+            CancellationToken.None);
+        await client.GetTrainInformationAsync(
+            "odpt.Operator:Toei",
+            CancellationToken.None);
 
         Assert.Collection(
             handler.RequestUris,
             uri => AssertRequest(uri, "/api/v4/odpt:Calendar"),
-            uri => AssertRequest(uri, "/api/v4/odpt:Railway"),
-            uri => AssertRequest(uri, "/api/v4/odpt:Station"),
-            uri => AssertRequest(uri, "/api/v4/odpt:StationTimetable"),
-            uri => AssertRequest(uri, "/api/v4/odpt:TrainInformation"));
+            uri => AssertRequest(
+                uri,
+                "/api/v4/odpt:Railway",
+                ("odpt:operator", "odpt.Operator:TokyoMetro")),
+            uri => AssertRequest(
+                uri,
+                "/api/v4/odpt:Station",
+                ("odpt:operator", "odpt.Operator:Toei")),
+            uri => AssertRequest(
+                uri,
+                "/api/v4/odpt:Station",
+                (
+                    "owl:sameAs",
+                    "odpt.Station:Keisei.Main.KeiseiTakasago," +
+                    "odpt.Station:Hokuso.Hokuso.ImbaNihonIdai")),
+            uri => AssertRequest(
+                uri,
+                "/api/v4/odpt:StationTimetable",
+                ("odpt:operator", "odpt.Operator:Toei"),
+                ("odpt:station", "odpt.Station:Toei.Asakusa.Asakusa")),
+            uri => AssertRequest(
+                uri,
+                "/api/v4/odpt:TrainInformation",
+                ("odpt:operator", "odpt.Operator:Toei")));
     }
 
-    private static void AssertRequest(Uri uri, string expectedPath)
+    private static void AssertRequest(
+        Uri uri,
+        string expectedPath,
+        params (string Key, string Value)[] expectedQuery)
     {
         Assert.Equal(Uri.UriSchemeHttps, uri.Scheme);
         Assert.Equal("api.odpt.test", uri.Host);
@@ -48,6 +84,13 @@ public sealed class OdptApiClientTests
             "acl%3AconsumerKey=not-a-real-key",
             uri.Query,
             StringComparison.OrdinalIgnoreCase);
+        foreach (var (key, value) in expectedQuery)
+        {
+            Assert.Contains(
+                $"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}",
+                uri.Query,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private sealed class StubHttpClientFactory(HttpClient client) : IHttpClientFactory

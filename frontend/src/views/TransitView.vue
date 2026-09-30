@@ -15,7 +15,7 @@ import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrival
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import { useCityStore } from '@/stores/city'
 import {
-  isTokyoMetroStatusCurrent,
+  isTokyoSubwayStatusCurrent,
   useTransitStore,
   type TransitModeKey,
 } from '@/stores/transit'
@@ -85,14 +85,14 @@ const quotaPercent = computed(() => {
   if (!status || status.softLimitPoints <= 0) return 0
   return Math.min(100, (status.estimatedPoints / status.softLimitPoints) * 100)
 })
-const selectedTokyoMetroStatus = computed(() => {
-  const status = transitStore.selectedTokyoMetroStatus
-  return status && isTokyoMetroStatusCurrent(status, now.value) ? status : null
+const selectedTokyoSubwayStatus = computed(() => {
+  const status = transitStore.selectedTokyoSubwayStatus
+  return status && isTokyoSubwayStatusCurrent(status, now.value) ? status : null
 })
-const selectedTokyoMetroStatusExpired = computed(
+const selectedTokyoSubwayStatusExpired = computed(
   () =>
-    transitStore.selectedTokyoMetroStatus !== null &&
-    selectedTokyoMetroStatus.value === null,
+    transitStore.selectedTokyoSubwayStatus !== null &&
+    selectedTokyoSubwayStatus.value === null,
 )
 
 watch(
@@ -119,9 +119,9 @@ watch(
     () => cityStore.currentCity.id,
   ],
   ([tokyo, mode, routeId, cityId]) => {
-    transitStore.stopTokyoMetroStatusRefresh()
+    transitStore.stopTokyoSubwayStatusRefresh()
     if (tokyo && mode === 'metro' && routeId) {
-      transitStore.startTokyoMetroStatusRefresh(cityId)
+      transitStore.startTokyoSubwayStatusRefresh(cityId)
     }
   },
   { immediate: true },
@@ -135,7 +135,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (clockTimer !== undefined) window.clearInterval(clockTimer)
-  transitStore.stopTokyoMetroStatusRefresh()
+  transitStore.stopTokyoSubwayStatusRefresh()
 })
 
 async function activateMode(mode: TransitModeKey): Promise<void> {
@@ -157,7 +157,7 @@ async function loadModeIndex(mode: TransitModeKey): Promise<void> {
   }
   if (mode === 'metro' && transitStore.stations.length === 0) {
     if (isTokyo.value) {
-      await transitStore.searchTokyoMetro(cityId)
+      await transitStore.searchTokyoSubway(cityId)
     } else {
       await transitStore.searchMetroStations(cityId)
     }
@@ -191,7 +191,7 @@ function selectStop(stop: TransitStop): void {
 
 function submitMetroSearch(): void {
   if (isTokyo.value) {
-    void transitStore.searchTokyoMetro(cityStore.currentCity.id)
+    void transitStore.searchTokyoSubway(cityStore.currentCity.id)
   } else {
     void transitStore.searchMetroStations(cityStore.currentCity.id)
   }
@@ -205,8 +205,8 @@ function selectTokyoRoute(route: TransitRoute): void {
   void transitStore.chooseTokyoRoute(cityStore.currentCity.id, route)
 }
 
-function refreshTokyoMetroStatus(): void {
-  void transitStore.refreshTokyoMetroStatus(cityStore.currentCity.id)
+function refreshTokyoSubwayStatus(): void {
+  void transitStore.refreshTokyoSubwayStatus(cityStore.currentCity.id)
 }
 
 function submitRailSearch(): void {
@@ -267,7 +267,7 @@ function formatTimestamp(value: string | null | undefined): string {
         <h2>{{ cityStore.currentCity.nameZh }}大眾運輸</h2>
         <p>
           <template v-if="isTokyo">
-            查詢 Tokyo Metro 路線、車站、表定班次與官方運行狀態；資料由後端統一向 ODPT 取得並共用快取。
+            查詢 Tokyo Metro 與都營地下鐵路線、車站、表定班次及官方運行狀態；資料由後端統一向 ODPT 取得並共用快取。
           </template>
           <template v-else>
             查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
@@ -460,7 +460,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 v-model="transitStore.metroQuery"
                 maxlength="50"
                 autocomplete="off"
-                placeholder="例如：銀座、Tokyo、G09"
+                placeholder="例如：銀座、Asakusa、A18"
               />
             </span>
           </label>
@@ -476,7 +476,7 @@ function formatTimestamp(value: string | null | undefined): string {
           <section class="selection-panel">
             <div class="panel-heading-row">
               <div>
-                <span class="eyebrow">TOKYO METRO LINES</span>
+                <span class="eyebrow">TOKYO SUBWAY LINES</span>
                 <h3>路線</h3>
               </div>
               <span>{{ transitStore.metroRoutes.length }} 筆</span>
@@ -494,7 +494,8 @@ function formatTimestamp(value: string | null | undefined): string {
                 @keydown.space.prevent="selectTokyoRoute(route)"
               >
                 <strong>{{ route.nameZh }}</strong>
-                <span>{{ route.nameEn ?? 'Tokyo Metro' }}</span>
+                <span>{{ route.nameEn ?? 'Tokyo Subway' }}</span>
+                <small>{{ route.operators.join('・') }}</small>
                 <small>{{ route.originName ?? '起點待確認' }} → {{ route.destinationName ?? '終點待確認' }}</small>
                 <small v-if="route.stationNames.length" class="route-stations">
                   {{ route.stationNames.join(' · ') }}
@@ -509,7 +510,7 @@ function formatTimestamp(value: string | null | undefined): string {
           <section class="arrival-panel">
             <div class="panel-heading-row">
               <div>
-                <span class="eyebrow">TOKYO METRO STATIONS</span>
+                <span class="eyebrow">TOKYO SUBWAY STATIONS</span>
                 <h3>車站</h3>
               </div>
               <span>{{ transitStore.filteredTokyoStations.length }} 筆</span>
@@ -520,7 +521,7 @@ function formatTimestamp(value: string | null | undefined): string {
               class="quota-panel panel-heading-row"
             >
               <div class="panel-icon">
-                <TrainFront v-if="selectedTokyoMetroStatus" :size="21" />
+                <TrainFront v-if="selectedTokyoSubwayStatus" :size="21" />
                 <CircleAlert v-else :size="21" />
               </div>
               <div class="panel-heading-row">
@@ -533,31 +534,31 @@ function formatTimestamp(value: string | null | undefined): string {
                   type="button"
                   aria-label="更新東京地鐵運行狀態"
                   :disabled="transitStore.metroStatusLoading"
-                  @click="refreshTokyoMetroStatus"
+                  @click="refreshTokyoSubwayStatus"
                 >
                   <RefreshCw :size="18" />
                 </button>
               </div>
-              <p v-if="selectedTokyoMetroStatus">
+              <p v-if="selectedTokyoSubwayStatus">
                 {{
-                  selectedTokyoMetroStatus.messageJa ??
-                  selectedTokyoMetroStatus.messageEn ??
+                  selectedTokyoSubwayStatus.messageJa ??
+                  selectedTokyoSubwayStatus.messageEn ??
                   '暫時無法確認運行狀態。'
                 }}
                 <template
                   v-if="
-                    selectedTokyoMetroStatus.messageEn &&
-                    selectedTokyoMetroStatus.messageEn !== selectedTokyoMetroStatus.messageJa
+                    selectedTokyoSubwayStatus.messageEn &&
+                    selectedTokyoSubwayStatus.messageEn !== selectedTokyoSubwayStatus.messageJa
                   "
                 >
-                  <br />{{ selectedTokyoMetroStatus.messageEn }}
+                  <br />{{ selectedTokyoSubwayStatus.messageEn }}
                 </template>
-                <br />更新 {{ formatTimestamp(selectedTokyoMetroStatus.updatedAt) }} ·
-                有效至 {{ formatTimestamp(selectedTokyoMetroStatus.validUntil) }}
+                <br />更新 {{ formatTimestamp(selectedTokyoSubwayStatus.updatedAt) }} ·
+                有效至 {{ formatTimestamp(selectedTokyoSubwayStatus.validUntil) }}
               </p>
               <p v-else>
                 {{
-                  selectedTokyoMetroStatusExpired
+                  selectedTokyoSubwayStatusExpired
                     ? '官方運行狀態已超過有效期限，正在重新確認。'
                     : transitStore.metroStatusMeta?.dataStatus === 'unavailable'
                     ? (transitStore.metroStatusMeta.message ?? '暫時無法取得官方運行狀態。')
@@ -576,7 +577,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 @click="selectStation(station)"
               >
                 <strong>{{ station.nameZh }}</strong>
-                <span>{{ station.nameEn ?? station.railwayName ?? 'Tokyo Metro' }}</span>
+                <span>{{ station.nameEn ?? station.railwayName ?? 'Tokyo Subway' }}</span>
                 <small>
                   {{ station.code ?? '代碼待確認' }}
                   <template v-if="station.railwayName"> · {{ station.railwayName }}</template>
@@ -610,7 +611,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
                   <div class="arrival-icon"><TrainFront :size="20" /></div>
                   <div class="arrival-main">
-                    <strong>{{ arrival.lineName ?? 'Tokyo Metro' }}</strong>
+                    <strong>{{ arrival.lineName ?? 'Tokyo Subway' }}</strong>
                     <span>
                       {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}
                       {{ arrival.platform ? ` · ${arrival.platform} 月台` : '' }}
@@ -833,6 +834,9 @@ function formatTimestamp(value: string | null | undefined): string {
         </span>
         <span v-if="transitStore.resultMeta.stale" class="stale-badge">快取備援</span>
         <span v-if="transitStore.resultMeta.message">{{ transitStore.resultMeta.message }}</span>
+        <span v-if="isTokyo">
+          都營地下鐵資料：東京都交通局・公共交通オープンデータ協議会
+        </span>
       </footer>
     </section>
 

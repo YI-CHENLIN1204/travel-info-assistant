@@ -19,7 +19,11 @@ public static class OdptTransitMapper
             ["Yurakucho"] = "有楽町線",
             ["Hanzomon"] = "半蔵門線",
             ["Namboku"] = "南北線",
-            ["Fukutoshin"] = "副都心線"
+            ["Fukutoshin"] = "副都心線",
+            ["Asakusa"] = "浅草線",
+            ["Mita"] = "三田線",
+            ["Shinjuku"] = "新宿線",
+            ["Oedo"] = "大江戸線"
         };
 
     public static TransitRouteResponse? MapRailway(OdptRailway railway)
@@ -53,7 +57,7 @@ public static class OdptTransitMapper
             railway.RailwayTitle?.En?.Trim(),
             origin,
             destination,
-            ["Tokyo Metro"],
+            [GetOperatorName(railway.Operator)],
             directions,
             stationNames);
     }
@@ -300,4 +304,11 @@ public static class OdptTransitMapper
 
         return RailwayNames.TryGetValue(key, out var name) ? name : key;
     }
+
+    private static string GetOperatorName(string? operatorId) => operatorId switch
+    {
+        "odpt.Operator:TokyoMetro" => "Tokyo Metro",
+        "odpt.Operator:Toei" => "都營地下鐵",
+        _ => operatorId?.Split(':', '.').LastOrDefault() ?? "ODPT"
+    };
 }

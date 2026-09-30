@@ -14,16 +14,24 @@ public interface IOdptApiClient
         CancellationToken cancellationToken);
 
     Task<OdptHttpResult<IReadOnlyList<OdptRailway>>> GetRailwaysAsync(
+        string operatorId,
         CancellationToken cancellationToken);
 
     Task<OdptHttpResult<IReadOnlyList<OdptStation>>> GetStationsAsync(
+        string operatorId,
+        CancellationToken cancellationToken);
+
+    Task<OdptHttpResult<IReadOnlyList<OdptStation>>> GetStationsByIdsAsync(
+        IReadOnlyCollection<string> stationIds,
         CancellationToken cancellationToken);
 
     Task<OdptHttpResult<IReadOnlyList<OdptStationTimetable>>> GetStationTimetablesAsync(
+        string operatorId,
         string stationId,
         CancellationToken cancellationToken);
 
     Task<OdptHttpResult<IReadOnlyList<OdptTrainInformation>>> GetTrainInformationAsync(
+        string operatorId,
         CancellationToken cancellationToken);
 }
 
@@ -32,7 +40,6 @@ public sealed class OdptApiClient(
     IOptions<OdptOptions> options,
     TimeProvider timeProvider) : IOdptApiClient
 {
-    private const string TokyoMetroOperator = "odpt.Operator:TokyoMetro";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
@@ -46,44 +53,59 @@ public sealed class OdptApiClient(
             cancellationToken);
 
     public Task<OdptHttpResult<IReadOnlyList<OdptRailway>>> GetRailwaysAsync(
+        string operatorId,
         CancellationToken cancellationToken) =>
         GetAsync<IReadOnlyList<OdptRailway>>(
             "odpt:Railway",
             new Dictionary<string, string?>
             {
-                ["odpt:operator"] = TokyoMetroOperator
+                ["odpt:operator"] = operatorId
             },
             cancellationToken);
 
     public Task<OdptHttpResult<IReadOnlyList<OdptStation>>> GetStationsAsync(
+        string operatorId,
         CancellationToken cancellationToken) =>
         GetAsync<IReadOnlyList<OdptStation>>(
             "odpt:Station",
             new Dictionary<string, string?>
             {
-                ["odpt:operator"] = TokyoMetroOperator
+                ["odpt:operator"] = operatorId
+            },
+            cancellationToken);
+
+    public Task<OdptHttpResult<IReadOnlyList<OdptStation>>> GetStationsByIdsAsync(
+        IReadOnlyCollection<string> stationIds,
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<OdptStation>>(
+            "odpt:Station",
+            new Dictionary<string, string?>
+            {
+                ["owl:sameAs"] = string.Join(',', stationIds)
             },
             cancellationToken);
 
     public Task<OdptHttpResult<IReadOnlyList<OdptStationTimetable>>> GetStationTimetablesAsync(
+        string operatorId,
         string stationId,
         CancellationToken cancellationToken) =>
         GetAsync<IReadOnlyList<OdptStationTimetable>>(
             "odpt:StationTimetable",
             new Dictionary<string, string?>
             {
-                ["odpt:operator"] = TokyoMetroOperator,
+                ["odpt:operator"] = operatorId,
                 ["odpt:station"] = stationId
             },
             cancellationToken);
 
     public Task<OdptHttpResult<IReadOnlyList<OdptTrainInformation>>> GetTrainInformationAsync(
+        string operatorId,
         CancellationToken cancellationToken) =>
         GetAsync<IReadOnlyList<OdptTrainInformation>>(
             "odpt:TrainInformation",
             new Dictionary<string, string?>
             {
-                ["odpt:operator"] = TokyoMetroOperator
+                ["odpt:operator"] = operatorId
             },
             cancellationToken);
 

@@ -2,10 +2,10 @@ import { createPinia, setActivePinia } from 'pinia'
 import * as transitApi from '@/api/transit'
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import {
-  filterTokyoMetroStations,
-  findTokyoMetroStatus,
-  isTokyoMetroStatusCurrent,
-  tokyoMetroStatusRefreshMilliseconds,
+  filterTokyoSubwayStations,
+  findTokyoSubwayStatus,
+  isTokyoSubwayStatusCurrent,
+  tokyoSubwayStatusRefreshMilliseconds,
   useTransitStore,
 } from '@/stores/transit'
 import type {
@@ -66,7 +66,7 @@ describe('getBusDirectionLabel', () => {
   })
 })
 
-describe('filterTokyoMetroStations', () => {
+describe('filterTokyoSubwayStations', () => {
   const stations: MetroStation[] = [
     {
       id: 'station-1',
@@ -105,15 +105,34 @@ describe('filterTokyoMetroStations', () => {
 
   it('returns stations belonging to the selected route', () => {
     expect(
-      filterTokyoMetroStations(stations, { ...route, id: 'railway-ginza' }).map(
+      filterTokyoSubwayStations(stations, { ...route, id: 'railway-ginza' }).map(
         (station) => station.id,
       ),
     ).toEqual(['station-1', 'station-2'])
   })
 
+  it('uses the same route filtering for Toei Subway stations', () => {
+    const toeiStation: MetroStation = {
+      ...stations[0],
+      id: 'station-asakusa',
+      nameZh: '浅草',
+      code: 'A18',
+      railwayId: 'odpt.Railway:Toei.Asakusa',
+      railwayName: '浅草線',
+    }
+
+    expect(
+      filterTokyoSubwayStations([...stations, toeiStation], {
+        ...route,
+        id: 'odpt.Railway:Toei.Asakusa',
+        stationNames: ['浅草'],
+      }),
+    ).toEqual([toeiStation])
+  })
+
   it('orders selected-route stations by the route station list', () => {
     expect(
-      filterTokyoMetroStations(stations, {
+      filterTokyoSubwayStations(stations, {
         ...route,
         id: 'railway-ginza',
         stationNames: ['表參道', '銀座'],
@@ -122,7 +141,7 @@ describe('filterTokyoMetroStations', () => {
   })
 
   it('returns all stations when no route is selected', () => {
-    expect(filterTokyoMetroStations(stations, null)).toEqual(stations)
+    expect(filterTokyoSubwayStations(stations, null)).toEqual(stations)
   })
 
   it('loads and orders the complete station list for the selected route', async () => {
@@ -182,7 +201,7 @@ describe('filterTokyoMetroStations', () => {
   })
 })
 
-describe('findTokyoMetroStatus', () => {
+describe('findTokyoSubwayStatus', () => {
   const statuses: MetroServiceStatus[] = [
     {
       id: 'status-ginza',
@@ -202,39 +221,54 @@ describe('findTokyoMetroStatus', () => {
       updatedAt: '2026-09-30T12:00:00+09:00',
       validUntil: '2026-09-30T12:05:00+09:00',
     },
+    {
+      id: 'status-toei-asakusa',
+      lineId: 'odpt.Railway:Toei.Asakusa',
+      lineName: '浅草線',
+      messageJa: '現在、平常通り運転しています。',
+      messageEn: 'Normal service.',
+      updatedAt: '2026-09-30T12:00:00+09:00',
+      validUntil: '2026-09-30T12:05:00+09:00',
+    },
   ]
 
   it('returns only the status belonging to the selected route', () => {
     expect(
-      findTokyoMetroStatus(statuses, { ...route, id: 'railway-ginza' })?.id,
+      findTokyoSubwayStatus(statuses, { ...route, id: 'railway-ginza' })?.id,
     ).toBe('status-ginza')
     expect(
-      findTokyoMetroStatus(statuses, { ...route, id: 'railway-hibiya' })?.id,
+      findTokyoSubwayStatus(statuses, { ...route, id: 'railway-hibiya' })?.id,
     ).toBe('status-hibiya')
+    expect(
+      findTokyoSubwayStatus(statuses, {
+        ...route,
+        id: 'odpt.Railway:Toei.Asakusa',
+      })?.id,
+    ).toBe('status-toei-asakusa')
   })
 
   it('returns no status when no route is selected or the line has no status', () => {
-    expect(findTokyoMetroStatus(statuses, null)).toBeNull()
+    expect(findTokyoSubwayStatus(statuses, null)).toBeNull()
     expect(
-      findTokyoMetroStatus(statuses, { ...route, id: 'railway-marunouchi' }),
+      findTokyoSubwayStatus(statuses, { ...route, id: 'railway-marunouchi' }),
     ).toBeNull()
   })
 
   it('rejects a status when its official validity has expired', () => {
     expect(
-      isTokyoMetroStatusCurrent(
+      isTokyoSubwayStatusCurrent(
         statuses[0],
         new Date('2026-09-30T12:04:59+09:00'),
       ),
     ).toBe(true)
     expect(
-      isTokyoMetroStatusCurrent(
+      isTokyoSubwayStatusCurrent(
         statuses[0],
         new Date('2026-09-30T12:05:00+09:00'),
       ),
     ).toBe(false)
     expect(
-      isTokyoMetroStatusCurrent(
+      isTokyoSubwayStatusCurrent(
         { ...statuses[0], validUntil: null },
         new Date('2026-09-30T12:04:00+09:00'),
       ),
@@ -259,7 +293,7 @@ describe('findTokyoMetroStatus', () => {
     store.selectedStation = selectedStation
     store.arrivals = [arrival]
 
-    store.startTokyoMetroStatusRefresh('tokyo-id')
+    store.startTokyoSubwayStatusRefresh('tokyo-id')
     await vi.advanceTimersByTimeAsync(0)
 
     expect(statusRequest).toHaveBeenCalledTimes(1)
@@ -267,11 +301,11 @@ describe('findTokyoMetroStatus', () => {
     expect(store.selectedStation).toEqual(selectedStation)
     expect(store.arrivals).toEqual([arrival])
 
-    await vi.advanceTimersByTimeAsync(tokyoMetroStatusRefreshMilliseconds)
+    await vi.advanceTimersByTimeAsync(tokyoSubwayStatusRefreshMilliseconds)
     expect(statusRequest).toHaveBeenCalledTimes(2)
 
-    store.stopTokyoMetroStatusRefresh()
-    await vi.advanceTimersByTimeAsync(tokyoMetroStatusRefreshMilliseconds)
+    store.stopTokyoSubwayStatusRefresh()
+    await vi.advanceTimersByTimeAsync(tokyoSubwayStatusRefreshMilliseconds)
     expect(statusRequest).toHaveBeenCalledTimes(2)
   })
 })

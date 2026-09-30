@@ -25,9 +25,9 @@ import type {
 
 export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
-export const tokyoMetroStatusRefreshMilliseconds = 60_000
+export const tokyoSubwayStatusRefreshMilliseconds = 60_000
 
-export function filterTokyoMetroStations(
+export function filterTokyoSubwayStations(
   stations: MetroStation[],
   route: TransitRoute | null,
 ): MetroStation[] {
@@ -54,7 +54,7 @@ export function filterTokyoMetroStations(
     .map(({ station }) => station)
 }
 
-export function findTokyoMetroStatus(
+export function findTokyoSubwayStatus(
   statuses: MetroServiceStatus[],
   route: TransitRoute | null,
 ): MetroServiceStatus | null {
@@ -62,7 +62,7 @@ export function findTokyoMetroStatus(
   return statuses.find((status) => status.lineId === route.id) ?? null
 }
 
-export function isTokyoMetroStatusCurrent(
+export function isTokyoSubwayStatusCurrent(
   status: MetroServiceStatus,
   now: Date,
 ): boolean {
@@ -86,13 +86,13 @@ export const useTransitStore = defineStore('transit', () => {
   const selectedTokyoRoute = ref<TransitRoute | null>(null)
   const selectedTokyoRouteStations = ref<MetroStation[]>([])
   const filteredTokyoStations = computed(() =>
-    filterTokyoMetroStations(
+    filterTokyoSubwayStations(
       selectedTokyoRoute.value ? selectedTokyoRouteStations.value : stations.value,
       selectedTokyoRoute.value,
     ),
   )
-  const selectedTokyoMetroStatus = computed(() =>
-    findTokyoMetroStatus(metroStatuses.value, selectedTokyoRoute.value),
+  const selectedTokyoSubwayStatus = computed(() =>
+    findTokyoSubwayStatus(metroStatuses.value, selectedTokyoRoute.value),
   )
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
@@ -109,7 +109,7 @@ export const useTransitStore = defineStore('transit', () => {
   let metroStatusRefreshTimer: number | undefined
 
   function resetResults(): void {
-    stopTokyoMetroStatusRefresh()
+    stopTokyoSubwayStatusRefresh()
     routes.value = []
     metroRoutes.value = []
     stations.value = []
@@ -204,7 +204,7 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  async function searchTokyoMetro(cityId: string): Promise<void> {
+  async function searchTokyoSubway(cityId: string): Promise<void> {
     await run(async () => {
       const query = metroQuery.value.trim()
       const [routeResponse, stationResponse, statusResponse] = await Promise.all([
@@ -227,7 +227,7 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  async function refreshTokyoMetroStatus(cityId: string): Promise<void> {
+  async function refreshTokyoSubwayStatus(cityId: string): Promise<void> {
     if (metroStatusLoading.value) return
 
     metroStatusLoading.value = true
@@ -250,15 +250,15 @@ export const useTransitStore = defineStore('transit', () => {
     }
   }
 
-  function startTokyoMetroStatusRefresh(cityId: string): void {
-    stopTokyoMetroStatusRefresh()
-    void refreshTokyoMetroStatus(cityId)
+  function startTokyoSubwayStatusRefresh(cityId: string): void {
+    stopTokyoSubwayStatusRefresh()
+    void refreshTokyoSubwayStatus(cityId)
     metroStatusRefreshTimer = window.setInterval(() => {
-      void refreshTokyoMetroStatus(cityId)
-    }, tokyoMetroStatusRefreshMilliseconds)
+      void refreshTokyoSubwayStatus(cityId)
+    }, tokyoSubwayStatusRefreshMilliseconds)
   }
 
-  function stopTokyoMetroStatusRefresh(): void {
+  function stopTokyoSubwayStatusRefresh(): void {
     if (metroStatusRefreshTimer === undefined) return
 
     window.clearInterval(metroStatusRefreshTimer)
@@ -364,7 +364,7 @@ export const useTransitStore = defineStore('transit', () => {
     railStations,
     selectedTokyoRoute,
     filteredTokyoStations,
-    selectedTokyoMetroStatus,
+    selectedTokyoSubwayStatus,
     selectedRoute,
     selectedDirection,
     stops,
@@ -384,10 +384,10 @@ export const useTransitStore = defineStore('transit', () => {
     chooseBusStop,
     refreshBusArrivals,
     searchMetroStations,
-    searchTokyoMetro,
-    refreshTokyoMetroStatus,
-    startTokyoMetroStatusRefresh,
-    stopTokyoMetroStatusRefresh,
+    searchTokyoSubway,
+    refreshTokyoSubwayStatus,
+    startTokyoSubwayStatusRefresh,
+    stopTokyoSubwayStatusRefresh,
     chooseTokyoRoute,
     chooseMetroStation,
     refreshMetroArrivals,
