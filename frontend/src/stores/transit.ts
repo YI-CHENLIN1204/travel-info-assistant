@@ -25,9 +25,10 @@ import type {
 
 export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
-export const tokyoSubwayStatusRefreshMilliseconds = 60_000
+export const metroStatusRefreshMilliseconds = 30_000
+export const metroArrivalRefreshMilliseconds = 15_000
 
-export function filterTokyoSubwayStations(
+export function filterMetroRouteStations(
   stations: MetroStation[],
   route: TransitRoute | null,
 ): MetroStation[] {
@@ -54,7 +55,7 @@ export function filterTokyoSubwayStations(
     .map(({ station }) => station)
 }
 
-export function findTokyoSubwayStatus(
+export function findMetroRouteStatus(
   statuses: MetroServiceStatus[],
   route: TransitRoute | null,
 ): MetroServiceStatus | null {
@@ -62,7 +63,7 @@ export function findTokyoSubwayStatus(
   return statuses.find((status) => status.lineId === route.id) ?? null
 }
 
-export function isTokyoSubwayStatusCurrent(
+export function isMetroStatusCurrent(
   status: MetroServiceStatus,
   now: Date,
 ): boolean {
@@ -83,16 +84,16 @@ export const useTransitStore = defineStore('transit', () => {
   const metroStatuses = ref<MetroServiceStatus[]>([])
   const metroStatusMeta = ref<ApiMeta | null>(null)
   const railStations = ref<RailStation[]>([])
-  const selectedTokyoRoute = ref<TransitRoute | null>(null)
-  const selectedTokyoRouteStations = ref<MetroStation[]>([])
-  const filteredTokyoStations = computed(() =>
-    filterTokyoSubwayStations(
-      selectedTokyoRoute.value ? selectedTokyoRouteStations.value : stations.value,
-      selectedTokyoRoute.value,
+  const selectedMetroRoute = ref<TransitRoute | null>(null)
+  const selectedMetroRouteStations = ref<MetroStation[]>([])
+  const filteredMetroStations = computed(() =>
+    filterMetroRouteStations(
+      selectedMetroRoute.value ? selectedMetroRouteStations.value : stations.value,
+      selectedMetroRoute.value,
     ),
   )
-  const selectedTokyoSubwayStatus = computed(() =>
-    findTokyoSubwayStatus(metroStatuses.value, selectedTokyoRoute.value),
+  const selectedMetroStatus = computed(() =>
+    findMetroRouteStatus(metroStatuses.value, selectedMetroRoute.value),
   )
   const selectedRoute = ref<TransitRoute | null>(null)
   const selectedDirection = ref(0)
@@ -107,17 +108,19 @@ export const useTransitStore = defineStore('transit', () => {
   const metroStatusLoading = ref(false)
   const error = ref<string | null>(null)
   let metroStatusRefreshTimer: number | undefined
+  let metroArrivalRefreshTimer: number | undefined
 
   function resetResults(): void {
-    stopTokyoSubwayStatusRefresh()
+    stopMetroStatusRefresh()
+    stopMetroArrivalRefresh()
     routes.value = []
     metroRoutes.value = []
     stations.value = []
     metroStatuses.value = []
     metroStatusMeta.value = null
     railStations.value = []
-    selectedTokyoRoute.value = null
-    selectedTokyoRouteStations.value = []
+    selectedMetroRoute.value = null
+    selectedMetroRouteStations.value = []
     selectedRoute.value = null
     selectedDirection.value = 0
     stops.value = []
@@ -204,20 +207,19 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  async function searchTokyoSubway(cityId: string): Promise<void> {
+  async function searchRouteMetro(cityId: string): Promise<void> {
     await run(async () => {
       const query = metroQuery.value.trim()
-      const [routeResponse, stationResponse, statusResponse] = await Promise.all([
+      const [routeResponse, stationResponse] = await Promise.all([
         requestMetroRoutes(cityId, query),
         requestMetroStations(cityId, query),
-        getMetroStatus(cityId),
       ])
       metroRoutes.value = routeResponse.data
       stations.value = stationResponse.data
-      metroStatuses.value = statusResponse.data
-      metroStatusMeta.value = statusResponse.meta
-      selectedTokyoRoute.value = null
-      selectedTokyoRouteStations.value = []
+      metroStatuses.value = []
+      metroStatusMeta.value = null
+      selectedMetroRoute.value = null
+      selectedMetroRouteStations.value = []
       selectedStation.value = null
       arrivals.value = []
       resultMeta.value =
@@ -227,19 +229,21 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  async function refreshTokyoSubwayStatus(cityId: string): Promise<void> {
+  async function refreshMetroStatus(cityId: string, routeId?: string): Promise<void> {
     if (metroStatusLoading.value) return
 
     metroStatusLoading.value = true
     try {
-      const response = await getMetroStatus(cityId)
+      const response = await getMetroStatus(cityId, routeId)
       metroStatuses.value = response.data
       metroStatusMeta.value = response.meta
     } catch {
       const previousMeta = metroStatusMeta.value
       metroStatusMeta.value = {
         dataStatus: 'unavailable',
-        source: previousMeta?.source ?? 'ODPT',
+        source:
+          previousMeta?.source ??
+          (routeId?.startsWith('MTR:') ? '香港港鐵開放數據' : 'ODPT'),
         sourceUpdatedAt: previousMeta?.sourceUpdatedAt ?? null,
         fetchedAt: new Date().toISOString(),
         stale: true,
@@ -250,25 +254,25 @@ export const useTransitStore = defineStore('transit', () => {
     }
   }
 
-  function startTokyoSubwayStatusRefresh(cityId: string): void {
-    stopTokyoSubwayStatusRefresh()
-    void refreshTokyoSubwayStatus(cityId)
+  function startMetroStatusRefresh(cityId: string, routeId: string): void {
+    stopMetroStatusRefresh()
+    void refreshMetroStatus(cityId, routeId)
     metroStatusRefreshTimer = window.setInterval(() => {
-      void refreshTokyoSubwayStatus(cityId)
-    }, tokyoSubwayStatusRefreshMilliseconds)
+      void refreshMetroStatus(cityId, routeId)
+    }, metroStatusRefreshMilliseconds)
   }
 
-  function stopTokyoSubwayStatusRefresh(): void {
+  function stopMetroStatusRefresh(): void {
     if (metroStatusRefreshTimer === undefined) return
 
     window.clearInterval(metroStatusRefreshTimer)
     metroStatusRefreshTimer = undefined
   }
 
-  async function chooseTokyoRoute(cityId: string, route: TransitRoute): Promise<void> {
-    const nextRoute = selectedTokyoRoute.value?.id === route.id ? null : route
-    selectedTokyoRoute.value = nextRoute
-    selectedTokyoRouteStations.value = []
+  async function chooseMetroRoute(cityId: string, route: TransitRoute): Promise<void> {
+    const nextRoute = selectedMetroRoute.value?.id === route.id ? null : route
+    selectedMetroRoute.value = nextRoute
+    selectedMetroRouteStations.value = []
 
     if (
       selectedStation.value &&
@@ -283,9 +287,9 @@ export const useTransitStore = defineStore('transit', () => {
 
     await run(async () => {
       const response = await requestMetroStations(cityId, nextRoute.id)
-      if (selectedTokyoRoute.value?.id !== nextRoute.id) return
+      if (selectedMetroRoute.value?.id !== nextRoute.id) return
 
-      selectedTokyoRouteStations.value = response.data
+      selectedMetroRouteStations.value = response.data
       resultMeta.value = response.meta
     })
   }
@@ -303,6 +307,20 @@ export const useTransitStore = defineStore('transit', () => {
     if (selectedStation.value) {
       await chooseMetroStation(cityId, selectedStation.value)
     }
+  }
+
+  function startMetroArrivalRefresh(cityId: string): void {
+    stopMetroArrivalRefresh()
+    metroArrivalRefreshTimer = window.setInterval(() => {
+      void refreshMetroArrivals(cityId)
+    }, metroArrivalRefreshMilliseconds)
+  }
+
+  function stopMetroArrivalRefresh(): void {
+    if (metroArrivalRefreshTimer === undefined) return
+
+    window.clearInterval(metroArrivalRefreshTimer)
+    metroArrivalRefreshTimer = undefined
   }
 
   async function searchRailStations(cityId: string): Promise<void> {
@@ -362,9 +380,9 @@ export const useTransitStore = defineStore('transit', () => {
     metroStatuses,
     metroStatusMeta,
     railStations,
-    selectedTokyoRoute,
-    filteredTokyoStations,
-    selectedTokyoSubwayStatus,
+    selectedMetroRoute,
+    filteredMetroStations,
+    selectedMetroStatus,
     selectedRoute,
     selectedDirection,
     stops,
@@ -384,13 +402,15 @@ export const useTransitStore = defineStore('transit', () => {
     chooseBusStop,
     refreshBusArrivals,
     searchMetroStations,
-    searchTokyoSubway,
-    refreshTokyoSubwayStatus,
-    startTokyoSubwayStatusRefresh,
-    stopTokyoSubwayStatusRefresh,
-    chooseTokyoRoute,
+    searchRouteMetro,
+    refreshMetroStatus,
+    startMetroStatusRefresh,
+    stopMetroStatusRefresh,
+    chooseMetroRoute,
     chooseMetroStation,
     refreshMetroArrivals,
+    startMetroArrivalRefresh,
+    stopMetroArrivalRefresh,
     searchRailStations,
     chooseRailStation,
     refreshRailArrivals,

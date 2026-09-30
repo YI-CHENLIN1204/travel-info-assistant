@@ -1,4 +1,5 @@
 using TravelInfoAssistant.Api.Contracts;
+using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 
@@ -8,6 +9,7 @@ public sealed class TransitService(
     ICityService cityService,
     ITdxTransitProvider tdxProvider,
     IOdptTransitProvider odptProvider,
+    IMtrTransitProvider mtrProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -97,6 +99,10 @@ public sealed class TransitService(
         {
             result = await odptProvider.GetMetroStationsAsync(cancellationToken);
         }
+        else if (cityCode == "hong-kong")
+        {
+            result = await mtrProvider.GetMetroStationsAsync(cancellationToken);
+        }
         else
         {
             return Unavailable<MetroStationResponse>("這個城市目前尚未整合捷運查詢。");
@@ -115,12 +121,21 @@ public sealed class TransitService(
         string? query,
         CancellationToken cancellationToken)
     {
-        if (await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken) != "tokyo")
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
+        ProviderQueryResult<IReadOnlyList<TransitRouteResponse>> result;
+        if (cityCode == "tokyo")
         {
-            return Unavailable<TransitRouteResponse>("目前僅提供東京地鐵路線搜尋。", "ODPT");
+            result = await odptProvider.GetMetroRoutesAsync(cancellationToken);
+        }
+        else if (cityCode == "hong-kong")
+        {
+            result = await mtrProvider.GetMetroRoutesAsync(cancellationToken);
+        }
+        else
+        {
+            return Unavailable<TransitRouteResponse>("這個城市目前尚未整合地鐵路線搜尋。");
         }
 
-        var result = await odptProvider.GetMetroRoutesAsync(cancellationToken);
         var search = query?.Trim();
         var filtered = result.Data
             .Where(item => string.IsNullOrWhiteSpace(search) || MatchesRoute(item, search))
@@ -142,6 +157,13 @@ public sealed class TransitService(
                 cancellationToken);
         }
 
+        if (cityCode == "hong-kong")
+        {
+            return await mtrProvider.GetMetroArrivalsAsync(
+                stationId.Trim(),
+                cancellationToken);
+        }
+
         if (cityCode != "taipei")
         {
             return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合捷運查詢。");
@@ -152,16 +174,28 @@ public sealed class TransitService(
 
     public async Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
         Guid cityId,
+        string? routeId,
         CancellationToken cancellationToken)
     {
-        if (await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken) != "tokyo")
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
+        if (cityCode == "tokyo")
         {
-            return Unavailable<MetroServiceStatusResponse>(
-                "目前僅提供東京 Metro 官方運行狀態。",
-                "ODPT");
+            return await odptProvider.GetMetroStatusAsync(cancellationToken);
         }
 
-        return await odptProvider.GetMetroStatusAsync(cancellationToken);
+        if (cityCode == "hong-kong" && !string.IsNullOrWhiteSpace(routeId))
+        {
+            return await mtrProvider.GetMetroStatusAsync(routeId.Trim(), cancellationToken);
+        }
+
+        if (cityCode == "hong-kong")
+        {
+            return Unavailable<MetroServiceStatusResponse>(
+                "請先選擇一條港鐵路線。",
+                "香港港鐵開放數據");
+        }
+
+        return Unavailable<MetroServiceStatusResponse>("這個城市目前尚未整合地鐵運行狀態。");
     }
 
     public async Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchRailStationsAsync(

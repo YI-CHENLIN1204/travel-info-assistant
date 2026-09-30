@@ -167,9 +167,16 @@ public sealed class TransitController(ITransitService transitService) : Controll
     [ProducesResponseType<ApiResponse<IReadOnlyList<MetroServiceStatusResponse>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MetroServiceStatusResponse>>>> GetMetroStatus(
         [FromQuery] Guid cityId,
+        [FromQuery] string? routeId,
         CancellationToken cancellationToken)
     {
-        var result = await transitService.GetMetroStatusAsync(cityId, cancellationToken);
+        if (routeId?.Length > 80)
+        {
+            ModelState.AddModelError(nameof(routeId), "請提供有效的地鐵路線代碼。");
+            return ValidationProblem(ModelState);
+        }
+
+        var result = await transitService.GetMetroStatusAsync(cityId, routeId, cancellationToken);
         return Ok(ToResponse(result));
     }
 

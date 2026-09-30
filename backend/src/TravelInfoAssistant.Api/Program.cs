@@ -8,6 +8,7 @@ using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
 using TravelInfoAssistant.Api.Providers.MetNorway;
+using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
@@ -41,6 +42,8 @@ builder.Services.Configure<BocaOptions>(
     builder.Configuration.GetSection(BocaOptions.SectionName));
 builder.Services.Configure<OdptOptions>(
     builder.Configuration.GetSection(OdptOptions.SectionName));
+builder.Services.Configure<MtrOptions>(
+    builder.Configuration.GetSection(MtrOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -97,6 +100,28 @@ builder.Services
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
     });
 builder.Services
+    .AddHttpClient("mtr-static", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<MtrOptions>>().Value;
+        client.BaseAddress = new Uri(settings.StaticBaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("mtr-realtime", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<MtrOptions>>().Value;
+        client.BaseAddress = new Uri(settings.RealtimeBaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
     .AddHttpClient("tdx-auth", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
@@ -145,6 +170,8 @@ builder.Services.AddSingleton<IBocaApiClient, BocaApiClient>();
 builder.Services.AddSingleton<IBocaAlertsProvider, BocaAlertsProvider>();
 builder.Services.AddSingleton<IOdptApiClient, OdptApiClient>();
 builder.Services.AddSingleton<IOdptTransitProvider, OdptTransitProvider>();
+builder.Services.AddSingleton<IMtrApiClient, MtrApiClient>();
+builder.Services.AddSingleton<IMtrTransitProvider, MtrTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

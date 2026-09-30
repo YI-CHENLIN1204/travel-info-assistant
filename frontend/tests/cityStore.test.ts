@@ -32,6 +32,17 @@ const cities: City[] = [
     centerLongitude: 139.6503,
     services: [],
   },
+  {
+    id: 'hong-kong-id',
+    code: 'hong-kong',
+    nameZh: '香港',
+    nameEn: 'Hong Kong',
+    countryCode: 'HK',
+    timeZone: 'Asia/Hong_Kong',
+    centerLatitude: 22.3193,
+    centerLongitude: 114.1694,
+    services: [],
+  },
 ]
 
 const mockedGetCities = vi.mocked(getCities)
@@ -68,14 +79,14 @@ describe('city store persistence', () => {
     const store = useCityStore()
     await store.initialize()
 
-    store.selectCity('tokyo-id')
+    store.selectCity('hong-kong-id')
 
-    expect(store.selectedCityId).toBe('tokyo-id')
-    expect(window.localStorage.getItem('lastSelectedCityId')).toBe('tokyo-id')
+    expect(store.selectedCityId).toBe('hong-kong-id')
+    expect(window.localStorage.getItem('lastSelectedCityId')).toBe('hong-kong-id')
 
     store.selectCity('unknown-city-id')
 
-    expect(store.selectedCityId).toBe('tokyo-id')
-    expect(window.localStorage.getItem('lastSelectedCityId')).toBe('tokyo-id')
+    expect(store.selectedCityId).toBe('hong-kong-id')
+    expect(window.localStorage.getItem('lastSelectedCityId')).toBe('hong-kong-id')
   })
 })

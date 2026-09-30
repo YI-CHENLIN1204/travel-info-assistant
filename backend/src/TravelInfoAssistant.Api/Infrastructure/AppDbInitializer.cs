@@ -20,6 +20,7 @@ public static class AppDbInitializer
             {
                 await dbContext.Database.EnsureCreatedAsync();
                 await EnsureEmergencySchemaAsync(dbContext);
+                await EnsureCurrentCitiesAsync(dbContext);
                 await ApplyCurrentCapabilityStateAsync(dbContext);
                 await SeedEmergencyDataAsync(dbContext);
                 return;
@@ -34,6 +35,30 @@ public static class AppDbInitializer
                 await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
             }
         }
+    }
+
+    private static async Task EnsureCurrentCitiesAsync(AppDbContext dbContext)
+    {
+        if (await dbContext.Cities.AnyAsync(item => item.Code == "hong-kong"))
+        {
+            return;
+        }
+
+        dbContext.Cities.Add(new City
+        {
+            Id = Guid.Parse("3f44e734-7f45-4a20-a6df-56e2498341a0"),
+            Code = "hong-kong",
+            NameZh = "香港",
+            NameEn = "Hong Kong",
+            CountryCode = "HK",
+            TimeZone = "Asia/Hong_Kong",
+            CenterLatitude = 22.3193,
+            CenterLongitude = 114.1694,
+            CoverageRadiusKilometers = 60,
+            IsActive = true,
+            SortOrder = 3
+        });
+        await dbContext.SaveChangesAsync();
     }
 
     private static async Task ApplyCurrentCapabilityStateAsync(AppDbContext dbContext)
@@ -113,6 +138,30 @@ public static class AppDbInitializer
                 ServiceKey = "emergency",
                 DisplayName = "應急資訊",
                 SortOrder = 5
+            },
+            new
+            {
+                CityCode = "hong-kong",
+                Id = Guid.Parse("b03f799c-5db9-4abc-9f55-06a2923dc0f4"),
+                ServiceKey = "metro",
+                DisplayName = "港鐵",
+                SortOrder = 1
+            },
+            new
+            {
+                CityCode = "hong-kong",
+                Id = Guid.Parse("2856bd80-c98a-4a68-b881-2f4d4f1375fe"),
+                ServiceKey = "weather",
+                DisplayName = "天氣",
+                SortOrder = 2
+            },
+            new
+            {
+                CityCode = "hong-kong",
+                Id = Guid.Parse("5f99d5c8-f259-45c5-a611-30f4dd02d1c3"),
+                ServiceKey = "alerts",
+                DisplayName = "旅遊警示",
+                SortOrder = 3
             }
         };
         foreach (var definition in integratedDefinitions)

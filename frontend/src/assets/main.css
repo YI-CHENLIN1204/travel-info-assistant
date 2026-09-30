@@ -1297,17 +1297,17 @@ p {
   overflow-y: auto;
 }
 
-.tokyo-station-list {
+.route-metro-station-list {
   max-height: 250px;
 }
 
-.tokyo-timetable {
+.route-metro-timetable {
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--line);
 }
 
-.tokyo-station-prompt {
+.route-metro-station-prompt {
   min-height: 78px;
   margin-top: 18px;
   border-top: 1px solid var(--line);

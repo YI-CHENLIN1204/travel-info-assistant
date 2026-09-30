@@ -71,8 +71,9 @@ export function getMetroArrivals(
 
 export function getMetroStatus(
   cityId: string,
+  routeId?: string,
 ): Promise<ApiResponse<MetroServiceStatus[]>> {
-  return apiRequest(`/v1/transit/metro/status?${params({ cityId })}`)
+  return apiRequest(`/v1/transit/metro/status?${params({ cityId, routeId: routeId ?? '' })}`)
 }
 
 export function searchRailStations(
@@ -94,5 +95,7 @@ export function getTdxStatus(): Promise<ApiResponse<TdxProviderStatus>> {
 }
 
 function params(values: Record<string, string>): string {
-  return new URLSearchParams(values).toString()
+  return new URLSearchParams(
+    Object.entries(values).filter(([, value]) => value.length > 0),
+  ).toString()
 }

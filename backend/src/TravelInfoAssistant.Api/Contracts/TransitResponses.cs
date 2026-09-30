@@ -75,7 +75,8 @@ public sealed record MetroServiceStatusResponse(
     string? MessageJa,
     string? MessageEn,
     DateTimeOffset? UpdatedAt,
-    DateTimeOffset? ValidUntil);
+    DateTimeOffset? ValidUntil,
+    string? MessageZh = null);
 
 public sealed record TdxProviderStatusResponse(
     bool Configured,

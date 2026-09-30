@@ -131,6 +131,7 @@ export interface MetroServiceStatus {
   lineName: string | null
   messageJa: string | null
   messageEn: string | null
+  messageZh: string | null
   updatedAt: string | null
   validUntil: string | null
 }

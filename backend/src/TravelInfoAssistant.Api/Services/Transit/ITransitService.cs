@@ -43,6 +43,7 @@ public interface ITransitService
 
     Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
         Guid cityId,
+        string? routeId,
         CancellationToken cancellationToken);
 
     Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchRailStationsAsync(
