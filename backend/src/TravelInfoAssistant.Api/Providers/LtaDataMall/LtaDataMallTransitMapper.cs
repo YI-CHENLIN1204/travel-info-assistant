@@ -1,3 +1,4 @@
+using System.Globalization;
 using TravelInfoAssistant.Api.Contracts;
 
 namespace TravelInfoAssistant.Api.Providers.LtaDataMall;
@@ -5,14 +6,14 @@ namespace TravelInfoAssistant.Api.Providers.LtaDataMall;
 public static class LtaDataMallTransitMapper
 {
     private const string Prefix = "LTA";
+    private static readonly TimeZoneInfo SingaporeTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById("Asia/Singapore");
 
     public static IReadOnlyList<TransitRouteResponse> MapRoutes(LtaGtfsNetwork network)
     {
         var stops = StopLookup(network);
-        return network.Routes
-            .Where(route => network.RouteStops.Any(item =>
-                item.RouteId.Equals(route.Id, StringComparison.OrdinalIgnoreCase)))
-            .Select(route => MapRoute(route, network, stops))
+        return RouteGroups(network)
+            .Select(group => MapRoute(group, network, stops))
             .Where(route => route is not null)
             .Cast<TransitRouteResponse>()
             .OrderBy(route => route.NameEn ?? route.NameZh, StringComparer.OrdinalIgnoreCase)
@@ -22,18 +23,18 @@ public static class LtaDataMallTransitMapper
     public static IReadOnlyList<MetroStationResponse> MapStations(LtaGtfsNetwork network)
     {
         var stops = StopLookup(network);
-        return network.RouteStops
-            .Where(item => stops.ContainsKey(item.StopId))
-            .Select(item => new
+        return RouteGroups(network)
+            .SelectMany(group =>
             {
-                item.RouteId,
-                StopId = CanonicalStopId(item.StopId, stops)
+                var sourceRouteIds = SourceRouteIds(group);
+                return network.RouteStops
+                    .Where(item =>
+                        sourceRouteIds.Contains(item.RouteId) &&
+                        stops.ContainsKey(item.StopId))
+                    .Select(item => CanonicalStopId(item.StopId, stops))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(stopId => MapStation(group, stopId, network, stops));
             })
-            .GroupBy(
-                item => $"{item.RouteId}\u001f{item.StopId}",
-                StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .Select(item => MapStation(item.RouteId, item.StopId, network, stops))
             .Where(station => station is not null)
             .Cast<MetroStationResponse>()
             .OrderBy(station => station.RailwayName, StringComparer.OrdinalIgnoreCase)
@@ -49,28 +50,101 @@ public static class LtaDataMallTransitMapper
         DateTimeOffset now)
     {
         var stops = StopLookup(network);
-        if (!stops.ContainsKey(stationStopId))
+        var group = FindRouteGroup(routeId, network);
+        if (group is null || !stops.ContainsKey(stationStopId))
         {
             return [];
         }
 
         var canonicalStationId = CanonicalStopId(stationStopId, stops);
         var canonicalStation = stops[canonicalStationId];
-        var route = network.Routes.FirstOrDefault(item =>
-            item.Id.Equals(routeId, StringComparison.OrdinalIgnoreCase));
-        if (route is null)
+        var sourceRouteIds = SourceRouteIds(group);
+        var trips = network.Trips
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                item => item.Key,
+                item => item.First(),
+                StringComparer.OrdinalIgnoreCase);
+        var updatesByTrip = feed.TripUpdates
+            .Where(item => !string.IsNullOrWhiteSpace(item.TripId))
+            .GroupBy(item => item.TripId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                item => item.Key,
+                item => item.First(),
+                StringComparer.OrdinalIgnoreCase);
+        var lineName = LineNameZh(group.Primary, network);
+        var results = new List<TransitArrivalResponse>();
+        var representedUpdates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var candidate in ScheduledCandidates(
+                     group,
+                     canonicalStationId,
+                     network,
+                     stops,
+                     trips,
+                     now))
         {
-            return [];
+            updatesByTrip.TryGetValue(candidate.Trip.Id, out var matchingUpdate);
+            var stopUpdate = matchingUpdate?.StopTimeUpdates.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.StopId) &&
+                CanonicalStopId(item.StopId, stops)
+                    .Equals(canonicalStationId, StringComparison.OrdinalIgnoreCase));
+            var update = stopUpdate is not null || matchingUpdate?.ScheduleRelationship == 3
+                ? matchingUpdate
+                : null;
+            var delaySeconds = stopUpdate?.DepartureDelaySeconds ??
+                               stopUpdate?.ArrivalDelaySeconds;
+            var estimatedAt = stopUpdate?.DepartureTime ?? stopUpdate?.ArrivalTime;
+            if (!estimatedAt.HasValue && delaySeconds.HasValue)
+            {
+                estimatedAt = candidate.ScheduledAt.AddSeconds(delaySeconds.Value);
+            }
+
+            var displayAt = estimatedAt ?? candidate.ScheduledAt;
+            if (displayAt < now.AddMinutes(-1) || displayAt > now.AddHours(4))
+            {
+                continue;
+            }
+
+            if (update is not null)
+            {
+                representedUpdates.Add(update.Id);
+            }
+
+            var exactStop = ResolveExactStop(stopUpdate?.StopId ?? candidate.StopTime.StopId, stops)
+                ?? canonicalStation;
+            results.Add(new TransitArrivalResponse(
+                update is null
+                    ? $"LTA:scheduled:{candidate.Trip.Id}:{candidate.StopTime.StopId}:{candidate.ScheduledAt.ToUnixTimeSeconds()}"
+                    : $"LTA:{update.Id}:{candidate.StopTime.StopId}:{displayAt.ToUnixTimeSeconds()}",
+                "metro",
+                StationId(group.Primary.Id, canonicalStationId),
+                StationNameZh(canonicalStation, network),
+                RouteId(group.Primary.Id),
+                lineName,
+                RouteId(group.Primary.Id),
+                lineName,
+                candidate.Trip.Headsign ??
+                DirectionDestination(group, candidate.Trip.DirectionId, network, stops),
+                update?.DirectionId ?? candidate.Trip.DirectionId,
+                candidate.ScheduledAt,
+                update is null ? null : estimatedAt ?? candidate.ScheduledAt,
+                update is null ? null : feed.Timestamp ?? update.Timestamp,
+                update is null
+                    ? "表定時間"
+                    : ServiceStatus(
+                        update.ScheduleRelationship,
+                        stopUpdate?.ScheduleRelationship ?? 0,
+                        delaySeconds),
+                false,
+                exactStop.PlatformCode));
         }
 
-        var trips = network.Trips.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
-        var lineName = LineNameZh(route, network);
-        var results = new List<TransitArrivalResponse>();
-        foreach (var update in feed.TripUpdates)
+        foreach (var update in feed.TripUpdates.Where(item => !representedUpdates.Contains(item.Id)))
         {
             trips.TryGetValue(update.TripId ?? string.Empty, out var trip);
             var updateRouteId = update.RouteId ?? trip?.RouteId;
-            if (!routeId.Equals(updateRouteId, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(updateRouteId) || !sourceRouteIds.Contains(updateRouteId))
             {
                 continue;
             }
@@ -95,33 +169,42 @@ public static class LtaDataMallTransitMapper
             var direction = update.DirectionId ?? trip?.DirectionId ?? 0;
             var delaySeconds = stopUpdate.DepartureDelaySeconds ??
                                stopUpdate.ArrivalDelaySeconds;
-            var exactStop = !string.IsNullOrWhiteSpace(stopUpdate.StopId) &&
-                            stops.TryGetValue(stopUpdate.StopId, out var resolvedStop)
-                ? resolvedStop
-                : canonicalStation;
+            var exactStop = ResolveExactStop(stopUpdate.StopId, stops) ?? canonicalStation;
             results.Add(new TransitArrivalResponse(
                 $"LTA:{update.Id}:{stopUpdate.StopId}:{estimatedAt.Value.ToUnixTimeSeconds()}",
                 "metro",
-                StationId(routeId, canonicalStationId),
+                StationId(group.Primary.Id, canonicalStationId),
                 StationNameZh(canonicalStation, network),
-                RouteId(routeId),
+                RouteId(group.Primary.Id),
                 lineName,
-                RouteId(routeId),
+                RouteId(group.Primary.Id),
                 lineName,
-                trip?.Headsign ?? DirectionDestination(routeId, direction, network, stops),
+                trip?.Headsign ?? DirectionDestination(group, direction, network, stops),
                 direction,
                 null,
                 estimatedAt,
                 feed.Timestamp ?? update.Timestamp,
-                ServiceStatus(update.ScheduleRelationship, stopUpdate.ScheduleRelationship, delaySeconds),
+                ServiceStatus(
+                    update.ScheduleRelationship,
+                    stopUpdate.ScheduleRelationship,
+                    delaySeconds),
                 false,
                 exactStop.PlatformCode));
         }
 
         return results
+            .GroupBy(item => new
+            {
+                Direction = item.Direction ?? 0,
+                Time = (item.EstimatedAt ?? item.ScheduledAt)?.ToUnixTimeSeconds(),
+                item.DestinationName
+            })
+            .Select(item => item.OrderByDescending(value => value.EstimatedAt.HasValue).First())
             .GroupBy(item => item.Direction ?? 0)
-            .SelectMany(group => group.OrderBy(item => item.EstimatedAt).Take(4))
-            .OrderBy(item => item.EstimatedAt)
+            .SelectMany(grouped => grouped
+                .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
+                .Take(4))
+            .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
             .ToList();
     }
 
@@ -131,15 +214,15 @@ public static class LtaDataMallTransitMapper
         LtaGtfsNetwork network,
         DateTimeOffset now)
     {
-        var route = network.Routes.FirstOrDefault(item =>
-            item.Id.Equals(routeId, StringComparison.OrdinalIgnoreCase));
-        if (route is null)
+        var group = FindRouteGroup(routeId, network);
+        if (group is null)
         {
             return null;
         }
 
+        var sourceRouteIds = SourceRouteIds(group);
         var routeStopIds = network.RouteStops
-            .Where(item => item.RouteId.Equals(routeId, StringComparison.OrdinalIgnoreCase))
+            .Where(item => sourceRouteIds.Contains(item.RouteId))
             .Select(item => item.StopId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var alerts = feed.Alerts
@@ -148,16 +231,16 @@ public static class LtaDataMallTransitMapper
                 (!alert.ActiveUntil.HasValue || alert.ActiveUntil >= now))
             .Where(alert =>
                 alert.RouteIds.Count == 0 && alert.StopIds.Count == 0 ||
-                alert.RouteIds.Contains(routeId, StringComparer.OrdinalIgnoreCase) ||
+                alert.RouteIds.Any(sourceRouteIds.Contains) ||
                 alert.StopIds.Any(routeStopIds.Contains))
             .ToList();
         var updatedAt = feed.Timestamp;
         if (alerts.Count == 0)
         {
             return new MetroServiceStatusResponse(
-                $"LTA:Status:{routeId}",
-                RouteId(routeId),
-                LineNameZh(route, network),
+                $"LTA:Status:{group.Primary.Id}",
+                RouteId(group.Primary.Id),
+                LineNameZh(group.Primary, network),
                 null,
                 null,
                 updatedAt,
@@ -177,13 +260,14 @@ public static class LtaDataMallTransitMapper
             .Take(2)
             .ToList();
         return new MetroServiceStatusResponse(
-            $"LTA:Status:{routeId}",
-            RouteId(routeId),
-            LineNameZh(route, network),
+            $"LTA:Status:{group.Primary.Id}",
+            RouteId(group.Primary.Id),
+            LineNameZh(group.Primary, network),
             null,
             string.Join(" ", messages),
             updatedAt,
-            updatedAt?.AddSeconds(90));
+            updatedAt?.AddSeconds(90),
+            EffectLabel(alerts[0].Effect));
     }
 
     public static bool TryParseRouteId(string value, out string routeId)
@@ -217,36 +301,161 @@ public static class LtaDataMallTransitMapper
         return false;
     }
 
+    private static IReadOnlyList<ScheduledCandidate> ScheduledCandidates(
+        RouteGroup group,
+        string canonicalStationId,
+        LtaGtfsNetwork network,
+        IReadOnlyDictionary<string, LtaGtfsStop> stops,
+        IReadOnlyDictionary<string, LtaGtfsTrip> trips,
+        DateTimeOffset now)
+    {
+        var stopTimes = network.StopTimes ?? [];
+        if (stopTimes.Count == 0)
+        {
+            return [];
+        }
+
+        var sourceRouteIds = SourceRouteIds(group);
+        var localNow = TimeZoneInfo.ConvertTime(now, SingaporeTimeZone);
+        var serviceDates = new[]
+        {
+            DateOnly.FromDateTime(localNow.DateTime).AddDays(-1),
+            DateOnly.FromDateTime(localNow.DateTime),
+            DateOnly.FromDateTime(localNow.DateTime).AddDays(1)
+        };
+        var results = new List<ScheduledCandidate>();
+        foreach (var stopTime in stopTimes)
+        {
+            if (!trips.TryGetValue(stopTime.TripId, out var trip) ||
+                !sourceRouteIds.Contains(trip.RouteId) ||
+                !CanonicalStopId(stopTime.StopId, stops)
+                    .Equals(canonicalStationId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var timeText = stopTime.DepartureTime ?? stopTime.ArrivalTime;
+            foreach (var serviceDate in serviceDates)
+            {
+                if (!IsServiceActive(trip.ServiceId, serviceDate, network) ||
+                    !TryParseGtfsTime(serviceDate, timeText, out var scheduledAt) ||
+                    scheduledAt < now.AddMinutes(-1) ||
+                    scheduledAt > now.AddHours(4))
+                {
+                    continue;
+                }
+
+                results.Add(new ScheduledCandidate(trip, stopTime, scheduledAt));
+            }
+        }
+
+        return results;
+    }
+
+    private static bool IsServiceActive(
+        string? serviceId,
+        DateOnly date,
+        LtaGtfsNetwork network)
+    {
+        if (string.IsNullOrWhiteSpace(serviceId))
+        {
+            return true;
+        }
+
+        var calendarDates = network.CalendarDates ?? [];
+        var exception = calendarDates.LastOrDefault(item =>
+            item.ServiceId.Equals(serviceId, StringComparison.OrdinalIgnoreCase) &&
+            item.Date == date);
+        if (exception is not null)
+        {
+            return exception.ExceptionType == 1;
+        }
+
+        var calendars = network.Calendars ?? [];
+        var calendar = calendars.FirstOrDefault(item =>
+            item.ServiceId.Equals(serviceId, StringComparison.OrdinalIgnoreCase));
+        if (calendar is not null)
+        {
+            return date >= calendar.StartDate &&
+                   date <= calendar.EndDate &&
+                   calendar.Days.Contains(date.DayOfWeek);
+        }
+
+        var serviceHasExplicitDates = calendarDates.Any(item =>
+            item.ServiceId.Equals(serviceId, StringComparison.OrdinalIgnoreCase));
+        return calendars.Count == 0 && !serviceHasExplicitDates;
+    }
+
+    private static bool TryParseGtfsTime(
+        DateOnly serviceDate,
+        string? value,
+        out DateTimeOffset result)
+    {
+        result = default;
+        var parts = value?.Split(':');
+        if (parts is not { Length: 2 or 3 } ||
+            !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var hours) ||
+            !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) ||
+            (parts.Length > 2 &&
+             !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out _)) ||
+            hours < 0 ||
+            minutes is < 0 or > 59)
+        {
+            return false;
+        }
+
+        var seconds = parts.Length > 2
+            ? int.Parse(parts[2], CultureInfo.InvariantCulture)
+            : 0;
+        if (seconds is < 0 or > 59)
+        {
+            return false;
+        }
+
+        var local = serviceDate
+            .ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified)
+            .AddHours(hours)
+            .AddMinutes(minutes)
+            .AddSeconds(seconds);
+        result = new DateTimeOffset(local, SingaporeTimeZone.GetUtcOffset(local));
+        return true;
+    }
+
     private static TransitRouteResponse? MapRoute(
-        LtaGtfsRoute route,
+        RouteGroup group,
         LtaGtfsNetwork network,
         IReadOnlyDictionary<string, LtaGtfsStop> stops)
     {
+        var sourceRouteIds = SourceRouteIds(group);
         var directions = network.RouteStops
-            .Where(item => item.RouteId.Equals(route.Id, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(item => item.DirectionId)
-            .Select(group => new
+            .Where(item => sourceRouteIds.Contains(item.RouteId))
+            .GroupBy(item => new { item.RouteId, item.DirectionId })
+            .Select(pattern => new
             {
-                Direction = group.Key,
-                Stops = group
+                pattern.Key.DirectionId,
+                Stops = pattern
                     .OrderBy(item => item.Sequence)
                     .Select(item => CanonicalStopId(item.StopId, stops))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Where(stops.ContainsKey)
                     .ToList()
             })
-            .Where(direction => direction.Stops.Count > 0)
-            .OrderByDescending(direction => direction.Stops.Count)
+            .Where(pattern => pattern.Stops.Count > 0)
+            .GroupBy(pattern => pattern.DirectionId)
+            .Select(patterns => patterns.OrderByDescending(item => item.Stops.Count).First())
+            .OrderBy(item => item.DirectionId)
             .ToList();
-        var primary = directions.FirstOrDefault()?.Stops;
+        var primary = directions.OrderByDescending(item => item.Stops.Count).FirstOrDefault()?.Stops;
         if (primary is null)
         {
             return null;
         }
 
         var allStations = primary.ToList();
-        allStations.AddRange(directions
-            .SelectMany(direction => direction.Stops)
+        allStations.AddRange(network.RouteStops
+            .Where(item => sourceRouteIds.Contains(item.RouteId))
+            .Select(item => CanonicalStopId(item.StopId, stops))
+            .Where(stops.ContainsKey)
             .Where(stopId => !allStations.Contains(stopId, StringComparer.OrdinalIgnoreCase)));
         var origin = StationNameZh(stops[primary.First()], network);
         var destination = StationNameZh(stops[primary.Last()], network);
@@ -256,7 +465,7 @@ public static class LtaDataMallTransitMapper
                 var directionOrigin = StationNameZh(stops[direction.Stops.First()], network);
                 var directionDestination = StationNameZh(stops[direction.Stops.Last()], network);
                 return new TransitDirectionResponse(
-                    direction.Direction,
+                    direction.DirectionId,
                     directionDestination,
                     directionOrigin,
                     directionDestination);
@@ -264,18 +473,21 @@ public static class LtaDataMallTransitMapper
             .ToList();
 
         return new TransitRouteResponse(
-            RouteId(route.Id),
-            LineNameZh(route, network),
-            LineNameEn(route),
+            RouteId(group.Primary.Id),
+            LineNameZh(group.Primary, network),
+            LineNameEn(group.Primary),
             origin,
             destination,
-            [string.IsNullOrWhiteSpace(route.AgencyId) ? "LTA" : route.AgencyId],
+            group.Routes
+                .Select(route => string.IsNullOrWhiteSpace(route.AgencyId) ? "LTA" : route.AgencyId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             mappedDirections,
             allStations.Select(stopId => StationNameZh(stops[stopId], network)).ToList());
     }
 
     private static MetroStationResponse? MapStation(
-        string routeId,
+        RouteGroup group,
         string stopId,
         LtaGtfsNetwork network,
         IReadOnlyDictionary<string, LtaGtfsStop> stops)
@@ -285,40 +497,73 @@ public static class LtaDataMallTransitMapper
             return null;
         }
 
-        var route = network.Routes.FirstOrDefault(item =>
-            item.Id.Equals(routeId, StringComparison.OrdinalIgnoreCase));
-        if (route is null)
-        {
-            return null;
-        }
-
         return new MetroStationResponse(
-            StationId(routeId, stopId),
+            StationId(group.Primary.Id, stopId),
             StationNameZh(stop, network),
             stop.Name,
             null,
             stop.Latitude,
             stop.Longitude,
             stop.Code,
-            RouteId(routeId),
-            LineNameZh(route, network));
+            RouteId(group.Primary.Id),
+            LineNameZh(group.Primary, network));
     }
 
     private static string DirectionDestination(
-        string routeId,
+        RouteGroup group,
         int direction,
         LtaGtfsNetwork network,
         IReadOnlyDictionary<string, LtaGtfsStop> stops)
     {
+        var sourceRouteIds = SourceRouteIds(group);
         var stopId = network.RouteStops
             .Where(item =>
-                item.RouteId.Equals(routeId, StringComparison.OrdinalIgnoreCase) &&
+                sourceRouteIds.Contains(item.RouteId) &&
                 item.DirectionId == direction)
-            .OrderByDescending(item => item.Sequence)
-            .Select(item => CanonicalStopId(item.StopId, stops))
+            .GroupBy(item => item.RouteId, StringComparer.OrdinalIgnoreCase)
+            .Select(pattern => pattern.OrderBy(item => item.Sequence).ToList())
+            .OrderByDescending(pattern => pattern.Count)
+            .Select(pattern => pattern.LastOrDefault())
+            .Where(item => item is not null)
+            .Select(item => CanonicalStopId(item!.StopId, stops))
             .FirstOrDefault(stops.ContainsKey);
         return stopId is null ? "終點站" : StationNameZh(stops[stopId], network);
     }
+
+    private static IReadOnlyList<RouteGroup> RouteGroups(LtaGtfsNetwork network) =>
+        network.Routes
+            .Where(route => network.RouteStops.Any(item =>
+                item.RouteId.Equals(route.Id, StringComparison.OrdinalIgnoreCase)))
+            .GroupBy(PublicRouteKey, StringComparer.OrdinalIgnoreCase)
+            .Select(routes =>
+            {
+                var values = routes.ToList();
+                var primary = values
+                    .OrderByDescending(route => network.RouteStops
+                        .Where(item => item.RouteId.Equals(route.Id, StringComparison.OrdinalIgnoreCase))
+                        .Select(item => item.StopId)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Count())
+                    .ThenBy(route => route.Id.Contains('_') ? 1 : 0)
+                    .ThenBy(route => route.Id.Length)
+                    .ThenBy(route => route.Id, StringComparer.OrdinalIgnoreCase)
+                    .First();
+                return new RouteGroup(primary, values);
+            })
+            .ToList();
+
+    private static RouteGroup? FindRouteGroup(string routeId, LtaGtfsNetwork network) =>
+        RouteGroups(network).FirstOrDefault(group =>
+            group.Primary.Id.Equals(routeId, StringComparison.OrdinalIgnoreCase) ||
+            group.Routes.Any(route => route.Id.Equals(routeId, StringComparison.OrdinalIgnoreCase)));
+
+    private static HashSet<string> SourceRouteIds(RouteGroup group) =>
+        group.Routes
+            .Select(route => route.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static string PublicRouteKey(LtaGtfsRoute route) =>
+        string.IsNullOrWhiteSpace(route.LongName) ? route.ShortName : route.LongName;
 
     private static string ServiceStatus(
         int tripRelationship,
@@ -348,6 +593,13 @@ public static class LtaDataMallTransitMapper
         network.Stops
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+    private static LtaGtfsStop? ResolveExactStop(
+        string? stopId,
+        IReadOnlyDictionary<string, LtaGtfsStop> stops) =>
+        !string.IsNullOrWhiteSpace(stopId) && stops.TryGetValue(stopId, out var stop)
+            ? stop
+            : null;
 
     private static string CanonicalStopId(
         string stopId,
@@ -379,4 +631,13 @@ public static class LtaDataMallTransitMapper
     private static string RouteId(string routeId) => $"{Prefix}:{routeId}";
     private static string StationId(string routeId, string stopId) =>
         $"{Prefix}:{routeId}:{stopId}";
+
+    private sealed record RouteGroup(
+        LtaGtfsRoute Primary,
+        IReadOnlyList<LtaGtfsRoute> Routes);
+
+    private sealed record ScheduledCandidate(
+        LtaGtfsTrip Trip,
+        LtaGtfsStopTime StopTime,
+        DateTimeOffset ScheduledAt);
 }

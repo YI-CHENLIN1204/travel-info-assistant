@@ -28,6 +28,126 @@ public sealed class LtaDataMallTransitMapperTests
     }
 
     [Fact]
+    public void ConsolidatesGtfsServicePatternsIntoOnePublicLine()
+    {
+        var network = new LtaGtfsNetwork(
+            [
+                new LtaGtfsRoute("CCL", "CC", "Circle Line", "SMRT"),
+                new LtaGtfsRoute("CCL_FIRST", "CC", "Circle Line", "SMRT")
+            ],
+            [
+                new LtaGtfsStop("CC1", "CC1", "Dhoby Ghaut", null, 1, null, 1.299, 103.845),
+                new LtaGtfsStop("CC2", "CC2", "Bras Basah", null, 1, null, 1.297, 103.851)
+            ],
+            [],
+            [
+                new LtaGtfsRouteStop("CCL", "CC1", 0, 1),
+                new LtaGtfsRouteStop("CCL", "CC2", 0, 2),
+                new LtaGtfsRouteStop("CCL_FIRST", "CC1", 0, 1)
+            ],
+            [
+                new LtaChineseStationName("CC1", "Dhoby Ghaut", "多美歌", "Circle Line", "环线"),
+                new LtaChineseStationName("CC2", "Bras Basah", "百胜", "Circle Line", "环线")
+            ]);
+
+        var route = Assert.Single(LtaDataMallTransitMapper.MapRoutes(network));
+        var stations = LtaDataMallTransitMapper.MapStations(network);
+
+        Assert.Equal("LTA:CCL", route.Id);
+        Assert.Equal(2, stations.Count);
+        Assert.All(stations, station => Assert.Equal("LTA:CCL", station.RailwayId));
+    }
+
+    [Fact]
+    public void FallsBackToActiveScheduledDeparturesWhenRealtimeFeedIsEmpty()
+    {
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "weekday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "12:03:00", "12:03:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "weekday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Thursday])],
+            CalendarDates = []
+        };
+
+        var arrivals = LtaDataMallTransitMapper.MapArrivals(
+            "NS",
+            "NS22",
+            new LtaRealtimeFeed(Now, [], []),
+            network,
+            Now);
+
+        var arrival = Assert.Single(arrivals);
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 12, 3, 0, TimeSpan.FromHours(8)), arrival.ScheduledAt);
+        Assert.Null(arrival.EstimatedAt);
+        Assert.Equal("表定時間", arrival.ServiceStatus);
+        Assert.Equal(5, arrival.Direction);
+    }
+
+    [Fact]
+    public void IncludesNextServiceDateForDeparturesAfterMidnight()
+    {
+        var now = DateTimeOffset.Parse("2026-10-01T15:58:00Z");
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "friday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "00:03:00", "00:03:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "friday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Friday])],
+            CalendarDates = []
+        };
+
+        var arrivals = LtaDataMallTransitMapper.MapArrivals(
+            "NS",
+            "NS22",
+            new LtaRealtimeFeed(now, [], []),
+            network,
+            now);
+
+        var arrival = Assert.Single(arrivals);
+        Assert.Equal(
+            new DateTimeOffset(2026, 10, 2, 0, 3, 0, TimeSpan.FromHours(8)),
+            arrival.ScheduledAt);
+    }
+
+    [Fact]
+    public void KeepsScheduleLabelWhenTripUpdateDoesNotContainSelectedStation()
+    {
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "weekday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "12:03:00", "12:03:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "weekday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Thursday])],
+            CalendarDates = []
+        };
+        var feed = new LtaRealtimeFeed(
+            Now,
+            [TripUpdate("other-stop", "trip-5", "NS25", Now.AddMinutes(4), 60, 0)],
+            []);
+
+        var arrivals = LtaDataMallTransitMapper.MapArrivals(
+            "NS",
+            "NS22",
+            feed,
+            network,
+            Now);
+
+        var arrival = Assert.Single(arrivals);
+        Assert.Equal("表定時間", arrival.ServiceStatus);
+        Assert.Null(arrival.EstimatedAt);
+    }
+
+    [Fact]
     public void MapsFreshPredictionsDelayPlatformAndSkippedStop()
     {
         var network = CreateNetwork();

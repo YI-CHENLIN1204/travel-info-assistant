@@ -13,6 +13,11 @@ import {
 import StatusPill from '@/components/StatusPill.vue'
 import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
 import { getBusDirectionLabel } from '@/services/transitDirection'
+import {
+  getTaiwanTraditionalConverter,
+  identityTextConverter,
+  type TextConverter,
+} from '@/services/traditionalChinese'
 import { useCityStore } from '@/stores/city'
 import {
   isMetroStatusCurrent,
@@ -23,6 +28,7 @@ import type {
   MetroStation,
   RailStation,
   TransitArrival,
+  TransitDirection,
   TransitRoute,
   TransitStop,
 } from '@/types/api'
@@ -30,6 +36,7 @@ import type {
 const cityStore = useCityStore()
 const transitStore = useTransitStore()
 const now = ref(new Date())
+const textConverter = ref<TextConverter>(identityTextConverter)
 let clockTimer: number | undefined
 
 const integratedServices = computed(() =>
@@ -98,9 +105,16 @@ const statusLabel = computed(() => {
   }
   if (isSingapore.value) {
     if (!transitStore.resultMeta) return 'LTA DataMall 連線確認中'
-    return transitStore.resultMeta.dataStatus === 'unavailable'
-      ? 'LTA API Account Key 或服務待確認'
-      : 'LTA 官方即時資料已啟用'
+    if (transitStore.resultMeta.dataStatus === 'unavailable') {
+      return 'LTA API Account Key 或服務待確認'
+    }
+    if (transitStore.resultMeta.dataStatus === 'scheduled') {
+      return 'LTA 官方班表已啟用'
+    }
+    if (transitStore.resultMeta.dataStatus === 'cached') {
+      return 'LTA 備援資料已啟用'
+    }
+    return 'LTA 官方即時預估已啟用'
   }
   return providerConfigured.value ? 'TDX 真實資料已啟用' : 'TDX 金鑰待設定'
 })
@@ -129,8 +143,11 @@ const selectedMetroStatusExpired = computed(
 
 watch(
   [() => cityStore.currentCity.id, serviceSignature],
-  async () => {
+  async ([cityId]) => {
     transitStore.resetResults()
+    await loadTextConverter(cityStore.currentCity.code)
+    if (cityStore.currentCity.id !== cityId) return
+
     if (isTaipei.value) await transitStore.loadProviderStatus()
     const firstMode = availableModes.value[0]
     if (!firstMode) return
@@ -195,6 +212,7 @@ async function activateMode(mode: TransitModeKey): Promise<void> {
   transitStore.selectedStop = null
   transitStore.stops = []
   transitStore.selectedStation = null
+  transitStore.selectedMetroDirection = null
   transitStore.selectedRailStation = null
   await loadModeIndex(mode)
 }
@@ -254,6 +272,10 @@ function selectMetroRoute(route: TransitRoute): void {
   void transitStore.chooseMetroRoute(cityStore.currentCity.id, route)
 }
 
+function selectMetroDirection(direction: number): void {
+  transitStore.chooseMetroDirection(direction)
+}
+
 function refreshMetroStatus(): void {
   void transitStore.refreshMetroStatus(
     cityStore.currentCity.id,
@@ -295,7 +317,24 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
 }
 
 function directionLabel(route: TransitRoute, direction: number): string {
-  return getBusDirectionLabel(route, direction)
+  return localize(getBusDirectionLabel(route, direction))
+}
+
+function metroDirectionLabel(direction: TransitDirection): string {
+  const destination = direction.destinationName ?? direction.headsign
+  return destination ? `往 ${localize(destination)}` : `方向 ${direction.direction + 1}`
+}
+
+function localize(value: string | null | undefined): string {
+  return textConverter.value(value ?? '')
+}
+
+async function loadTextConverter(cityCode: string): Promise<void> {
+  textConverter.value = identityTextConverter
+  const converter = await getTaiwanTraditionalConverter(cityCode)
+  if (cityStore.currentCity.code === cityCode) {
+    textConverter.value = converter
+  }
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -325,7 +364,7 @@ function formatTimestamp(value: string | null | undefined): string {
             查詢港鐵路線、車站、即時到站、月台與延誤狀態；資料由後端統一向香港官方開放數據取得並共用快取。
           </template>
           <template v-else-if="isSingapore">
-            查詢新加坡 MRT 路線、車站、即時到站與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
+            查詢新加坡 MRT 路線、車站、即時預估、表定班次與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
           </template>
           <template v-else>
             查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
@@ -551,12 +590,12 @@ function formatTimestamp(value: string | null | undefined): string {
                 @keydown.enter.prevent="selectMetroRoute(route)"
                 @keydown.space.prevent="selectMetroRoute(route)"
               >
-                <strong>{{ route.nameZh }}</strong>
+                <strong>{{ localize(route.nameZh) }}</strong>
                 <span>{{ route.nameEn ?? `${cityStore.currentCity.nameEn} Metro` }}</span>
                 <small>{{ route.operators.join('・') }}</small>
-                <small>{{ route.originName ?? '起點待確認' }} → {{ route.destinationName ?? '終點待確認' }}</small>
+                <small>{{ localize(route.originName) || '起點待確認' }} → {{ localize(route.destinationName) || '終點待確認' }}</small>
                 <small v-if="route.stationNames.length" class="route-stations">
-                  {{ route.stationNames.join(' · ') }}
+                  {{ route.stationNames.map(localize).join(' · ') }}
                 </small>
               </article>
               <div v-if="!transitStore.metroRoutes.length" class="inline-empty">
@@ -585,7 +624,7 @@ function formatTimestamp(value: string | null | undefined): string {
               <div class="panel-heading-row">
                 <div>
                   <span class="eyebrow">OFFICIAL SERVICE STATUS</span>
-                  <h3>{{ transitStore.selectedMetroRoute.nameZh }}</h3>
+                  <h3>{{ localize(transitStore.selectedMetroRoute.nameZh) }}</h3>
                 </div>
                 <button
                   class="icon-button refresh-button"
@@ -597,35 +636,61 @@ function formatTimestamp(value: string | null | undefined): string {
                   <RefreshCw :size="18" />
                 </button>
               </div>
-              <p v-if="selectedMetroStatus">
+              <template v-if="selectedMetroStatus">
+                <p>
                 {{
-                  selectedMetroStatus.messageZh ??
-                  selectedMetroStatus.messageJa ??
-                  selectedMetroStatus.messageEn ??
-                  '暫時無法確認運行狀態。'
+                  localize(
+                    selectedMetroStatus.messageZh ??
+                    selectedMetroStatus.messageJa ??
+                    selectedMetroStatus.messageEn ??
+                    '暫時無法確認運行狀態。',
+                  )
                 }}
-                <template
-                  v-if="
-                    selectedMetroStatus.messageEn &&
-                    selectedMetroStatus.messageEn !==
-                      (selectedMetroStatus.messageZh ?? selectedMetroStatus.messageJa)
-                  "
-                >
-                  <br />{{ selectedMetroStatus.messageEn }}
-                </template>
                 <br />更新 {{ formatTimestamp(selectedMetroStatus.updatedAt) }} ·
                 有效至 {{ formatTimestamp(selectedMetroStatus.validUntil) }}
-              </p>
+                </p>
+                <details
+                  v-if="
+                    selectedMetroStatus.messageZh &&
+                    (selectedMetroStatus.messageJa || selectedMetroStatus.messageEn)
+                  "
+                  class="official-message-original"
+                >
+                  <summary>查看官方原文</summary>
+                  <p v-if="selectedMetroStatus.messageJa" lang="ja">
+                    {{ selectedMetroStatus.messageJa }}
+                  </p>
+                  <p v-if="selectedMetroStatus.messageEn" lang="en">
+                    {{ selectedMetroStatus.messageEn }}
+                  </p>
+                </details>
+              </template>
               <p v-else>
                 {{
                   selectedMetroStatusExpired
                     ? '官方運行狀態已超過有效期限，正在重新確認。'
                     : transitStore.metroStatusMeta?.dataStatus === 'unavailable'
                     ? (transitStore.metroStatusMeta.message ?? '暫時無法取得官方運行狀態。')
-                    : `目前沒有 ${transitStore.selectedMetroRoute.nameZh} 可顯示的官方運行狀態。`
+                    : `目前沒有 ${localize(transitStore.selectedMetroRoute.nameZh)} 可顯示的官方運行狀態。`
                 }}
               </p>
             </article>
+
+            <div
+              v-if="transitStore.selectedMetroRoute && transitStore.metroDirectionOptions.length"
+              class="direction-switch metro-direction-switch"
+              aria-label="捷運方向"
+            >
+              <button
+                v-for="direction in transitStore.metroDirectionOptions"
+                :key="direction.direction"
+                type="button"
+                :class="{ active: transitStore.selectedMetroDirection === direction.direction }"
+                @click="selectMetroDirection(direction.direction)"
+              >
+                {{ metroDirectionLabel(direction) }}
+              </button>
+            </div>
 
             <div class="route-result-list route-metro-station-list">
               <button
@@ -636,11 +701,11 @@ function formatTimestamp(value: string | null | undefined): string {
                 type="button"
                 @click="selectStation(station)"
               >
-                <strong>{{ station.nameZh }}</strong>
+                <strong>{{ localize(station.nameZh) }}</strong>
                 <span>{{ station.nameEn ?? station.railwayName ?? `${cityStore.currentCity.nameEn} Metro` }}</span>
                 <small>
                   {{ station.code ?? '代碼待確認' }}
-                  <template v-if="station.railwayName"> · {{ station.railwayName }}</template>
+                  <template v-if="station.railwayName"> · {{ localize(station.railwayName) }}</template>
                 </small>
               </button>
               <div v-if="!transitStore.filteredMetroStations.length" class="inline-empty">
@@ -654,7 +719,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <span class="eyebrow">
                     {{ transitStore.selectedStation.code ?? transitStore.selectedStation.id }}
                   </span>
-                  <h3>{{ transitStore.selectedStation.nameZh }}接下來班次</h3>
+                  <h3>{{ localize(transitStore.selectedStation.nameZh) }}接下來班次</h3>
                 </div>
                 <button
                   class="icon-button refresh-button"
@@ -668,12 +733,12 @@ function formatTimestamp(value: string | null | undefined): string {
               </div>
 
               <div class="arrival-list metro-arrivals">
-                <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
+                <article v-for="arrival in transitStore.visibleMetroArrivals" :key="arrival.id" class="arrival-card">
                   <div class="arrival-icon"><TrainFront :size="20" /></div>
                   <div class="arrival-main">
-                    <strong>{{ arrival.lineName ?? `${cityStore.currentCity.nameEn} Metro` }}</strong>
+                    <strong>{{ localize(arrival.lineName) || `${cityStore.currentCity.nameEn} Metro` }}</strong>
                     <span>
-                      {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}
+                      {{ arrival.destinationName ? `往 ${localize(arrival.destinationName)}` : localize(arrival.serviceStatus) }}
                       {{ arrival.platform ? ` · ${arrival.platform} 月台` : '' }}
                     </span>
                   </div>
@@ -690,7 +755,7 @@ function formatTimestamp(value: string | null | undefined): string {
                     </span>
                   </div>
                 </article>
-                <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
+                <div v-if="!transitStore.visibleMetroArrivals.length && !transitStore.loading" class="inline-empty">
                   {{
                     transitStore.resultMeta?.message ??
                     (usesRealtimeMetro ? '目前查無接下來的即時到站班次。' : '目前查無接下來的表定班次。')
@@ -746,7 +811,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 type="button"
                 @click="selectStation(station)"
               >
-                <strong>{{ station.nameZh }}</strong>
+                <strong>{{ localize(station.nameZh) }}</strong>
                 <span>{{ station.nameEn ?? station.address ?? '台北捷運' }}</span>
                 <small>{{ station.id }}</small>
               </button>
@@ -758,7 +823,7 @@ function formatTimestamp(value: string | null | undefined): string {
               <div class="panel-heading-row arrival-heading">
                 <div>
                   <span class="eyebrow">{{ transitStore.selectedStation.id }}</span>
-                  <h3>{{ transitStore.selectedStation.nameZh }}列車資訊</h3>
+                  <h3>{{ localize(transitStore.selectedStation.nameZh) }}列車資訊</h3>
                 </div>
                 <button
                   class="icon-button refresh-button"
@@ -771,12 +836,28 @@ function formatTimestamp(value: string | null | undefined): string {
                 </button>
               </div>
 
+              <div
+                v-if="transitStore.metroDirectionOptions.length"
+                class="direction-switch metro-direction-switch"
+                aria-label="捷運方向"
+              >
+                <button
+                  v-for="direction in transitStore.metroDirectionOptions"
+                  :key="direction.direction"
+                  type="button"
+                  :class="{ active: transitStore.selectedMetroDirection === direction.direction }"
+                  @click="selectMetroDirection(direction.direction)"
+                >
+                  {{ metroDirectionLabel(direction) }}
+                </button>
+              </div>
+
               <div class="arrival-list metro-arrivals">
-                <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
+                <article v-for="arrival in transitStore.visibleMetroArrivals" :key="arrival.id" class="arrival-card">
                   <div class="arrival-icon"><TrainFront :size="20" /></div>
                   <div class="arrival-main">
-                    <strong>{{ arrival.lineName ?? arrival.lineId ?? '台北捷運' }}</strong>
-                    <span>{{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}</span>
+                    <strong>{{ localize(arrival.lineName) || arrival.lineId || '台北捷運' }}</strong>
+                    <span>{{ arrival.destinationName ? `往 ${localize(arrival.destinationName)}` : localize(arrival.serviceStatus) }}</span>
                   </div>
                   <div class="arrival-time">
                     <strong>{{ getArrivalView(arrival).label }}</strong>
@@ -785,7 +866,7 @@ function formatTimestamp(value: string | null | undefined): string {
                     </span>
                   </div>
                 </article>
-                <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
+                <div v-if="!transitStore.visibleMetroArrivals.length && !transitStore.loading" class="inline-empty">
                   {{ transitStore.resultMeta?.message ?? '目前查無這個車站的列車資料。' }}
                 </div>
               </div>

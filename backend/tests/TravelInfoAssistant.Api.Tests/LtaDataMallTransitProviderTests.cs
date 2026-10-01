@@ -67,7 +67,7 @@ public sealed class LtaDataMallTransitProviderTests
     }
 
     [Fact]
-    public async Task RejectsRealtimeFeedOlderThanTwoMinutes()
+    public async Task FallsBackToScheduleWhenRealtimeFeedIsOlderThanTwoMinutes()
     {
         var oldTimestamp = Now.AddMinutes(-3);
         var client = new StubClient
@@ -81,8 +81,10 @@ public sealed class LtaDataMallTransitProviderTests
             "LTA:NS:NS22",
             CancellationToken.None);
 
-        Assert.Equal("unavailable", result.DataStatus);
-        Assert.Empty(result.Data);
+        Assert.Equal("scheduled", result.DataStatus);
+        var arrival = Assert.Single(result.Data);
+        Assert.Equal("表定時間", arrival.ServiceStatus);
+        Assert.Null(arrival.EstimatedAt);
         Assert.False(result.Stale);
     }
 
@@ -97,9 +99,22 @@ public sealed class LtaDataMallTransitProviderTests
         new(
             [new LtaGtfsRoute("NS", "NS", "North South Line", "SMRT")],
             [new LtaGtfsStop("NS22", "NS22", "Orchard", null, 1, null, 1.304, 103.832)],
-            [new LtaGtfsTrip("trip-1", "NS", "Marina South Pier", 0)],
+            [new LtaGtfsTrip("trip-1", "NS", "Marina South Pier", 0, "weekday")],
             [new LtaGtfsRouteStop("NS", "NS22", 0, 1)],
-            [new LtaChineseStationName("NS22", "Orchard", "烏節", "North South Line", "南北線")]);
+            [new LtaChineseStationName("NS22", "Orchard", "烏節", "North South Line", "南北線")],
+            [new LtaGtfsStopTime("trip-1", "NS22", 1, "12:03:00", "12:03:00")],
+            [new LtaGtfsCalendar(
+                "weekday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [
+                    DayOfWeek.Monday,
+                    DayOfWeek.Tuesday,
+                    DayOfWeek.Wednesday,
+                    DayOfWeek.Thursday,
+                    DayOfWeek.Friday
+                ])],
+            []);
 
     private sealed class StubClient : ILtaDataMallApiClient
     {

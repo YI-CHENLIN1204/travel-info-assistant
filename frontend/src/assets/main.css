@@ -1242,8 +1242,28 @@ p {
 
 .direction-switch {
   display: flex;
+  flex-wrap: wrap;
   margin-bottom: 15px;
   gap: 8px;
+}
+
+.metro-direction-switch {
+  margin-top: 14px;
+}
+
+.official-message-original {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.official-message-original summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.official-message-original p {
+  margin-top: 8px;
 }
 
 .direction-switch button {

@@ -158,11 +158,13 @@ public sealed class OdptTransitProvider(
                 timetableFeed.Data,
                 stationNames,
                 cancellationToken);
+            var railwayFeed = await GetRailwayFeedAsync(subwayOperator, cancellationToken);
             var departures = OdptTransitMapper.MapStationDepartures(
                 timetableFeed.Data,
                 calendarFeed?.Data ?? [],
                 stationNames,
-                timeProvider.GetUtcNow());
+                timeProvider.GetUtcNow(),
+                railwayFeed.Result.Data);
             var message = timetableFeed.Message ?? calendarFeed?.Message ?? stationFeed.Message;
             if (departures.Count == 0 && string.IsNullOrWhiteSpace(message))
             {

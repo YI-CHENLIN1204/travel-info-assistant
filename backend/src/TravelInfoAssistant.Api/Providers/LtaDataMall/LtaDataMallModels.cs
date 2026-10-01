@@ -42,7 +42,8 @@ public sealed record LtaGtfsTrip(
     string Id,
     string RouteId,
     string? Headsign,
-    int DirectionId);
+    int DirectionId,
+    string? ServiceId = null);
 
 public sealed record LtaGtfsStopTime(
     string TripId,
@@ -57,6 +58,17 @@ public sealed record LtaGtfsRouteStop(
     int DirectionId,
     int Sequence);
 
+public sealed record LtaGtfsCalendar(
+    string ServiceId,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    IReadOnlyList<DayOfWeek> Days);
+
+public sealed record LtaGtfsCalendarDate(
+    string ServiceId,
+    DateOnly Date,
+    int ExceptionType);
+
 public sealed record LtaChineseStationName(
     string StationCode,
     string NameEn,
@@ -69,7 +81,10 @@ public sealed record LtaGtfsNetwork(
     IReadOnlyList<LtaGtfsStop> Stops,
     IReadOnlyList<LtaGtfsTrip> Trips,
     IReadOnlyList<LtaGtfsRouteStop> RouteStops,
-    IReadOnlyList<LtaChineseStationName> ChineseNames);
+    IReadOnlyList<LtaChineseStationName> ChineseNames,
+    IReadOnlyList<LtaGtfsStopTime>? StopTimes = null,
+    IReadOnlyList<LtaGtfsCalendar>? Calendars = null,
+    IReadOnlyList<LtaGtfsCalendarDate>? CalendarDates = null);
 
 public sealed record LtaRealtimeFeed(
     DateTimeOffset? Timestamp,

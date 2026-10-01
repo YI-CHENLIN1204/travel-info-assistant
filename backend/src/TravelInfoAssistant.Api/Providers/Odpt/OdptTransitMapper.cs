@@ -107,14 +107,16 @@ public static class OdptTransitMapper
             messageJa,
             messageEn,
             information.UpdatedAt,
-            information.ValidUntil);
+            information.ValidUntil,
+            StatusSummary(messageJa, messageEn));
     }
 
     public static IReadOnlyList<TransitArrivalResponse> MapStationDepartures(
         IReadOnlyList<OdptStationTimetable> timetables,
         IReadOnlyList<OdptCalendar> calendars,
         IReadOnlyDictionary<string, string> stationNames,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        IReadOnlyList<OdptRailway>? railways = null)
     {
         var tokyoNow = TimeZoneInfo.ConvertTime(now, TokyoTimeZone);
         var serviceDate = DateOnly.FromDateTime(tokyoNow.DateTime);
@@ -133,6 +135,7 @@ public static class OdptTransitMapper
                     timetable,
                     item,
                     stationNames,
+                    railways ?? [],
                     serviceDate,
                     timetableIndex,
                     itemIndex)))
@@ -147,6 +150,7 @@ public static class OdptTransitMapper
         OdptStationTimetable timetable,
         OdptStationTimetableObject item,
         IReadOnlyDictionary<string, string> stationNames,
+        IReadOnlyList<OdptRailway> railways,
         DateOnly serviceDate,
         int timetableIndex,
         int itemIndex)
@@ -192,13 +196,100 @@ public static class OdptTransitMapper
             timetable.Railway?.Trim(),
             lineName,
             destinations.Count > 0 ? string.Join("／", destinations) : null,
-            null,
+            ResolveDirection(timetable, item, railways),
             scheduledAt,
             null,
             timetable.UpdatedAt,
             "表定時刻",
             item.IsLast,
             platform);
+    }
+
+    private static int? ResolveDirection(
+        OdptStationTimetable timetable,
+        OdptStationTimetableObject item,
+        IReadOnlyList<OdptRailway> railways)
+    {
+        var railway = railways.FirstOrDefault(value =>
+            value.SameAs?.Equals(timetable.Railway, StringComparison.OrdinalIgnoreCase) == true);
+        var orderedStations = railway?.StationOrder
+            .OrderBy(value => value.Index)
+            .Where(value => !string.IsNullOrWhiteSpace(value.Station))
+            .ToList();
+        if (orderedStations is not { Count: > 1 })
+        {
+            return null;
+        }
+
+        var first = orderedStations[0].Station!;
+        var last = orderedStations[^1].Station!;
+        var railDirectionTerminal = timetable.RailDirection?
+            .Split(':', 2, StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault()?
+            .Split('.')
+            .LastOrDefault();
+        if (!string.IsNullOrWhiteSpace(railDirectionTerminal))
+        {
+            if (last.EndsWith($".{railDirectionTerminal}", StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+            if (first.EndsWith($".{railDirectionTerminal}", StringComparison.OrdinalIgnoreCase))
+            {
+                return 1;
+            }
+        }
+
+        if (item.DestinationStations.Contains(last, StringComparer.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+        if (item.DestinationStations.Contains(first, StringComparer.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        var currentIndex = orderedStations.FindIndex(value =>
+            value.Station!.Equals(timetable.Station, StringComparison.OrdinalIgnoreCase));
+        if (currentIndex >= 0)
+        {
+            var destinationIndexes = item.DestinationStations
+                .Select(destination => orderedStations.FindIndex(value =>
+                    value.Station!.Equals(destination, StringComparison.OrdinalIgnoreCase)))
+                .Where(index => index >= 0)
+                .Distinct()
+                .ToList();
+            if (destinationIndexes.Count > 0 && destinationIndexes.All(index => index > currentIndex))
+            {
+                return 0;
+            }
+            if (destinationIndexes.Count > 0 && destinationIndexes.All(index => index < currentIndex))
+            {
+                return 1;
+            }
+        }
+        return null;
+    }
+
+    private static string StatusSummary(string? messageJa, string? messageEn)
+    {
+        var combined = $"{messageJa} {messageEn}";
+        if (combined.Contains("平常", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("normal", StringComparison.OrdinalIgnoreCase))
+        {
+            return "目前正常營運。";
+        }
+        if (combined.Contains("遅延", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("delay", StringComparison.OrdinalIgnoreCase))
+        {
+            return "目前有班次延誤，請預留候車時間。";
+        }
+        if (combined.Contains("運転見合わせ", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("suspend", StringComparison.OrdinalIgnoreCase))
+        {
+            return "目前有路段暫停營運，請參考官方公告。";
+        }
+        return "目前有官方營運公告，詳細內容請參考原文。";
     }
 
     private static HashSet<string> SelectApplicableCalendars(

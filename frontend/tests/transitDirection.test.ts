@@ -141,6 +141,34 @@ describe('filterMetroRouteStations', () => {
     ).toEqual(['station-2', 'station-1'])
   })
 
+  it('reverses the station order for the opposite destination', () => {
+    expect(
+      filterMetroRouteStations(
+        stations,
+        {
+          ...route,
+          id: 'railway-ginza',
+          stationNames: [stations[0].nameZh, stations[1].nameZh],
+          directions: [
+            {
+              direction: 0,
+              headsign: stations[1].nameZh,
+              originName: stations[0].nameZh,
+              destinationName: stations[1].nameZh,
+            },
+            {
+              direction: 1,
+              headsign: stations[0].nameZh,
+              originName: stations[1].nameZh,
+              destinationName: stations[0].nameZh,
+            },
+          ],
+        },
+        1,
+      ).map((station) => station.id),
+    ).toEqual(['station-2', 'station-1'])
+  })
+
   it('returns all stations when no route is selected', () => {
     expect(filterMetroRouteStations(stations, null)).toEqual(stations)
   })
@@ -167,10 +195,14 @@ describe('filterMetroRouteStations', () => {
       'station-1',
     ])
 
+    store.selectedStation = stations[0]
+    store.arrivals = [{ id: 'arrival-1' } as TransitArrival]
     await store.chooseMetroRoute('tokyo-id', ginzaRoute)
 
     expect(stationSearch).toHaveBeenCalledTimes(1)
     expect(store.filteredMetroStations).toEqual([stations[2]])
+    expect(store.selectedStation).toBeNull()
+    expect(store.arrivals).toEqual([])
   })
 
   it('clears only a station that does not belong to the newly selected route', async () => {
@@ -199,6 +231,35 @@ describe('filterMetroRouteStations', () => {
 
     expect(store.selectedStation).toEqual(stations[2])
     expect(store.arrivals).toEqual([arrival])
+  })
+
+  it('derives Taipei direction options and hides the opposite direction arrivals', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const directionZero = {
+      id: 'arrival-0',
+      direction: 0,
+      destinationName: '淡水',
+    } as TransitArrival
+    const directionOne = {
+      id: 'arrival-1',
+      direction: 1,
+      destinationName: '象山',
+    } as TransitArrival
+    vi.spyOn(transitApi, 'getMetroArrivals').mockResolvedValue({
+      data: [directionZero, directionOne],
+      meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.chooseMetroStation('taipei-id', stations[0])
+
+    expect(store.metroDirectionOptions.map((item) => item.direction)).toEqual([0, 1])
+    expect(store.selectedMetroDirection).toBe(0)
+    expect(store.visibleMetroArrivals).toEqual([directionZero])
+
+    store.chooseMetroDirection(1)
+    expect(store.visibleMetroArrivals).toEqual([directionOne])
   })
 })
 

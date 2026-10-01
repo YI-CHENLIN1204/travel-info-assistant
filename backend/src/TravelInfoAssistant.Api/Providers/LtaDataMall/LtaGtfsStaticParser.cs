@@ -37,7 +37,8 @@ public static partial class LtaGtfsStaticParser
                 Get(row, "trip_id"),
                 Get(row, "route_id"),
                 GetOptional(row, "trip_headsign"),
-                ParseInt(GetOptional(row, "direction_id")) ?? 0))
+                ParseInt(GetOptional(row, "direction_id")) ?? 0,
+                GetOptional(row, "service_id")))
             .Where(trip =>
                 !string.IsNullOrWhiteSpace(trip.Id) &&
                 !string.IsNullOrWhiteSpace(trip.RouteId))
@@ -52,6 +53,24 @@ public static partial class LtaGtfsStaticParser
             .Where(item =>
                 !string.IsNullOrWhiteSpace(item.TripId) &&
                 !string.IsNullOrWhiteSpace(item.StopId))
+            .ToList();
+        var calendars = ReadCsv(scheduleZip, "calendar.txt", required: false)
+            .Select(row => new LtaGtfsCalendar(
+                Get(row, "service_id"),
+                ParseDate(GetOptional(row, "start_date")) ?? DateOnly.MinValue,
+                ParseDate(GetOptional(row, "end_date")) ?? DateOnly.MaxValue,
+                CalendarDays(row)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.ServiceId))
+            .ToList();
+        var calendarDates = ReadCsv(scheduleZip, "calendar_dates.txt", required: false)
+            .Select(row => new LtaGtfsCalendarDate(
+                Get(row, "service_id"),
+                ParseDate(GetOptional(row, "date")) ?? DateOnly.MinValue,
+                ParseInt(GetOptional(row, "exception_type")) ?? 0))
+            .Where(item =>
+                !string.IsNullOrWhiteSpace(item.ServiceId) &&
+                item.Date != DateOnly.MinValue &&
+                item.ExceptionType is 1 or 2)
             .ToList();
 
         var tripLookup = trips.ToDictionary(trip => trip.Id, StringComparer.OrdinalIgnoreCase);
@@ -77,7 +96,10 @@ public static partial class LtaGtfsStaticParser
             stops,
             trips,
             routeStops,
-            ParseChineseNames(chineseNamesZip));
+            ParseChineseNames(chineseNamesZip),
+            stopTimes,
+            calendars,
+            calendarDates);
     }
 
     internal static IReadOnlyList<LtaChineseStationName> ParseChineseNames(byte[] zipBytes)
@@ -145,13 +167,22 @@ public static partial class LtaGtfsStaticParser
 
     private static IReadOnlyList<IReadOnlyDictionary<string, string>> ReadCsv(
         byte[] zipBytes,
-        string fileName)
+        string fileName,
+        bool required = true)
     {
         using var zipStream = new MemoryStream(zipBytes, writable: false);
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
         var entry = archive.Entries.FirstOrDefault(item =>
-            item.FullName.EndsWith(fileName, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"LTA GTFS archive is missing {fileName}.");
+            item.FullName.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            if (required)
+            {
+                throw new InvalidOperationException($"LTA GTFS archive is missing {fileName}.");
+            }
+
+            return [];
+        }
         using var stream = entry.Open();
         using var reader = new StreamReader(stream, Encoding.UTF8, true);
         var headerLine = reader.ReadLine()
@@ -276,6 +307,35 @@ public static partial class LtaGtfsStaticParser
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)
             ? result
             : null;
+
+    private static DateOnly? ParseDate(string? value) =>
+        DateOnly.TryParseExact(
+            value,
+            "yyyyMMdd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var result)
+            ? result
+            : null;
+
+    private static IReadOnlyList<DayOfWeek> CalendarDays(
+        IReadOnlyDictionary<string, string> row)
+    {
+        var values = new (string Key, DayOfWeek Day)[]
+        {
+            ("monday", DayOfWeek.Monday),
+            ("tuesday", DayOfWeek.Tuesday),
+            ("wednesday", DayOfWeek.Wednesday),
+            ("thursday", DayOfWeek.Thursday),
+            ("friday", DayOfWeek.Friday),
+            ("saturday", DayOfWeek.Saturday),
+            ("sunday", DayOfWeek.Sunday)
+        };
+        return values
+            .Where(item => Get(row, item.Key) == "1")
+            .Select(item => item.Day)
+            .ToList();
+    }
 
     [GeneratedRegex("[A-Z]{2,3}\\d+[A-Z]?", RegexOptions.IgnoreCase)]
     private static partial Regex StationCodePattern();

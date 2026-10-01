@@ -89,21 +89,37 @@ public sealed class LtaDataMallTransitProvider(
         try
         {
             var network = await GetNetworkAsync(cancellationToken);
-            var updates = await GetTripUpdatesAsync(cancellationToken);
+            ProviderQueryResult<LtaRealtimeFeed>? updates = null;
+            try
+            {
+                updates = await GetTripUpdatesAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogFailure("arrival realtime overlay", exception);
+            }
+
+            var feed = updates?.Data ?? new LtaRealtimeFeed(null, [], []);
             var arrivals = LtaDataMallTransitMapper.MapArrivals(
                 routeId,
                 stopId,
-                updates.Data,
+                feed,
                 network.Data,
                 timeProvider.GetUtcNow());
+            var hasRealtime = arrivals.Any(item => item.EstimatedAt.HasValue);
             return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
                 arrivals,
-                updates.DataStatus == "cached" ? "cached" : "realtime",
-                updates.SourceUpdatedAt,
-                updates.FetchedAt,
-                updates.Stale,
-                updates.Message ??
-                (arrivals.Count == 0 ? "目前查無接下來的新加坡 MRT 即時班次。" : null),
+                hasRealtime
+                    ? updates?.DataStatus == "cached" ? "cached" : "realtime"
+                    : network.DataStatus == "cached" ? "cached" : "scheduled",
+                hasRealtime ? updates?.SourceUpdatedAt : network.SourceUpdatedAt,
+                hasRealtime ? updates?.FetchedAt ?? network.FetchedAt : network.FetchedAt,
+                hasRealtime ? updates?.Stale ?? false : network.Stale,
+                arrivals.Count == 0
+                    ? "目前查無接下來的新加坡 MRT 班次。"
+                    : hasRealtime
+                        ? updates?.Message
+                        : "目前顯示官方表定班次；收到即時預估後會自動更新。",
                 Source);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -151,7 +167,7 @@ public sealed class LtaDataMallTransitProvider(
         CancellationToken cancellationToken)
     {
         var result = await cache.GetOrCreateAsync(
-            "transit:lta:network:v1",
+            "transit:lta:network:v2",
             NetworkFreshFor,
             NetworkRetainFor,
             async token =>

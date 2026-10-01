@@ -143,6 +143,7 @@ public sealed class OdptTransitMapperTests
         Assert.Equal("銀座線", result.LineName);
         Assert.Equal("平常どおり運転しています。", result.MessageJa);
         Assert.Equal("Operating normally.", result.MessageEn);
+        Assert.Equal("目前正常營運。", result.MessageZh);
         Assert.Equal(
             new DateTimeOffset(2026, 9, 30, 10, 0, 0, TimeSpan.FromHours(9)),
             result.UpdatedAt);
@@ -224,7 +225,24 @@ public sealed class OdptTransitMapperTests
             {
                 ["odpt.Station:TokyoMetro.Ginza.Asakusa"] = "浅草"
             },
-            new DateTimeOffset(2026, 9, 26, 0, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2026, 9, 26, 0, 0, 0, TimeSpan.Zero),
+            [new OdptRailway
+            {
+                SameAs = "odpt.Railway:TokyoMetro.Ginza",
+                StationOrder =
+                [
+                    new OdptStationOrder
+                    {
+                        Index = 1,
+                        Station = "odpt.Station:TokyoMetro.Ginza.Shibuya"
+                    },
+                    new OdptStationOrder
+                    {
+                        Index = 2,
+                        Station = "odpt.Station:TokyoMetro.Ginza.Asakusa"
+                    }
+                ]
+            }]);
 
         var departure = Assert.Single(result);
         Assert.Equal("上野", departure.StopName);
@@ -232,8 +250,68 @@ public sealed class OdptTransitMapperTests
         Assert.Equal("浅草", departure.DestinationName);
         Assert.Equal("B901", departure.RouteName);
         Assert.Equal("1", departure.Platform);
+        Assert.Equal(0, departure.Direction);
         Assert.Equal(new DateTimeOffset(2026, 9, 26, 9, 30, 0, TimeSpan.FromHours(9)), departure.ScheduledAt);
         Assert.True(departure.IsLastService);
+    }
+
+    [Theory]
+    [InlineData("odpt.Station:TokyoMetro.Ginza.Ginza", 0)]
+    [InlineData("odpt.Station:TokyoMetro.Ginza.Shibuya", 1)]
+    public void MapStationDepartures_InfersDirectionForShortTurnDestinations(
+        string destinationStation,
+        int expectedDirection)
+    {
+        const string currentStation = "odpt.Station:TokyoMetro.Ginza.Ueno";
+        var timetable = new OdptStationTimetable
+        {
+            Railway = "odpt.Railway:TokyoMetro.Ginza",
+            Station = currentStation,
+            Objects =
+            [
+                new OdptStationTimetableObject
+                {
+                    DepartureTime = "09:30",
+                    DestinationStations = [destinationStation]
+                }
+            ]
+        };
+        var railway = new OdptRailway
+        {
+            SameAs = "odpt.Railway:TokyoMetro.Ginza",
+            StationOrder =
+            [
+                new OdptStationOrder
+                {
+                    Index = 1,
+                    Station = "odpt.Station:TokyoMetro.Ginza.Shibuya"
+                },
+                new OdptStationOrder
+                {
+                    Index = 2,
+                    Station = currentStation
+                },
+                new OdptStationOrder
+                {
+                    Index = 3,
+                    Station = "odpt.Station:TokyoMetro.Ginza.Ginza"
+                },
+                new OdptStationOrder
+                {
+                    Index = 4,
+                    Station = "odpt.Station:TokyoMetro.Ginza.Asakusa"
+                }
+            ]
+        };
+
+        var result = OdptTransitMapper.MapStationDepartures(
+            [timetable],
+            [],
+            new Dictionary<string, string>(),
+            new DateTimeOffset(2026, 9, 26, 0, 0, 0, TimeSpan.Zero),
+            [railway]);
+
+        Assert.Equal(expectedDirection, Assert.Single(result).Direction);
     }
 
     [Fact]
