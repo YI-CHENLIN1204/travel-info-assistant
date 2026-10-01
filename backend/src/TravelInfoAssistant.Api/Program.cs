@@ -7,6 +7,7 @@ using TravelInfoAssistant.Api.Infrastructure;
 using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
+using TravelInfoAssistant.Api.Providers.LtaDataMall;
 using TravelInfoAssistant.Api.Providers.MetNorway;
 using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
@@ -44,6 +45,8 @@ builder.Services.Configure<OdptOptions>(
     builder.Configuration.GetSection(OdptOptions.SectionName));
 builder.Services.Configure<MtrOptions>(
     builder.Configuration.GetSection(MtrOptions.SectionName));
+builder.Services.Configure<LtaDataMallOptions>(
+    builder.Configuration.GetSection(LtaDataMallOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -122,6 +125,33 @@ builder.Services
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
     });
 builder.Services
+    .AddHttpClient("lta-datamall", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<LtaDataMallOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
+    .AddHttpClient("lta-download", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<LtaDataMallOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
     .AddHttpClient("tdx-auth", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
@@ -172,6 +202,8 @@ builder.Services.AddSingleton<IOdptApiClient, OdptApiClient>();
 builder.Services.AddSingleton<IOdptTransitProvider, OdptTransitProvider>();
 builder.Services.AddSingleton<IMtrApiClient, MtrApiClient>();
 builder.Services.AddSingleton<IMtrTransitProvider, MtrTransitProvider>();
+builder.Services.AddSingleton<ILtaDataMallApiClient, LtaDataMallApiClient>();
+builder.Services.AddSingleton<ILtaDataMallTransitProvider, LtaDataMallTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

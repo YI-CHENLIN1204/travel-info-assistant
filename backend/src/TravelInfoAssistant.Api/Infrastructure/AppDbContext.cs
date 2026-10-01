@@ -83,6 +83,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         var taipeiId = Guid.Parse("ffb8f976-2fd5-46c7-b543-ebdcd3283973");
         var tokyoId = Guid.Parse("9f9e554f-a968-4986-8d78-766f31cc8ae2");
         var hongKongId = Guid.Parse("3f44e734-7f45-4a20-a6df-56e2498341a0");
+        var singaporeId = Guid.Parse("c8c1f1a4-2a8b-4a40-9f10-8e5b4f19ab23");
 
         modelBuilder.Entity<City>().HasData(
             new City
@@ -126,6 +127,20 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 CoverageRadiusKilometers = 60,
                 IsActive = true,
                 SortOrder = 3
+            },
+            new City
+            {
+                Id = singaporeId,
+                Code = "singapore",
+                NameZh = "新加坡",
+                NameEn = "Singapore",
+                CountryCode = "SG",
+                TimeZone = "Asia/Singapore",
+                CenterLatitude = 1.3521,
+                CenterLongitude = 103.8198,
+                CoverageRadiusKilometers = 45,
+                IsActive = true,
+                SortOrder = 4
             });
 
         modelBuilder.Entity<CityServiceCapability>().HasData(
@@ -217,6 +232,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             Capability(
                 "5f99d5c8-f259-45c5-a611-30f4dd02d1c3",
                 hongKongId,
+                "alerts",
+                "旅遊警示",
+                3,
+                IntegrationStatus.Integrated),
+            Capability(
+                "d85f5a65-eeba-42fb-9c23-c5728c05a607",
+                singaporeId,
+                "metro",
+                "地鐵",
+                1,
+                IntegrationStatus.Integrated),
+            Capability(
+                "96fde83b-840b-4472-9c76-589a545d3db4",
+                singaporeId,
+                "weather",
+                "天氣",
+                2,
+                IntegrationStatus.Integrated),
+            Capability(
+                "d0398dbe-8ebc-46f8-aad8-c0131a9269ec",
+                singaporeId,
                 "alerts",
                 "旅遊警示",
                 3,

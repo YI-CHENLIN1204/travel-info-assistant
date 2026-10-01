@@ -314,6 +314,20 @@ describe('findMetroRouteStatus', () => {
     expect(statusRequest).toHaveBeenCalledTimes(2)
   })
 
+  it('uses the Singapore source when an LTA status refresh fails', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    vi.spyOn(transitApi, 'getMetroStatus').mockRejectedValue(new Error('unavailable'))
+
+    await store.refreshMetroStatus('singapore-id', 'LTA:NS')
+
+    expect(store.metroStatusMeta).toMatchObject({
+      dataStatus: 'unavailable',
+      source: '新加坡 LTA DataMall',
+      stale: true,
+    })
+  })
+
   it('refreshes Hong Kong arrivals on its interval and stops on request', async () => {
     vi.useFakeTimers()
     setActivePinia(createPinia())

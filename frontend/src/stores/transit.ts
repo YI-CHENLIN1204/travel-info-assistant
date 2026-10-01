@@ -243,7 +243,11 @@ export const useTransitStore = defineStore('transit', () => {
         dataStatus: 'unavailable',
         source:
           previousMeta?.source ??
-          (routeId?.startsWith('MTR:') ? '香港港鐵開放數據' : 'ODPT'),
+          (routeId?.startsWith('MTR:')
+            ? '香港港鐵開放數據'
+            : routeId?.startsWith('LTA:')
+              ? '新加坡 LTA DataMall'
+              : 'ODPT'),
         sourceUpdatedAt: previousMeta?.sourceUpdatedAt ?? null,
         fetchedAt: new Date().toISOString(),
         stale: true,

@@ -39,25 +39,53 @@ public static class AppDbInitializer
 
     private static async Task EnsureCurrentCitiesAsync(AppDbContext dbContext)
     {
-        if (await dbContext.Cities.AnyAsync(item => item.Code == "hong-kong"))
+        var cityCodes = await dbContext.Cities
+            .Select(item => item.Code)
+            .ToHashSetAsync(StringComparer.OrdinalIgnoreCase);
+        var cities = new List<City>();
+
+        if (!cityCodes.Contains("hong-kong"))
+        {
+            cities.Add(new City
+            {
+                Id = Guid.Parse("3f44e734-7f45-4a20-a6df-56e2498341a0"),
+                Code = "hong-kong",
+                NameZh = "香港",
+                NameEn = "Hong Kong",
+                CountryCode = "HK",
+                TimeZone = "Asia/Hong_Kong",
+                CenterLatitude = 22.3193,
+                CenterLongitude = 114.1694,
+                CoverageRadiusKilometers = 60,
+                IsActive = true,
+                SortOrder = 3
+            });
+        }
+
+        if (!cityCodes.Contains("singapore"))
+        {
+            cities.Add(new City
+            {
+                Id = Guid.Parse("c8c1f1a4-2a8b-4a40-9f10-8e5b4f19ab23"),
+                Code = "singapore",
+                NameZh = "新加坡",
+                NameEn = "Singapore",
+                CountryCode = "SG",
+                TimeZone = "Asia/Singapore",
+                CenterLatitude = 1.3521,
+                CenterLongitude = 103.8198,
+                CoverageRadiusKilometers = 45,
+                IsActive = true,
+                SortOrder = 4
+            });
+        }
+
+        if (cities.Count == 0)
         {
             return;
         }
 
-        dbContext.Cities.Add(new City
-        {
-            Id = Guid.Parse("3f44e734-7f45-4a20-a6df-56e2498341a0"),
-            Code = "hong-kong",
-            NameZh = "香港",
-            NameEn = "Hong Kong",
-            CountryCode = "HK",
-            TimeZone = "Asia/Hong_Kong",
-            CenterLatitude = 22.3193,
-            CenterLongitude = 114.1694,
-            CoverageRadiusKilometers = 60,
-            IsActive = true,
-            SortOrder = 3
-        });
+        dbContext.Cities.AddRange(cities);
         await dbContext.SaveChangesAsync();
     }
 
@@ -159,6 +187,30 @@ public static class AppDbInitializer
             {
                 CityCode = "hong-kong",
                 Id = Guid.Parse("5f99d5c8-f259-45c5-a611-30f4dd02d1c3"),
+                ServiceKey = "alerts",
+                DisplayName = "旅遊警示",
+                SortOrder = 3
+            },
+            new
+            {
+                CityCode = "singapore",
+                Id = Guid.Parse("d85f5a65-eeba-42fb-9c23-c5728c05a607"),
+                ServiceKey = "metro",
+                DisplayName = "地鐵",
+                SortOrder = 1
+            },
+            new
+            {
+                CityCode = "singapore",
+                Id = Guid.Parse("96fde83b-840b-4472-9c76-589a545d3db4"),
+                ServiceKey = "weather",
+                DisplayName = "天氣",
+                SortOrder = 2
+            },
+            new
+            {
+                CityCode = "singapore",
+                Id = Guid.Parse("d0398dbe-8ebc-46f8-aad8-c0131a9269ec"),
                 ServiceKey = "alerts",
                 DisplayName = "旅遊警示",
                 SortOrder = 3

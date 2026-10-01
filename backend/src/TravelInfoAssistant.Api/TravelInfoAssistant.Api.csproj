@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ExcelDataReader" Version="3.9.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.36.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

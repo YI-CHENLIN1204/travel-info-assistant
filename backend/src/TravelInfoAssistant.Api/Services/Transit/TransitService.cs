@@ -1,4 +1,5 @@
 using TravelInfoAssistant.Api.Contracts;
+using TravelInfoAssistant.Api.Providers.LtaDataMall;
 using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
@@ -10,6 +11,7 @@ public sealed class TransitService(
     ITdxTransitProvider tdxProvider,
     IOdptTransitProvider odptProvider,
     IMtrTransitProvider mtrProvider,
+    ILtaDataMallTransitProvider ltaDataMallProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -103,6 +105,10 @@ public sealed class TransitService(
         {
             result = await mtrProvider.GetMetroStationsAsync(cancellationToken);
         }
+        else if (cityCode == "singapore")
+        {
+            result = await ltaDataMallProvider.GetMetroStationsAsync(cancellationToken);
+        }
         else
         {
             return Unavailable<MetroStationResponse>("這個城市目前尚未整合捷運查詢。");
@@ -130,6 +136,10 @@ public sealed class TransitService(
         else if (cityCode == "hong-kong")
         {
             result = await mtrProvider.GetMetroRoutesAsync(cancellationToken);
+        }
+        else if (cityCode == "singapore")
+        {
+            result = await ltaDataMallProvider.GetMetroRoutesAsync(cancellationToken);
         }
         else
         {
@@ -164,6 +174,13 @@ public sealed class TransitService(
                 cancellationToken);
         }
 
+        if (cityCode == "singapore")
+        {
+            return await ltaDataMallProvider.GetMetroArrivalsAsync(
+                stationId.Trim(),
+                cancellationToken);
+        }
+
         if (cityCode != "taipei")
         {
             return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合捷運查詢。");
@@ -193,6 +210,20 @@ public sealed class TransitService(
             return Unavailable<MetroServiceStatusResponse>(
                 "請先選擇一條港鐵路線。",
                 "香港港鐵開放數據");
+        }
+
+        if (cityCode == "singapore" && !string.IsNullOrWhiteSpace(routeId))
+        {
+            return await ltaDataMallProvider.GetMetroStatusAsync(
+                routeId.Trim(),
+                cancellationToken);
+        }
+
+        if (cityCode == "singapore")
+        {
+            return Unavailable<MetroServiceStatusResponse>(
+                "請先選擇一條新加坡 MRT 路線。",
+                "新加坡 LTA DataMall");
         }
 
         return Unavailable<MetroServiceStatusResponse>("這個城市目前尚未整合地鐵運行狀態。");
@@ -265,6 +296,7 @@ public sealed class TransitService(
             source);
 
     private static bool MatchesRoute(TransitRouteResponse route, string search) =>
+        Contains(route.Id, search) ||
         Contains(route.NameZh, search) ||
         Contains(route.NameEn, search) ||
         Contains(route.OriginName, search) ||

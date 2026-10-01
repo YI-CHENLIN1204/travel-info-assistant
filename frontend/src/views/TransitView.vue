@@ -52,8 +52,17 @@ const activeService = computed(() =>
 
 const isTokyo = computed(() => cityStore.currentCity.code === 'tokyo')
 const isHongKong = computed(() => cityStore.currentCity.code === 'hong-kong')
+const isSingapore = computed(() => cityStore.currentCity.code === 'singapore')
 const isTaipei = computed(() => cityStore.currentCity.code === 'taipei')
-const usesRouteMetro = computed(() => isTokyo.value || isHongKong.value)
+const usesRouteMetro = computed(
+  () => isTokyo.value || isHongKong.value || isSingapore.value,
+)
+const usesRealtimeMetro = computed(() => isHongKong.value || isSingapore.value)
+const metroSearchPlaceholder = computed(() => {
+  if (isHongKong.value) return '例如：尖沙咀、Central、TST'
+  if (isSingapore.value) return '例如：烏節、Orchard、NS22'
+  return '例如：銀座、Asakusa、A18'
+})
 const providerConfigured = computed(() => transitStore.providerStatus?.configured === true)
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
   if (availableModes.value.length === 0) return 'neutral'
@@ -62,6 +71,10 @@ const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
     return transitStore.resultMeta.dataStatus === 'unavailable' ? 'warning' : 'ready'
   }
   if (isHongKong.value) {
+    if (!transitStore.resultMeta) return 'neutral'
+    return transitStore.resultMeta.dataStatus === 'unavailable' ? 'warning' : 'ready'
+  }
+  if (isSingapore.value) {
     if (!transitStore.resultMeta) return 'neutral'
     return transitStore.resultMeta.dataStatus === 'unavailable' ? 'warning' : 'ready'
   }
@@ -82,6 +95,12 @@ const statusLabel = computed(() => {
     return transitStore.resultMeta.dataStatus === 'unavailable'
       ? '港鐵官方資料暫時無法使用'
       : '港鐵官方資料已啟用'
+  }
+  if (isSingapore.value) {
+    if (!transitStore.resultMeta) return 'LTA DataMall 連線確認中'
+    return transitStore.resultMeta.dataStatus === 'unavailable'
+      ? 'LTA API Account Key 或服務待確認'
+      : 'LTA 官方即時資料已啟用'
   }
   return providerConfigured.value ? 'TDX 真實資料已啟用' : 'TDX 金鑰待設定'
 })
@@ -142,14 +161,14 @@ watch(
 
 watch(
   [
-    isHongKong,
+    usesRealtimeMetro,
     () => transitStore.activeMode,
     () => transitStore.selectedStation?.id,
     () => cityStore.currentCity.id,
   ],
-  ([hongKong, mode, stationId, cityId]) => {
+  ([realtimeMetro, mode, stationId, cityId]) => {
     transitStore.stopMetroArrivalRefresh()
-    if (hongKong && mode === 'metro' && stationId) {
+    if (realtimeMetro && mode === 'metro' && stationId) {
       transitStore.startMetroArrivalRefresh(cityId)
     }
   },
@@ -304,6 +323,9 @@ function formatTimestamp(value: string | null | undefined): string {
           </template>
           <template v-else-if="isHongKong">
             查詢港鐵路線、車站、即時到站、月台與延誤狀態；資料由後端統一向香港官方開放數據取得並共用快取。
+          </template>
+          <template v-else-if="isSingapore">
+            查詢新加坡 MRT 路線、車站、即時到站與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
           </template>
           <template v-else>
             查詢公車、捷運與台鐵班次；資料由後端統一取得並共用快取，不會讓每位使用者直接消耗 TDX 額度。
@@ -496,7 +518,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 v-model="transitStore.metroQuery"
                 maxlength="50"
                 autocomplete="off"
-                :placeholder="isHongKong ? '例如：尖沙咀、Central、TST' : '例如：銀座、Asakusa、A18'"
+                :placeholder="metroSearchPlaceholder"
               />
             </span>
           </label>
@@ -671,13 +693,13 @@ function formatTimestamp(value: string | null | undefined): string {
                 <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
                   {{
                     transitStore.resultMeta?.message ??
-                    (isHongKong ? '目前查無接下來的即時到站班次。' : '目前查無接下來的表定班次。')
+                    (usesRealtimeMetro ? '目前查無接下來的即時到站班次。' : '目前查無接下來的表定班次。')
                   }}
                 </div>
               </div>
             </div>
             <div v-else-if="transitStore.stations.length" class="inline-empty route-metro-station-prompt">
-              {{ isHongKong ? '選擇車站後查看即時到站班次。' : '選擇車站後查看當日表定班次。' }}
+              {{ usesRealtimeMetro ? '選擇車站後查看即時到站班次。' : '選擇車站後查看當日表定班次。' }}
             </div>
           </section>
         </div>
@@ -885,6 +907,7 @@ function formatTimestamp(value: string | null | undefined): string {
           都營地下鐵資料：東京都交通局・公共交通オープンデータ協議会
         </span>
         <span v-else-if="isHongKong">港鐵資料：香港鐵路有限公司・DATA.GOV.HK</span>
+        <span v-else-if="isSingapore">MRT 資料：新加坡陸路交通管理局・LTA DataMall</span>
       </footer>
     </section>
 
