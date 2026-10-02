@@ -65,7 +65,12 @@ const usesRouteMetro = computed(
   () => isTaipei.value || isTokyo.value || isHongKong.value || isSingapore.value,
 )
 const usesRealtimeMetro = computed(
-  () => isTaipei.value || isHongKong.value || isSingapore.value,
+  () =>
+    isTaipei.value ||
+    isHongKong.value ||
+    isSingapore.value ||
+    (isTokyo.value &&
+      transitStore.selectedMetroRoute?.id.startsWith('odpt.Railway:Toei.') === true),
 )
 const metroSearchPlaceholder = computed(() => {
   if (isTaipei.value) return '例如：板南線、台北車站、BL12'
@@ -403,7 +408,7 @@ function formatTimestamp(value: string | null | undefined): string {
         <h2>{{ cityStore.currentCity.nameZh }}大眾運輸</h2>
         <p>
           <template v-if="isTokyo">
-            查詢 Tokyo Metro 與都營地下鐵路線、車站、表定班次及官方運行狀態；資料由後端統一向 ODPT 取得並共用快取。
+            查詢 Tokyo Metro 與都營地下鐵路線、車站、方向及官方運行狀態；都營班次會在官方資料有效時以延誤秒數修正預估時間，其餘班次明確顯示表定時間。
           </template>
           <template v-else-if="isHongKong">
             查詢港鐵路線、車站、即時到站、月台與延誤狀態；資料由後端統一向香港官方開放數據取得並共用快取。

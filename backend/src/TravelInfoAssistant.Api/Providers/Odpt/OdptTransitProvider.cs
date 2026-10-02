@@ -18,6 +18,8 @@ public sealed class OdptTransitProvider(
     private const string ToeiOperatorId = "odpt.Operator:Toei";
     private static readonly TimeSpan FreshFor = TimeSpan.FromHours(24);
     private static readonly TimeSpan TimetableFreshFor = TimeSpan.FromHours(12);
+    private static readonly TimeSpan TrainFreshFor = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan TrainRetainFor = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan StatusFreshFor = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan StatusRetainFor = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan RetainFor = TimeSpan.FromDays(7);
@@ -147,6 +149,34 @@ public sealed class OdptTransitProvider(
                         response.FetchedAt);
                 },
                 cancellationToken);
+            ProviderQueryResult<IReadOnlyList<OdptTrain>>? trainFeed = null;
+            IReadOnlyList<OdptTrain> liveTrains = [];
+            string? liveMessage = null;
+            if (string.Equals(
+                    subwayOperator.Id,
+                    ToeiOperatorId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    trainFeed = await GetTrainFeedAsync(cancellationToken);
+                    if (trainFeed.Stale)
+                    {
+                        liveMessage = "都營地下鐵即時延誤資料已過期，目前顯示表定時間。";
+                    }
+                    else
+                    {
+                        liveTrains = trainFeed.Data;
+                    }
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger.LogWarning(
+                        exception,
+                        "ODPT Toei train query failed; using scheduled timetable.");
+                    liveMessage = "都營地下鐵即時延誤資料暫時無法更新，目前顯示表定時間。";
+                }
+            }
             var stationFeed = await GetMetroStationsAsync(cancellationToken);
             var stationNames = stationFeed.Data
                 .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
@@ -164,8 +194,13 @@ public sealed class OdptTransitProvider(
                 calendarFeed?.Data ?? [],
                 stationNames,
                 timeProvider.GetUtcNow(),
-                railwayFeed.Result.Data);
-            var message = timetableFeed.Message ?? calendarFeed?.Message ?? stationFeed.Message;
+                railwayFeed.Result.Data,
+                liveTrains);
+            var hasRealtimeEstimate = departures.Any(item => item.EstimatedAt.HasValue);
+            var message = timetableFeed.Message
+                          ?? calendarFeed?.Message
+                          ?? stationFeed.Message
+                          ?? liveMessage;
             if (departures.Count == 0 && string.IsNullOrWhiteSpace(message))
             {
                 message = "目前查無接下來的表定班次。";
@@ -173,9 +208,15 @@ public sealed class OdptTransitProvider(
 
             return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
                 departures,
-                timetableFeed.DataStatus,
-                timetableFeed.SourceUpdatedAt,
-                timetableFeed.FetchedAt,
+                hasRealtimeEstimate
+                    ? trainFeed?.DataStatus == "cached" ? "cached" : "realtime"
+                    : timetableFeed.DataStatus,
+                hasRealtimeEstimate
+                    ? Latest(departures.Select(item => item.SourceUpdatedAt))
+                    : timetableFeed.SourceUpdatedAt,
+                trainFeed is not null && trainFeed.FetchedAt > timetableFeed.FetchedAt
+                    ? trainFeed.FetchedAt
+                    : timetableFeed.FetchedAt,
                 timetableFeed.Stale,
                 message,
                 "ODPT");
@@ -343,6 +384,26 @@ public sealed class OdptTransitProvider(
                 Unavailable<OdptTrainInformation>(GetPublicErrorMessage(exception)));
         }
     }
+
+    private Task<ProviderQueryResult<IReadOnlyList<OdptTrain>>> GetTrainFeedAsync(
+        CancellationToken cancellationToken) =>
+        cache.GetOrCreateAsync<IReadOnlyList<OdptTrain>>(
+            "transit:odpt:tokyo-subway:trains:v1:toei",
+            TrainFreshFor,
+            TrainRetainFor,
+            async token =>
+            {
+                var response = await apiClient.GetTrainsAsync(ToeiOperatorId, token);
+                return new ProviderPayload<IReadOnlyList<OdptTrain>>(
+                    response.Data,
+                    "realtime",
+                    Latest(response.Data.Select(item => item.UpdatedAt)),
+                    response.FetchedAt,
+                    EarliestFuture(
+                        response.Data.Select(item => item.ValidUntil),
+                        response.FetchedAt));
+            },
+            cancellationToken);
 
     private async Task AddReferencedStationNamesAsync(
         IReadOnlyList<OdptStationTimetable> timetables,

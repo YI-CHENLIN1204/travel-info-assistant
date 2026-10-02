@@ -172,3 +172,39 @@ public sealed class OdptTrainInformation
     [JsonPropertyName("odpt:trainInformationText")]
     public OdptLocalizedTitle? TrainInformationText { get; init; }
 }
+
+public sealed class OdptTrain
+{
+    [JsonPropertyName("owl:sameAs")]
+    public string? SameAs { get; init; }
+
+    [JsonPropertyName("dc:date")]
+    public DateTimeOffset? UpdatedAt { get; init; }
+
+    [JsonPropertyName("dct:valid")]
+    public DateTimeOffset? ValidUntil { get; init; }
+
+    [JsonPropertyName("odpt:frequency")]
+    public int? Frequency { get; init; }
+
+    [JsonPropertyName("odpt:operator")]
+    public string? Operator { get; init; }
+
+    [JsonPropertyName("odpt:railway")]
+    public string? Railway { get; init; }
+
+    [JsonPropertyName("odpt:trainNumber")]
+    public string? TrainNumber { get; init; }
+
+    [JsonPropertyName("odpt:railDirection")]
+    public string? RailDirection { get; init; }
+
+    [JsonPropertyName("odpt:delay")]
+    public int? Delay { get; init; }
+
+    [JsonPropertyName("odpt:fromStation")]
+    public string? FromStation { get; init; }
+
+    [JsonPropertyName("odpt:toStation")]
+    public string? ToStation { get; init; }
+}

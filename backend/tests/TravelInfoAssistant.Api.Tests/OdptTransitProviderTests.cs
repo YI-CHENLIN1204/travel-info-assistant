@@ -110,6 +110,112 @@ public sealed class OdptTransitProviderTests
     }
 
     [Fact]
+    public async Task ToeiDepartures_AddValidLiveDelayToScheduledTime()
+    {
+        const string stationId = "odpt.Station:Toei.Asakusa.Asakusa";
+        const string trainId = "odpt.Train:Toei.Asakusa.101T";
+        var client = new StubOdptApiClient
+        {
+            Stations =
+            {
+                ["odpt.Operator:Toei"] = [Station("Toei", "Asakusa", "Asakusa", "浅草")]
+            },
+            Timetables =
+            {
+                [("odpt.Operator:Toei", stationId)] =
+                [
+                    new OdptStationTimetable
+                    {
+                        Railway = "odpt.Railway:Toei.Asakusa",
+                        Station = stationId,
+                        StationTitle = new OdptLocalizedTitle { Ja = "浅草" },
+                        Objects =
+                        [
+                            new OdptStationTimetableObject
+                            {
+                                DepartureTime = "10:00",
+                                Train = trainId,
+                                TrainNumber = "101T"
+                            }
+                        ]
+                    }
+                ]
+            },
+            Trains =
+            {
+                ["odpt.Operator:Toei"] =
+                [
+                    new OdptTrain
+                    {
+                        SameAs = trainId,
+                        Operator = "odpt.Operator:Toei",
+                        Railway = "odpt.Railway:Toei.Asakusa",
+                        TrainNumber = "101T",
+                        Delay = 120,
+                        UpdatedAt = Now,
+                        ValidUntil = Now.AddMinutes(1)
+                    }
+                ]
+            }
+        };
+        var provider = CreateProvider(client);
+
+        var result = await provider.GetMetroDeparturesAsync(
+            stationId,
+            CancellationToken.None);
+
+        var departure = Assert.Single(result.Data);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T10:00:00+09:00"), departure.ScheduledAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T10:02:00+09:00"), departure.EstimatedAt);
+        Assert.Equal("延誤 2 分鐘", departure.ServiceStatus);
+        Assert.Equal(Now, departure.SourceUpdatedAt);
+        Assert.Equal("realtime", result.DataStatus);
+        Assert.Equal(["odpt.Operator:Toei"], client.TrainRequests);
+    }
+
+    [Fact]
+    public async Task TokyoMetroDepartures_RemainScheduledWithoutAConfiguredLiveFeed()
+    {
+        const string stationId = "odpt.Station:TokyoMetro.Ginza.Ueno";
+        var client = new StubOdptApiClient
+        {
+            Stations =
+            {
+                ["odpt.Operator:TokyoMetro"] =
+                    [Station("TokyoMetro", "Ginza", "Ueno", "上野")]
+            },
+            Timetables =
+            {
+                [("odpt.Operator:TokyoMetro", stationId)] =
+                [
+                    new OdptStationTimetable
+                    {
+                        Railway = "odpt.Railway:TokyoMetro.Ginza",
+                        Station = stationId,
+                        Objects =
+                        [
+                            new OdptStationTimetableObject
+                            {
+                                DepartureTime = "10:00",
+                                TrainNumber = "A100"
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+        var provider = CreateProvider(client);
+
+        var result = await provider.GetMetroDeparturesAsync(
+            stationId,
+            CancellationToken.None);
+
+        Assert.Null(Assert.Single(result.Data).EstimatedAt);
+        Assert.Equal("scheduled", result.DataStatus);
+        Assert.Empty(client.TrainRequests);
+    }
+
+    [Fact]
     public async Task Status_CombinesBothOperatorsAndExcludesOtherToeiModes()
     {
         var client = new StubOdptApiClient
@@ -209,9 +315,11 @@ public sealed class OdptTransitProviderTests
         public Dictionary<(string Operator, string Station), IReadOnlyList<OdptStationTimetable>>
             Timetables { get; } = [];
         public Dictionary<string, IReadOnlyList<OdptTrainInformation>> TrainInformation { get; } = [];
+        public Dictionary<string, IReadOnlyList<OdptTrain>> Trains { get; } = [];
         public HashSet<string> FailedRailwayOperators { get; init; } = [];
         public List<(string Operator, string Station)> TimetableRequests { get; } = [];
         public List<IReadOnlyList<string>> ReferencedStationRequests { get; } = [];
+        public List<string> TrainRequests { get; } = [];
 
         public Task<OdptHttpResult<IReadOnlyList<OdptCalendar>>> GetCalendarsAsync(
             CancellationToken cancellationToken) =>
@@ -261,6 +369,14 @@ public sealed class OdptTransitProviderTests
             string operatorId,
             CancellationToken cancellationToken) =>
             Result(Get(TrainInformation, operatorId));
+
+        public Task<OdptHttpResult<IReadOnlyList<OdptTrain>>> GetTrainsAsync(
+            string operatorId,
+            CancellationToken cancellationToken)
+        {
+            TrainRequests.Add(operatorId);
+            return Result(Get(Trains, operatorId));
+        }
 
         private static IReadOnlyList<T> Get<TKey, T>(
             IReadOnlyDictionary<TKey, IReadOnlyList<T>> values,

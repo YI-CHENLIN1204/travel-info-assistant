@@ -116,7 +116,8 @@ public static class OdptTransitMapper
         IReadOnlyList<OdptCalendar> calendars,
         IReadOnlyDictionary<string, string> stationNames,
         DateTimeOffset now,
-        IReadOnlyList<OdptRailway>? railways = null)
+        IReadOnlyList<OdptRailway>? railways = null,
+        IReadOnlyList<OdptTrain>? trains = null)
     {
         var tokyoNow = TimeZoneInfo.ConvertTime(now, TokyoTimeZone);
         var serviceDate = DateOnly.FromDateTime(tokyoNow.DateTime);
@@ -136,10 +137,12 @@ public static class OdptTransitMapper
                     item,
                     stationNames,
                     railways ?? [],
+                    trains ?? [],
+                    now,
                     serviceDate,
                     timetableIndex,
                     itemIndex)))
-            .Where(item => item is not null && item.ScheduledAt >= now)
+            .Where(item => item is not null && (item.EstimatedAt ?? item.ScheduledAt) >= now)
             .Cast<TransitArrivalResponse>()
             .OrderBy(item => item.ScheduledAt)
             .Take(20)
@@ -151,6 +154,8 @@ public static class OdptTransitMapper
         OdptStationTimetableObject item,
         IReadOnlyDictionary<string, string> stationNames,
         IReadOnlyList<OdptRailway> railways,
+        IReadOnlyList<OdptTrain> trains,
+        DateTimeOffset now,
         DateOnly serviceDate,
         int timetableIndex,
         int itemIndex)
@@ -185,6 +190,11 @@ public static class OdptTransitMapper
         var stopName = timetable.StationTitle?.Ja?.Trim() ??
                        GetStationName(stationId, stationNames);
         var platform = item.PlatformName?.Ja?.Trim() ?? item.PlatformNumber?.Trim();
+        var liveTrain = FindLiveTrain(timetable, item, trains, now);
+        var delaySeconds = liveTrain?.Delay is >= 0 ? liveTrain.Delay.Value : (int?)null;
+        var estimatedAt = delaySeconds.HasValue
+            ? scheduledAt.AddSeconds(delaySeconds.Value)
+            : (DateTimeOffset?)null;
 
         return new TransitArrivalResponse(
             $"{timetable.SameAs ?? stationId}:{timeText}:{timetableIndex}:{itemIndex}",
@@ -198,11 +208,63 @@ public static class OdptTransitMapper
             destinations.Count > 0 ? string.Join("／", destinations) : null,
             ResolveDirection(timetable, item, railways),
             scheduledAt,
-            null,
-            timetable.UpdatedAt,
-            "表定時刻",
+            estimatedAt,
+            liveTrain?.UpdatedAt ?? timetable.UpdatedAt,
+            GetDepartureStatus(delaySeconds),
             item.IsLast,
             platform);
+    }
+
+    private static OdptTrain? FindLiveTrain(
+        OdptStationTimetable timetable,
+        OdptStationTimetableObject item,
+        IReadOnlyList<OdptTrain> trains,
+        DateTimeOffset now)
+    {
+        var trainId = item.Train?.Trim();
+        var trainNumber = item.TrainNumber?.Trim();
+        if (string.IsNullOrWhiteSpace(trainId) && string.IsNullOrWhiteSpace(trainNumber))
+        {
+            return null;
+        }
+
+        return trains
+            .Where(train => train.ValidUntil.HasValue && train.ValidUntil.Value > now)
+            .Where(train => string.IsNullOrWhiteSpace(timetable.Railway) ||
+                            string.Equals(
+                                train.Railway,
+                                timetable.Railway,
+                                StringComparison.OrdinalIgnoreCase))
+            .Where(train =>
+                (!string.IsNullOrWhiteSpace(trainId) && string.Equals(
+                    train.SameAs,
+                    trainId,
+                    StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(trainNumber) && string.Equals(
+                    train.TrainNumber,
+                    trainNumber,
+                    StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(train => train.UpdatedAt)
+            .FirstOrDefault();
+    }
+
+    private static string GetDepartureStatus(int? delaySeconds)
+    {
+        if (!delaySeconds.HasValue)
+        {
+            return "表定時刻";
+        }
+        if (delaySeconds.Value == 0)
+        {
+            return "即時預估";
+        }
+        if (delaySeconds.Value < 60)
+        {
+            return $"延誤 {delaySeconds.Value} 秒";
+        }
+
+        var delayMinutes = Math.Ceiling(delaySeconds.Value / 60d);
+        return $"延誤 {delayMinutes.ToString(CultureInfo.InvariantCulture)} 分鐘";
     }
 
     private static int? ResolveDirection(

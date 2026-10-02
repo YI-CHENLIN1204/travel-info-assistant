@@ -342,6 +342,55 @@ public sealed class OdptTransitMapperTests
         Assert.Equal(new DateTimeOffset(2026, 10, 2, 11, 0, 0, TimeSpan.FromHours(9)), departure.ScheduledAt);
     }
 
+    [Fact]
+    public void MapStationDepartures_IgnoresExpiredTrainDelay()
+    {
+        const string trainId = "odpt.Train:Toei.Asakusa.101T";
+        var now = new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero);
+        var timetable = CreateTimetable(
+            "odpt.Station:Toei.Asakusa.Asakusa",
+            "odpt.Calendar:Weekday",
+            "10:00");
+        timetable = new OdptStationTimetable
+        {
+            SameAs = timetable.SameAs,
+            Railway = "odpt.Railway:Toei.Asakusa",
+            Station = timetable.Station,
+            Calendar = timetable.Calendar,
+            Objects =
+            [
+                new OdptStationTimetableObject
+                {
+                    DepartureTime = "10:00",
+                    Train = trainId,
+                    TrainNumber = "101T"
+                }
+            ]
+        };
+
+        var result = OdptTransitMapper.MapStationDepartures(
+            [timetable],
+            [],
+            new Dictionary<string, string>(),
+            now,
+            [],
+            [
+                new OdptTrain
+                {
+                    SameAs = trainId,
+                    Railway = "odpt.Railway:Toei.Asakusa",
+                    TrainNumber = "101T",
+                    Delay = 180,
+                    UpdatedAt = now.AddMinutes(-2),
+                    ValidUntil = now
+                }
+            ]);
+
+        var departure = Assert.Single(result);
+        Assert.Null(departure.EstimatedAt);
+        Assert.Equal("表定時刻", departure.ServiceStatus);
+    }
+
     private static OdptStationTimetable CreateTimetable(
         string stationId,
         string calendar,

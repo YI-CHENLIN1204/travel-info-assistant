@@ -28,13 +28,13 @@
 ## 已完成的交通功能
 
 - 台北公車：路線搜尋、方向、站牌順序與即時到站預估。
-- 台北捷運：車站搜尋、即時列車與表定時刻降級。
-- 台鐵：全台車站搜尋、即時列車、誤點與月台資訊，以及表定時刻降級。
-- 東京地下鐵：以 ODPT 官方資料搜尋 Tokyo Metro 與都營地下鐵四線的路線、日／英文車站名稱、車站代碼、方向及當日表定班次，並以台灣繁體摘要顯示具有效期限的官方運行狀態；列車位置不納入核心卡片體驗。
+- 台北捷運：先選路線與方向，再選車站；提供即時列車、表定時刻降級與路線官方營運狀態。
+- 台鐵：全台車站搜尋、方向篩選、即時列車、誤點與月台資訊，以及表定時刻降級。
+- 東京地下鐵：以 ODPT 官方資料搜尋 Tokyo Metro 與都營地下鐵四線的路線、日／英文車站名稱、車站代碼、方向及當日表定班次；都營地下鐵在有效的 `odpt:Train` 資料可配對時，以表定時間加上 `odpt:delay` 秒數提供即時預估，資料缺失或過期即回退表定時間。Tokyo Metro 維持表定班次加官方營運狀態，不以本機倒數冒充即時資料；列車位置不納入核心卡片體驗。
 - 都營地下鐵資料依 CC BY 4.0 標示來源：東京都交通局・公共交通オープンデータ協議会。
 - 香港港鐵：以香港鐵路有限公司及 DATA.GOV.HK 官方開放資料提供 10 條主要路線、繁體中文／英文車站、雙向最多四班即時到站、目的地、月台、延誤與服務警示；即時卡片每 15 秒更新，無需 API 金鑰。
 - 新加坡 MRT：以 LTA DataMall 的 GTFS Schedule、GTFS-Realtime Trip Updates 與 Service Alerts 提供去重後的公共路線、台灣繁體／英文車站、方向、雙向最多四班到站、目的地、資料源有提供時的月台、延誤／取消／不停靠及路線服務警示；有即時預估時覆蓋表定時間，否則明確回退至官方班表，到站卡片每 15 秒、警示卡片每 30 秒更新。
-- 交通介面以台灣繁體為主要顯示語言；官方只提供日文或英文自由文字時，先顯示繁體中文狀態摘要，原文收合保留供核對。捷運與公車班次均依方向分組，不混合顯示反方向車次。
+- 交通介面以台灣繁體為主要顯示語言；官方只提供日文或英文自由文字時，先顯示繁體中文狀態摘要，原文收合保留供核對。公車、捷運與台鐵班次均依方向分組，不混合顯示反方向車次；具即時來源的到站卡片每 15 秒向自有 API 更新並共用後端快取。
 - 到站顯示遵守「60 分鐘以上表定、60 分鐘內即時、少於 1 分鐘即將進站」。
 - TDX OAuth token 共用、Redis／記憶體雙層快取、同鍵 single-flight 防止快取擊穿。
 - 每分鐘 4 次內部限流、2.7 點軟停止線、實際 requests 與 response bytes 用量估算。
@@ -137,10 +137,10 @@ Vite 會把 `/api` 代理到 `http://localhost:8080`。
 | GET | `/api/v1/transit/bus/routes?cityId=&q=` | 台北公車路線搜尋 |
 | GET | `/api/v1/transit/bus/stops?cityId=&routeName=&direction=` | 路線方向與站牌 |
 | GET | `/api/v1/transit/bus/arrivals?cityId=&routeName=&direction=&stopId=` | 公車到站資訊 |
-| GET | `/api/v1/transit/metro/routes?cityId=&q=` | 東京／香港／新加坡地鐵路線搜尋 |
+| GET | `/api/v1/transit/metro/routes?cityId=&q=` | 台北／東京／香港／新加坡地鐵路線搜尋 |
 | GET | `/api/v1/transit/metro/stations?cityId=&q=` | 台北／東京／香港／新加坡捷運車站搜尋 |
 | GET | `/api/v1/transit/metro/arrivals?cityId=&stationId=` | 捷運即時／表定資訊 |
-| GET | `/api/v1/transit/metro/status?cityId=&routeId=` | 東京／香港／新加坡地鐵官方運行狀態與有效期限 |
+| GET | `/api/v1/transit/metro/status?cityId=&routeId=` | 台北／東京／香港／新加坡地鐵官方運行狀態與有效期限 |
 | GET | `/api/v1/transit/rail/stations?cityId=&q=` | 台鐵車站搜尋 |
 | GET | `/api/v1/transit/rail/arrivals?cityId=&stationId=` | 台鐵即時／表定資訊 |
 | GET | `/api/v1/transit/tdx/status` | TDX 設定與本月估算用量 |

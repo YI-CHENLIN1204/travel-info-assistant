@@ -33,6 +33,10 @@ public interface IOdptApiClient
     Task<OdptHttpResult<IReadOnlyList<OdptTrainInformation>>> GetTrainInformationAsync(
         string operatorId,
         CancellationToken cancellationToken);
+
+    Task<OdptHttpResult<IReadOnlyList<OdptTrain>>> GetTrainsAsync(
+        string operatorId,
+        CancellationToken cancellationToken);
 }
 
 public sealed class OdptApiClient(
@@ -103,6 +107,17 @@ public sealed class OdptApiClient(
         CancellationToken cancellationToken) =>
         GetAsync<IReadOnlyList<OdptTrainInformation>>(
             "odpt:TrainInformation",
+            new Dictionary<string, string?>
+            {
+                ["odpt:operator"] = operatorId
+            },
+            cancellationToken);
+
+    public Task<OdptHttpResult<IReadOnlyList<OdptTrain>>> GetTrainsAsync(
+        string operatorId,
+        CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<OdptTrain>>(
+            "odpt:Train",
             new Dictionary<string, string?>
             {
                 ["odpt:operator"] = operatorId

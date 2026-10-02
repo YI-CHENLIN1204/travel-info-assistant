@@ -19,7 +19,7 @@ flowchart TD
     S --> R
 ```
 
-前端不接觸 TDX 金鑰，也不因倒數顯示而輪詢 TDX。後端以快取鍵共用同一份資料；同一快取鍵同時失效時，只允許一個執行緒更新，其他請求等待更新結果。
+前端不接觸 TDX 金鑰，只會每 15 秒查詢自有 API；後端以較長的新鮮快取保護 TDX 額度並共用同一份資料。同一快取鍵同時失效時，只允許一個執行緒更新，其他請求等待更新結果。
 
 ## 使用的官方端點
 
@@ -28,7 +28,9 @@ flowchart TD
 | 公車路線 | v2 `Bus/Route/City/Taipei` | 1 日 | 7 日 |
 | 路線站序 | v2 `Bus/StopOfRoute/City/Taipei/{RouteName}` | 1 日 | 7 日 |
 | 公車到站 | v2 `Bus/EstimatedTimeOfArrival/City/Taipei/{RouteName}` | 2 分鐘 | 15 分鐘 |
-| 捷運車站 | v2 `Rail/Metro/Station/TRTC` | 7 日 | 30 日 |
+| 捷運路線名稱 | v2 `Rail/Metro/Line/TRTC` | 7 日 | 30 日 |
+| 捷運路線、方向與站序 | v2 `Rail/Metro/StationOfRoute/TRTC` | 7 日 | 30 日 |
+| 捷運營運警示 | v2 `Rail/Metro/Alert/TRTC` | 1 分鐘 | 15 分鐘 |
 | 捷運即時列車 | v2 `Rail/Metro/LiveBoard/TRTC` | 2 分鐘 | 15 分鐘 |
 | 捷運表定時刻 | v2 `Rail/Metro/StationTimeTable/TRTC` | 1 日 | 7 日 |
 | 台鐵車站 | v3 `Rail/TRA/Station` | 7 日 | 30 日 |
@@ -37,7 +39,7 @@ flowchart TD
 
 v2 請求使用 `$select`，車站型端點再使用 `$filter`，避免下載未使用欄位；v3 台鐵端點依官方 wrapper 格式解析。公車到站資料依「路線＋方向＋站牌」在自有 API 端篩選，但 Provider 快取以整條路線為單位，因此同一路線的旅客可共用一次 TDX 回應。
 
-TDX 的公車 `EstimateTime` 單位為秒，捷運 LiveBoard 的 `EstimateTime` 單位為分鐘；台鐵則以表定時間加上 `DelayTime` 產生預估時間。Provider 會先轉成絕對時間，前端不直接解讀原始欄位。台鐵即時看板無資料或暫時失敗時，會自動退回當日表定時刻。
+台北捷運以 `StationOfRoute` 的官方站序建立路線與雙向端點，分支線會保留多個實際終點；使用者需先選路線與方向，再選車站。TDX 的公車 `EstimateTime` 單位為秒，捷運 LiveBoard 的 `EstimateTime` 單位為分鐘；台鐵則以表定時間加上 `DelayTime` 產生預估時間。Provider 會先轉成絕對時間，前端不直接解讀原始欄位。即時資料無效、缺失或暫時失敗時，會自動退回官方表定時刻。
 
 ## 免費額度保護
 
@@ -98,8 +100,10 @@ TDX_CLIENT_SECRET=your-client-secret
 GET /api/v1/transit/bus/routes?cityId={taipeiCityId}&q=307
 GET /api/v1/transit/bus/stops?cityId={taipeiCityId}&routeName=307&direction=0
 GET /api/v1/transit/bus/arrivals?cityId={taipeiCityId}&routeName=307&direction=0&stopId={stopUid}
-GET /api/v1/transit/metro/stations?cityId={taipeiCityId}&q=台北
+GET /api/v1/transit/metro/routes?cityId={taipeiCityId}&q=板南線
+GET /api/v1/transit/metro/stations?cityId={taipeiCityId}&q=TDX:TRTC:BL
 GET /api/v1/transit/metro/arrivals?cityId={taipeiCityId}&stationId=BL12
+GET /api/v1/transit/metro/status?cityId={taipeiCityId}&routeId=TDX:TRTC:BL
 GET /api/v1/transit/rail/stations?cityId={taipeiCityId}&q=臺北
 GET /api/v1/transit/rail/arrivals?cityId={taipeiCityId}&stationId=1000
 ```
