@@ -79,7 +79,7 @@ public static class MtrTransitMapper
         return schedule.Up
             .Select(item => MapArrival(
                 item,
-                0,
+                1,
                 "UP",
                 lineCode,
                 station,
@@ -89,7 +89,7 @@ public static class MtrTransitMapper
                 rows))
             .Concat(schedule.Down.Select(item => MapArrival(
                 item,
-                1,
+                0,
                 "DOWN",
                 lineCode,
                 station,

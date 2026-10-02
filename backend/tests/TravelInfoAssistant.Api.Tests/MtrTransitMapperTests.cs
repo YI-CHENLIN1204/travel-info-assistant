@@ -97,7 +97,7 @@ public sealed class MtrTransitMapperTests
     }
 
     [Fact]
-    public void MapsBranchArrivalsToTheSharedPublicDirection()
+    public void MapsUpAndDownBranchArrivalsToTheirPublicDirections()
     {
         IReadOnlyList<MtrStationRow> rows =
         [
@@ -115,7 +115,7 @@ public sealed class MtrTransitMapperTests
             {
                 ["TKL-TKO"] = new()
                 {
-                    Down =
+                    Up =
                     [
                         new MtrTrainPrediction
                         {
@@ -131,6 +131,16 @@ public sealed class MtrTransitMapperTests
                             Time = "2026-10-02 12:06:00",
                             Valid = "Y"
                         }
+                    ],
+                    Down =
+                    [
+                        new MtrTrainPrediction
+                        {
+                            Sequence = "1",
+                            DestinationCode = "NOP",
+                            Time = "2026-10-02 12:04:00",
+                            Valid = "Y"
+                        }
                     ]
                 }
             }
@@ -138,8 +148,23 @@ public sealed class MtrTransitMapperTests
 
         var arrivals = MtrTransitMapper.MapArrivals("TKL", "TKO", response, rows);
 
-        Assert.Equal(["寶琳", "康城"], arrivals.Select(arrival => arrival.DestinationName));
-        Assert.All(arrivals, arrival => Assert.Equal(1, arrival.Direction));
+        Assert.Collection(
+            arrivals,
+            poLam =>
+            {
+                Assert.Equal("寶琳", poLam.DestinationName);
+                Assert.Equal(1, poLam.Direction);
+            },
+            northPoint =>
+            {
+                Assert.Equal("北角", northPoint.DestinationName);
+                Assert.Equal(0, northPoint.Direction);
+            },
+            lohasPark =>
+            {
+                Assert.Equal("康城", lohasPark.DestinationName);
+                Assert.Equal(1, lohasPark.Direction);
+            });
     }
 
     [Fact]
@@ -155,7 +180,7 @@ public sealed class MtrTransitMapperTests
                 ["TWL-TST"] = new()
                 {
                     SystemTime = "2026-10-01 12:00:00",
-                    Up =
+                    Down =
                     [
                         new MtrTrainPrediction
                         {
@@ -173,6 +198,7 @@ public sealed class MtrTransitMapperTests
         var arrival = Assert.Single(MtrTransitMapper.MapArrivals("TWL", "TST", response, Rows));
 
         Assert.Equal("中環", arrival.DestinationName);
+        Assert.Equal(0, arrival.Direction);
         Assert.Equal("1", arrival.Platform);
         Assert.Equal("列車延誤", arrival.ServiceStatus);
         Assert.Equal(DateTimeOffset.Parse("2026-10-01T12:03:00+08:00"), arrival.EstimatedAt);
