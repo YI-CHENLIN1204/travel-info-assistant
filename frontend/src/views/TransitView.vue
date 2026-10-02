@@ -64,7 +64,9 @@ const isTaipei = computed(() => cityStore.currentCity.code === 'taipei')
 const usesRouteMetro = computed(
   () => isTaipei.value || isTokyo.value || isHongKong.value || isSingapore.value,
 )
-const usesRealtimeMetro = computed(() => isHongKong.value || isSingapore.value)
+const usesRealtimeMetro = computed(
+  () => isTaipei.value || isHongKong.value || isSingapore.value,
+)
 const metroSearchPlaceholder = computed(() => {
   if (isTaipei.value) return '例如：板南線、台北車站、BL12'
   if (isHongKong.value) return '例如：尖沙咀、Central、TST'
@@ -184,6 +186,21 @@ watch(
 
 watch(
   [
+    () => transitStore.activeMode,
+    () => transitStore.selectedStop?.id,
+    () => cityStore.currentCity.id,
+  ],
+  ([mode, stopId, cityId]) => {
+    transitStore.stopBusArrivalRefresh()
+    if (mode === 'bus' && stopId) {
+      transitStore.startBusArrivalRefresh(cityId)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  [
     usesRealtimeMetro,
     () => transitStore.activeMode,
     () => transitStore.selectedStation?.id,
@@ -198,6 +215,21 @@ watch(
   { immediate: true },
 )
 
+watch(
+  [
+    () => transitStore.activeMode,
+    () => transitStore.selectedRailStation?.id,
+    () => cityStore.currentCity.id,
+  ],
+  ([mode, stationId, cityId]) => {
+    transitStore.stopRailArrivalRefresh()
+    if (mode === 'rail' && stationId) {
+      transitStore.startRailArrivalRefresh(cityId)
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   clockTimer = window.setInterval(() => {
     now.value = new Date()
@@ -207,7 +239,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (clockTimer !== undefined) window.clearInterval(clockTimer)
   transitStore.stopMetroStatusRefresh()
+  transitStore.stopBusArrivalRefresh()
   transitStore.stopMetroArrivalRefresh()
+  transitStore.stopRailArrivalRefresh()
 })
 
 async function activateMode(mode: TransitModeKey): Promise<void> {
@@ -220,6 +254,7 @@ async function activateMode(mode: TransitModeKey): Promise<void> {
   transitStore.selectedStation = null
   transitStore.selectedMetroDirection = null
   transitStore.selectedRailStation = null
+  transitStore.selectedRailDirection = null
   await loadModeIndex(mode)
 }
 
@@ -295,6 +330,10 @@ function submitRailSearch(): void {
 
 function selectRailStation(station: RailStation): void {
   void transitStore.chooseRailStation(cityStore.currentCity.id, station)
+}
+
+function selectRailDirection(direction: number): void {
+  transitStore.chooseRailDirection(direction)
 }
 
 function refreshArrivals(): void {
@@ -948,8 +987,24 @@ function formatTimestamp(value: string | null | undefined): string {
                 </button>
               </div>
 
+              <div
+                v-if="transitStore.railDirectionOptions.length"
+                class="direction-switch metro-direction-switch"
+                aria-label="台鐵方向"
+              >
+                <button
+                  v-for="direction in transitStore.railDirectionOptions"
+                  :key="direction.direction"
+                  type="button"
+                  :class="{ active: transitStore.selectedRailDirection === direction.direction }"
+                  @click="selectRailDirection(direction.direction)"
+                >
+                  {{ metroDirectionLabel(direction) }}
+                </button>
+              </div>
+
               <div class="arrival-list metro-arrivals">
-                <article v-for="arrival in transitStore.arrivals" :key="arrival.id" class="arrival-card">
+                <article v-for="arrival in transitStore.visibleRailArrivals" :key="arrival.id" class="arrival-card">
                   <div class="arrival-icon"><TrainFront :size="20" /></div>
                   <div class="arrival-main">
                     <strong>
@@ -968,7 +1023,7 @@ function formatTimestamp(value: string | null | undefined): string {
                     </span>
                   </div>
                 </article>
-                <div v-if="!transitStore.arrivals.length && !transitStore.loading" class="inline-empty">
+                <div v-if="!transitStore.visibleRailArrivals.length && !transitStore.loading" class="inline-empty">
                   {{ transitStore.resultMeta?.message ?? '目前查無這個車站的台鐵列車資料。' }}
                 </div>
               </div>

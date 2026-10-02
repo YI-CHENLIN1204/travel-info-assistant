@@ -2,19 +2,24 @@ import { createPinia, setActivePinia } from 'pinia'
 import * as transitApi from '@/api/transit'
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import {
+  buildArrivalDirectionOptions,
+  busArrivalRefreshMilliseconds,
   filterMetroRouteStations,
   findMetroRouteStatus,
   isMetroStatusCurrent,
   metroArrivalRefreshMilliseconds,
   metroStatusRefreshMilliseconds,
+  railArrivalRefreshMilliseconds,
   useTransitStore,
 } from '@/stores/transit'
 import type {
   ApiMeta,
   MetroServiceStatus,
   MetroStation,
+  RailStation,
   TransitArrival,
   TransitRoute,
+  TransitStop,
 } from '@/types/api'
 
 const route: TransitRoute = {
@@ -260,6 +265,115 @@ describe('filterMetroRouteStations', () => {
 
     store.chooseMetroDirection(1)
     expect(store.visibleMetroArrivals).toEqual([directionOne])
+  })
+
+  it('uses all live branch destinations for the selected metro direction', () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    store.selectedMetroRoute = {
+      ...route,
+      id: 'MTR:TKL',
+      directions: [
+        {
+          direction: 1,
+          headsign: '寶琳／康城',
+          originName: '北角',
+          destinationName: '寶琳／康城',
+        },
+      ],
+    }
+    store.arrivals = [
+      { direction: 1, destinationName: '寶琳' } as TransitArrival,
+      { direction: 1, destinationName: '康城' } as TransitArrival,
+      { direction: 1, destinationName: '寶琳' } as TransitArrival,
+    ]
+
+    expect(store.metroDirectionOptions).toEqual([
+      expect.objectContaining({
+        direction: 1,
+        headsign: '寶琳／康城',
+        destinationName: '寶琳／康城',
+      }),
+    ])
+  })
+})
+
+describe('arrival direction controls', () => {
+  it('combines unique destinations under their provider direction', () => {
+    expect(
+      buildArrivalDirectionOptions([
+        { direction: 0, destinationName: '北角' } as TransitArrival,
+        { direction: 1, destinationName: '寶琳' } as TransitArrival,
+        { direction: 1, destinationName: '康城' } as TransitArrival,
+        { direction: 1, destinationName: '寶琳' } as TransitArrival,
+      ]),
+    ).toEqual([
+      expect.objectContaining({ direction: 0, destinationName: '北角' }),
+      expect.objectContaining({ direction: 1, destinationName: '寶琳／康城' }),
+    ])
+  })
+
+  it('filters Taiwan Rail arrivals by direction and destination', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const station = { id: '1000', nameZh: '臺北' } as RailStation
+    const southbound = {
+      id: 'rail-0',
+      direction: 0,
+      destinationName: '高雄',
+    } as TransitArrival
+    const northbound = {
+      id: 'rail-1',
+      direction: 1,
+      destinationName: '花蓮',
+    } as TransitArrival
+    vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
+      data: [southbound, northbound],
+      meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.chooseRailStation('taipei-id', station)
+
+    expect(store.railDirectionOptions.map((item) => item.destinationName)).toEqual([
+      '高雄',
+      '花蓮',
+    ])
+    expect(store.selectedRailDirection).toBe(0)
+    expect(store.visibleRailArrivals).toEqual([southbound])
+
+    store.chooseRailDirection(1)
+    expect(store.visibleRailArrivals).toEqual([northbound])
+  })
+
+  it('refreshes selected bus and rail arrivals on their intervals', async () => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const busStop = { id: 'stop-1', nameZh: '台北車站' } as TransitStop
+    const railStation = { id: '1000', nameZh: '臺北' } as RailStation
+    const busRequest = vi.spyOn(transitApi, 'getBusArrivals').mockResolvedValue({
+      data: [],
+      meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
+    })
+    const railRequest = vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
+      data: [],
+      meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    store.selectedRoute = route
+    store.selectedStop = busStop
+    store.startBusArrivalRefresh('taipei-id')
+    await vi.advanceTimersByTimeAsync(busArrivalRefreshMilliseconds)
+    expect(busRequest).toHaveBeenCalledWith('taipei-id', route.nameZh, 0, 'stop-1')
+    store.stopBusArrivalRefresh()
+
+    store.selectedRailStation = railStation
+    store.startRailArrivalRefresh('taipei-id')
+    await vi.advanceTimersByTimeAsync(railArrivalRefreshMilliseconds)
+    expect(railRequest).toHaveBeenCalledWith('taipei-id', railStation.id)
+    store.stopRailArrivalRefresh()
   })
 })
 

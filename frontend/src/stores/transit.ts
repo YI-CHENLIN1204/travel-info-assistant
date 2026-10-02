@@ -27,7 +27,33 @@ import type {
 export type TransitModeKey = 'bus' | 'metro' | 'rail'
 
 export const metroStatusRefreshMilliseconds = 30_000
+export const busArrivalRefreshMilliseconds = 15_000
 export const metroArrivalRefreshMilliseconds = 15_000
+export const railArrivalRefreshMilliseconds = 15_000
+
+export function buildArrivalDirectionOptions(
+  arrivals: TransitArrival[],
+): TransitDirection[] {
+  const destinations = new Map<number, string[]>()
+  for (const arrival of arrivals) {
+    if (arrival.direction === null) continue
+
+    const names = destinations.get(arrival.direction) ?? []
+    const destination = arrival.destinationName?.trim()
+    if (destination && !names.includes(destination)) names.push(destination)
+    destinations.set(arrival.direction, names)
+  }
+
+  return Array.from(destinations.entries()).map(([direction, names]) => {
+    const destinationName = names.length ? names.join('／') : null
+    return {
+      direction,
+      headsign: destinationName,
+      originName: null,
+      destinationName,
+    }
+  })
+}
 
 export function filterMetroRouteStations(
   stations: MetroStation[],
@@ -115,27 +141,26 @@ export const useTransitStore = defineStore('transit', () => {
   const selectedStop = ref<TransitStop | null>(null)
   const selectedStation = ref<MetroStation | null>(null)
   const selectedRailStation = ref<RailStation | null>(null)
+  const selectedRailDirection = ref<number | null>(null)
   const arrivals = ref<TransitArrival[]>([])
   const metroDirectionOptions = computed<TransitDirection[]>(() => {
+    const arrivalOptions = buildArrivalDirectionOptions(arrivals.value)
     if (selectedMetroRoute.value?.directions.length) {
-      return selectedMetroRoute.value.directions
+      return selectedMetroRoute.value.directions.map((direction) => {
+        const liveDirection = arrivalOptions.find(
+          (item) => item.direction === direction.direction,
+        )
+        return liveDirection?.destinationName
+          ? {
+              ...direction,
+              headsign: liveDirection.destinationName,
+              destinationName: liveDirection.destinationName,
+            }
+          : direction
+      })
     }
 
-    return Array.from(
-      new Map(
-        arrivals.value
-          .filter((arrival) => arrival.direction !== null)
-          .map((arrival) => [
-            arrival.direction as number,
-            {
-              direction: arrival.direction as number,
-              headsign: arrival.destinationName,
-              originName: null,
-              destinationName: arrival.destinationName,
-            },
-          ]),
-      ).values(),
-    )
+    return arrivalOptions
   })
   const visibleMetroArrivals = computed(() => {
     if (selectedMetroDirection.value === null) return arrivals.value
@@ -145,17 +170,32 @@ export const useTransitStore = defineStore('transit', () => {
       (arrival) => arrival.direction === selectedMetroDirection.value,
     )
   })
+  const railDirectionOptions = computed<TransitDirection[]>(() =>
+    buildArrivalDirectionOptions(arrivals.value),
+  )
+  const visibleRailArrivals = computed(() => {
+    if (selectedRailDirection.value === null) return arrivals.value
+    const directional = arrivals.value.filter((arrival) => arrival.direction !== null)
+    if (directional.length === 0) return arrivals.value
+    return arrivals.value.filter(
+      (arrival) => arrival.direction === selectedRailDirection.value,
+    )
+  })
   const resultMeta = ref<ApiMeta | null>(null)
   const providerStatus = ref<TdxProviderStatus | null>(null)
   const loading = ref(false)
   const metroStatusLoading = ref(false)
   const error = ref<string | null>(null)
+  let busArrivalRefreshTimer: number | undefined
   let metroStatusRefreshTimer: number | undefined
   let metroArrivalRefreshTimer: number | undefined
+  let railArrivalRefreshTimer: number | undefined
 
   function resetResults(): void {
     stopMetroStatusRefresh()
+    stopBusArrivalRefresh()
     stopMetroArrivalRefresh()
+    stopRailArrivalRefresh()
     routes.value = []
     metroRoutes.value = []
     stations.value = []
@@ -171,6 +211,7 @@ export const useTransitStore = defineStore('transit', () => {
     selectedStop.value = null
     selectedStation.value = null
     selectedRailStation.value = null
+    selectedRailDirection.value = null
     arrivals.value = []
     resultMeta.value = null
     error.value = null
@@ -236,9 +277,23 @@ export const useTransitStore = defineStore('transit', () => {
   }
 
   async function refreshBusArrivals(cityId: string): Promise<void> {
-    if (selectedStop.value) {
+    if (!loading.value && selectedStop.value) {
       await chooseBusStop(cityId, selectedStop.value)
     }
+  }
+
+  function startBusArrivalRefresh(cityId: string): void {
+    stopBusArrivalRefresh()
+    busArrivalRefreshTimer = window.setInterval(() => {
+      void refreshBusArrivals(cityId)
+    }, busArrivalRefreshMilliseconds)
+  }
+
+  function stopBusArrivalRefresh(): void {
+    if (busArrivalRefreshTimer === undefined) return
+
+    window.clearInterval(busArrivalRefreshTimer)
+    busArrivalRefreshTimer = undefined
   }
 
   async function searchMetroStations(cityId: string): Promise<void> {
@@ -376,7 +431,7 @@ export const useTransitStore = defineStore('transit', () => {
   }
 
   async function refreshMetroArrivals(cityId: string): Promise<void> {
-    if (selectedStation.value) {
+    if (!loading.value && selectedStation.value) {
       await chooseMetroStation(cityId, selectedStation.value)
     }
   }
@@ -400,6 +455,7 @@ export const useTransitStore = defineStore('transit', () => {
       const response = await requestRailStations(cityId, railQuery.value.trim())
       railStations.value = response.data
       selectedRailStation.value = null
+      selectedRailDirection.value = null
       arrivals.value = []
       resultMeta.value = response.meta
     })
@@ -410,14 +466,44 @@ export const useTransitStore = defineStore('transit', () => {
     await run(async () => {
       const response = await getRailArrivals(cityId, station.id)
       arrivals.value = response.data
+      syncRailDirection()
       resultMeta.value = response.meta
     })
   }
 
+  function chooseRailDirection(direction: number): void {
+    selectedRailDirection.value = direction
+  }
+
+  function syncRailDirection(): void {
+    const options = railDirectionOptions.value
+    if (
+      selectedRailDirection.value !== null &&
+      options.some((item) => item.direction === selectedRailDirection.value)
+    ) {
+      return
+    }
+    selectedRailDirection.value = options[0]?.direction ?? null
+  }
+
   async function refreshRailArrivals(cityId: string): Promise<void> {
-    if (selectedRailStation.value) {
+    if (!loading.value && selectedRailStation.value) {
       await chooseRailStation(cityId, selectedRailStation.value)
     }
+  }
+
+  function startRailArrivalRefresh(cityId: string): void {
+    stopRailArrivalRefresh()
+    railArrivalRefreshTimer = window.setInterval(() => {
+      void refreshRailArrivals(cityId)
+    }, railArrivalRefreshMilliseconds)
+  }
+
+  function stopRailArrivalRefresh(): void {
+    if (railArrivalRefreshTimer === undefined) return
+
+    window.clearInterval(railArrivalRefreshTimer)
+    railArrivalRefreshTimer = undefined
   }
 
   async function loadProviderStatus(): Promise<void> {
@@ -458,12 +544,15 @@ export const useTransitStore = defineStore('transit', () => {
     selectedMetroStatus,
     metroDirectionOptions,
     visibleMetroArrivals,
+    railDirectionOptions,
+    visibleRailArrivals,
     selectedRoute,
     selectedDirection,
     stops,
     selectedStop,
     selectedStation,
     selectedRailStation,
+    selectedRailDirection,
     arrivals,
     resultMeta,
     providerStatus,
@@ -476,6 +565,8 @@ export const useTransitStore = defineStore('transit', () => {
     chooseBusDirection,
     chooseBusStop,
     refreshBusArrivals,
+    startBusArrivalRefresh,
+    stopBusArrivalRefresh,
     searchMetroStations,
     searchRouteMetro,
     refreshMetroStatus,
@@ -489,7 +580,10 @@ export const useTransitStore = defineStore('transit', () => {
     stopMetroArrivalRefresh,
     searchRailStations,
     chooseRailStation,
+    chooseRailDirection,
     refreshRailArrivals,
+    startRailArrivalRefresh,
+    stopRailArrivalRefresh,
     loadProviderStatus,
   }
 })
