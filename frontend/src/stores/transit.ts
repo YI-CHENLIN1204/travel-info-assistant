@@ -55,6 +55,25 @@ export function buildArrivalDirectionOptions(
   })
 }
 
+export function buildFixedDirectionOptions(
+  arrivals: TransitArrival[],
+): TransitDirection[] {
+  return Array.from(
+    new Set(
+      arrivals
+        .map((arrival) => arrival.direction)
+        .filter((direction): direction is number => direction !== null),
+    ),
+  )
+    .sort((left, right) => left - right)
+    .map((direction) => ({
+      direction,
+      headsign: null,
+      originName: null,
+      destinationName: null,
+    }))
+}
+
 export function filterMetroRouteStations(
   stations: MetroStation[],
   route: TransitRoute | null,
@@ -144,23 +163,11 @@ export const useTransitStore = defineStore('transit', () => {
   const selectedRailDirection = ref<number | null>(null)
   const arrivals = ref<TransitArrival[]>([])
   const metroDirectionOptions = computed<TransitDirection[]>(() => {
-    const arrivalOptions = buildArrivalDirectionOptions(arrivals.value)
     if (selectedMetroRoute.value?.directions.length) {
-      return selectedMetroRoute.value.directions.map((direction) => {
-        const liveDirection = arrivalOptions.find(
-          (item) => item.direction === direction.direction,
-        )
-        return liveDirection?.destinationName
-          ? {
-              ...direction,
-              headsign: liveDirection.destinationName,
-              destinationName: liveDirection.destinationName,
-            }
-          : direction
-      })
+      return selectedMetroRoute.value.directions
     }
 
-    return arrivalOptions
+    return buildArrivalDirectionOptions(arrivals.value)
   })
   const visibleMetroArrivals = computed(() => {
     if (selectedMetroDirection.value === null) return arrivals.value
@@ -171,7 +178,7 @@ export const useTransitStore = defineStore('transit', () => {
     )
   })
   const railDirectionOptions = computed<TransitDirection[]>(() =>
-    buildArrivalDirectionOptions(arrivals.value),
+    buildFixedDirectionOptions(arrivals.value),
   )
   const visibleRailArrivals = computed(() => {
     if (selectedRailDirection.value === null) return arrivals.value

@@ -3,6 +3,7 @@ import * as transitApi from '@/api/transit'
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import {
   buildArrivalDirectionOptions,
+  buildFixedDirectionOptions,
   busArrivalRefreshMilliseconds,
   filterMetroRouteStations,
   findMetroRouteStatus,
@@ -267,13 +268,19 @@ describe('filterMetroRouteStations', () => {
     expect(store.visibleMetroArrivals).toEqual([directionOne])
   })
 
-  it('uses all live branch destinations for the selected metro direction', () => {
+  it('keeps route direction buttons fixed when a short-turn train arrives', () => {
     setActivePinia(createPinia())
     const store = useTransitStore()
     store.selectedMetroRoute = {
       ...route,
       id: 'MTR:TKL',
       directions: [
+        {
+          direction: 0,
+          headsign: '北角',
+          originName: '寶琳／康城',
+          destinationName: '北角',
+        },
         {
           direction: 1,
           headsign: '寶琳／康城',
@@ -283,18 +290,24 @@ describe('filterMetroRouteStations', () => {
       ],
     }
     store.arrivals = [
-      { direction: 1, destinationName: '寶琳' } as TransitArrival,
-      { direction: 1, destinationName: '康城' } as TransitArrival,
-      { direction: 1, destinationName: '寶琳' } as TransitArrival,
+      { direction: 0, destinationName: '調景嶺' } as TransitArrival,
+      { direction: 1, destinationName: '調景嶺' } as TransitArrival,
     ]
 
     expect(store.metroDirectionOptions).toEqual([
+      expect.objectContaining({
+        direction: 0,
+        headsign: '北角',
+        destinationName: '北角',
+      }),
       expect.objectContaining({
         direction: 1,
         headsign: '寶琳／康城',
         destinationName: '寶琳／康城',
       }),
     ])
+    store.chooseMetroDirection(0)
+    expect(store.visibleMetroArrivals[0]?.destinationName).toBe('調景嶺')
   })
 })
 
@@ -310,6 +323,19 @@ describe('arrival direction controls', () => {
     ).toEqual([
       expect.objectContaining({ direction: 0, destinationName: '北角' }),
       expect.objectContaining({ direction: 1, destinationName: '寶琳／康城' }),
+    ])
+  })
+
+  it('builds stable route-less direction controls without trip destinations', () => {
+    expect(
+      buildFixedDirectionOptions([
+        { direction: 1, destinationName: '花蓮' } as TransitArrival,
+        { direction: 0, destinationName: '高雄' } as TransitArrival,
+        { direction: 1, destinationName: '臺東' } as TransitArrival,
+      ]),
+    ).toEqual([
+      expect.objectContaining({ direction: 0, destinationName: null }),
+      expect.objectContaining({ direction: 1, destinationName: null }),
     ])
   })
 
@@ -336,8 +362,8 @@ describe('arrival direction controls', () => {
     await store.chooseRailStation('taipei-id', station)
 
     expect(store.railDirectionOptions.map((item) => item.destinationName)).toEqual([
-      '高雄',
-      '花蓮',
+      null,
+      null,
     ])
     expect(store.selectedRailDirection).toBe(0)
     expect(store.visibleRailArrivals).toEqual([southbound])

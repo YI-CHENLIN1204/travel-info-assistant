@@ -12,6 +12,7 @@ export interface ArrivalDisplayResult {
   label: string
   mode: ArrivalDisplayMode
   stale: boolean
+  scheduledLabel: string
 }
 
 const realtimeWindowMinutes = 60
@@ -19,29 +20,41 @@ const staleAfterMinutes = 2
 
 export function getArrivalDisplay(input: ArrivalDisplayInput): ArrivalDisplayResult {
   const scheduledMinutes = minutesBetween(input.now, input.scheduledAt)
+  const scheduledLabel = formatTime(input.scheduledAt, input.timeZone)
   const sourceAgeMinutes = input.sourceUpdatedAt
     ? minutesBetween(input.sourceUpdatedAt, input.now)
     : Number.POSITIVE_INFINITY
   const realtimeFresh = sourceAgeMinutes <= staleAfterMinutes
 
   if (scheduledMinutes > realtimeWindowMinutes || !input.estimatedAt || !realtimeFresh) {
+    if (scheduledMinutes <= realtimeWindowMinutes) {
+      return {
+        label: countdownLabel(scheduledMinutes),
+        mode: 'scheduled',
+        stale: Boolean(input.estimatedAt) && !realtimeFresh,
+        scheduledLabel,
+      }
+    }
+
     return {
-      label: formatTime(input.scheduledAt, input.timeZone),
+      label: scheduledLabel,
       mode: 'scheduled',
       stale: Boolean(input.estimatedAt) && !realtimeFresh,
+      scheduledLabel,
     }
   }
 
   const estimatedMinutes = minutesBetween(input.now, input.estimatedAt)
-  if (estimatedMinutes < 1) {
-    return { label: '即將進站', mode: 'realtime', stale: false }
-  }
-
   return {
-    label: `${Math.ceil(estimatedMinutes)} 分鐘`,
+    label: countdownLabel(estimatedMinutes),
     mode: 'realtime',
     stale: false,
+    scheduledLabel,
   }
+}
+
+function countdownLabel(minutes: number): string {
+  return minutes < 1 ? '即將進站' : `${Math.ceil(minutes)} 分鐘`
 }
 
 function minutesBetween(from: Date, to: Date): number {

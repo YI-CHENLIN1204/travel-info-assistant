@@ -238,7 +238,7 @@ watch(
 onMounted(() => {
   clockTimer = window.setInterval(() => {
     now.value = new Date()
-  }, 30_000)
+  }, 15_000)
 })
 
 onUnmounted(() => {
@@ -354,7 +354,12 @@ function refreshArrivals(): void {
 function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
   const scheduledAt = arrival.scheduledAt ?? arrival.estimatedAt
   if (!scheduledAt) {
-    return { label: arrival.serviceStatus, mode: 'scheduled', stale: false }
+    return {
+      label: arrival.serviceStatus,
+      mode: 'scheduled',
+      stale: false,
+      scheduledLabel: '',
+    }
   }
 
   return getArrivalDisplay({
@@ -364,6 +369,42 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
     sourceUpdatedAt: arrival.sourceUpdatedAt ? new Date(arrival.sourceUpdatedAt) : null,
     timeZone: cityStore.currentCity.timeZone,
   })
+}
+
+function arrivalTimingCaption(arrival: TransitArrival): string {
+  const view = getArrivalView(arrival)
+  const labels: string[] = []
+  const hasDistinctScheduledTime =
+    Boolean(arrival.scheduledAt) &&
+    (!arrival.estimatedAt ||
+      Date.parse(arrival.scheduledAt!) !== Date.parse(arrival.estimatedAt))
+  if (arrival.isLastService) labels.push('末班車')
+
+  if (view.mode === 'realtime') {
+    labels.push('即時預估')
+    const serviceStatus = localize(arrival.serviceStatus)
+    if (
+      serviceStatus &&
+      serviceStatus !== '即時預估' &&
+      serviceStatus !== '正常營運'
+    ) {
+      labels.push(serviceStatus)
+    }
+  } else if (view.stale) {
+    labels.push('即時資料已逾時')
+  }
+
+  if (hasDistinctScheduledTime && view.scheduledLabel) {
+    labels.push(
+      view.label === view.scheduledLabel && view.mode === 'scheduled'
+        ? '表定時間'
+        : `表定 ${view.scheduledLabel}`,
+    )
+  } else if (view.mode === 'scheduled' && arrival.scheduledAt && !arrival.estimatedAt) {
+    labels.push('表定時間')
+  }
+
+  return labels.join(' · ')
 }
 
 function directionLabel(route: TransitRoute, direction: number): string {
@@ -578,7 +619,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <div class="arrival-time">
                     <strong>{{ getArrivalView(arrival).label }}</strong>
                     <span :class="`data-mode-${getArrivalView(arrival).mode}`">
-                      {{ getArrivalView(arrival).mode === 'realtime' ? '即時預估' : '表定時間' }}
+                      {{ arrivalTimingCaption(arrival) }}
                     </span>
                   </div>
                 </article>
@@ -795,13 +836,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <div class="arrival-time">
                     <strong>{{ getArrivalView(arrival).label }}</strong>
                     <span :class="`data-mode-${getArrivalView(arrival).mode}`">
-                      {{
-                        arrival.isLastService
-                          ? '末班車 · 表定'
-                          : getArrivalView(arrival).mode === 'realtime'
-                            ? arrival.serviceStatus
-                            : '表定時間'
-                      }}
+                      {{ arrivalTimingCaption(arrival) }}
                     </span>
                   </div>
                 </article>
@@ -912,7 +947,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <div class="arrival-time">
                     <strong>{{ getArrivalView(arrival).label }}</strong>
                     <span :class="`data-mode-${getArrivalView(arrival).mode}`">
-                      {{ getArrivalView(arrival).mode === 'realtime' ? '即時預估' : '表定時間' }}
+                      {{ arrivalTimingCaption(arrival) }}
                     </span>
                   </div>
                 </article>
@@ -1024,7 +1059,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <div class="arrival-time">
                     <strong>{{ getArrivalView(arrival).label }}</strong>
                     <span :class="`data-mode-${getArrivalView(arrival).mode}`">
-                      {{ getArrivalView(arrival).mode === 'realtime' ? arrival.serviceStatus : '表定時間' }}
+                      {{ arrivalTimingCaption(arrival) }}
                     </span>
                   </div>
                 </article>
@@ -1096,9 +1131,9 @@ function formatTimestamp(value: string | null | undefined): string {
         </div>
         <ul>
           <li><strong>60 分鐘以上</strong><span>顯示表定時間</span></li>
-          <li><strong>60 分鐘內</strong><span>顯示即時預估</span></li>
+          <li><strong>60 分鐘內</strong><span>顯示分鐘倒數，並保留表定時間</span></li>
           <li><strong>少於 1 分鐘</strong><span>顯示「即將進站」</span></li>
-          <li><strong>即時資料過期</strong><span>降級為表定時間</span></li>
+          <li><strong>即時資料過期</strong><span>改用表定倒數並明確標示</span></li>
         </ul>
       </article>
     </section>

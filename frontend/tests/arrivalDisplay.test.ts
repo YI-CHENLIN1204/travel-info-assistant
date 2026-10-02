@@ -44,7 +44,27 @@ describe('getArrivalDisplay', () => {
       sourceUpdatedAt: new Date('2026-09-21T09:57:00+08:00'),
     })
 
-    expect(result).toMatchObject({ mode: 'scheduled', stale: true })
+    expect(result).toMatchObject({
+      label: '20 分鐘',
+      mode: 'scheduled',
+      stale: true,
+      scheduledLabel: '10:20',
+    })
+  })
+
+  it('shows a local countdown while preserving the scheduled clock time', () => {
+    const result = getArrivalDisplay({
+      now,
+      scheduledAt: new Date('2026-09-21T10:03:00+08:00'),
+      timeZone: 'Asia/Taipei',
+    })
+
+    expect(result).toMatchObject({
+      label: '3 分鐘',
+      mode: 'scheduled',
+      stale: false,
+      scheduledLabel: '10:03',
+    })
   })
 
   it('formats scheduled time in the selected city time zone', () => {
