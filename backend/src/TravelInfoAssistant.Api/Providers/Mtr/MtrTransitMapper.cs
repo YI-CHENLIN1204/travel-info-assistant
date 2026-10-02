@@ -164,13 +164,15 @@ public static class MtrTransitMapper
 
     private static TransitRouteResponse MapRoute(IGrouping<string, MtrStationRow> group)
     {
-        var primaryDirection = group
+        var directionPaths = group
             .GroupBy(row => row.Direction, StringComparer.OrdinalIgnoreCase)
             .Select(direction => direction
                 .GroupBy(row => row.StationCode, StringComparer.OrdinalIgnoreCase)
                 .Select(stations => stations.First())
                 .OrderBy(row => row.Sequence)
                 .ToList())
+            .ToList();
+        var primaryDirection = directionPaths
             .OrderByDescending(direction => direction.Count)
             .First();
         var stationNames = primaryDirection.Select(row => row.NameZh).ToList();
@@ -178,8 +180,19 @@ public static class MtrTransitMapper
             .Where(row => !stationNames.Contains(row.NameZh, StringComparer.OrdinalIgnoreCase))
             .Select(row => row.NameZh)
             .Distinct(StringComparer.OrdinalIgnoreCase));
-        var origin = primaryDirection.First().NameZh;
-        var destination = primaryDirection.Last().NameZh;
+        var directionZero = MapDirection(directionPaths, "DT", 0);
+        var directionOne = MapDirection(directionPaths, "UT", 1);
+
+        directionZero ??= directionOne is null
+            ? CreateDirection(
+                0,
+                primaryDirection.First().NameZh,
+                primaryDirection.Last().NameZh)
+            : ReverseDirection(directionOne, 0);
+        directionOne ??= ReverseDirection(directionZero, 1);
+
+        var origin = directionZero.OriginName ?? primaryDirection.First().NameZh;
+        var destination = directionZero.DestinationName ?? primaryDirection.Last().NameZh;
         var names = LineNames[group.Key];
 
         return new TransitRouteResponse(
@@ -189,11 +202,84 @@ public static class MtrTransitMapper
             origin,
             destination,
             ["港鐵"],
-            [
-                new TransitDirectionResponse(0, destination, origin, destination),
-                new TransitDirectionResponse(1, origin, destination, origin)
-            ],
+            [directionZero, directionOne],
             stationNames);
+    }
+
+    private static TransitDirectionResponse? MapDirection(
+        IReadOnlyList<List<MtrStationRow>> paths,
+        string trackDirection,
+        int direction)
+    {
+        var matchingPaths = paths
+            .Where(path => path.Count > 0 && IsTrackDirection(path[0].Direction, trackDirection))
+            .OrderBy(path => path[0].Direction.Equals(
+                trackDirection,
+                StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(path => path[0].Direction, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (matchingPaths.Count == 0)
+        {
+            return null;
+        }
+
+        var stationCodes = matchingPaths
+            .SelectMany(path => path)
+            .Select(row => row.StationCode)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var hasIncoming = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hasOutgoing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in matchingPaths)
+        {
+            for (var index = 0; index < path.Count - 1; index++)
+            {
+                hasOutgoing.Add(path[index].StationCode);
+                hasIncoming.Add(path[index + 1].StationCode);
+            }
+        }
+
+        var originCodes = stationCodes
+            .Where(code => !hasIncoming.Contains(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var destinationCodes = stationCodes
+            .Where(code => !hasOutgoing.Contains(code))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var origin = JoinEndpointNames(matchingPaths, originCodes, useFirst: true);
+        var destination = JoinEndpointNames(matchingPaths, destinationCodes, useFirst: false);
+
+        return CreateDirection(direction, origin, destination);
+    }
+
+    private static bool IsTrackDirection(string value, string trackDirection) =>
+        value.Equals(trackDirection, StringComparison.OrdinalIgnoreCase) ||
+        value.EndsWith($"-{trackDirection}", StringComparison.OrdinalIgnoreCase);
+
+    private static string JoinEndpointNames(
+        IReadOnlyList<List<MtrStationRow>> paths,
+        IReadOnlySet<string> endpointCodes,
+        bool useFirst) =>
+        string.Join(
+            "／",
+            paths
+                .Select(path => useFirst ? path.First() : path.Last())
+                .Where(row => endpointCodes.Contains(row.StationCode))
+                .DistinctBy(row => row.StationCode, StringComparer.OrdinalIgnoreCase)
+                .Select(row => row.NameZh));
+
+    private static TransitDirectionResponse CreateDirection(
+        int direction,
+        string origin,
+        string destination) =>
+        new(direction, destination, origin, destination);
+
+    private static TransitDirectionResponse ReverseDirection(
+        TransitDirectionResponse direction,
+        int reversedDirection)
+    {
+        var origin = direction.DestinationName ?? direction.Headsign ?? string.Empty;
+        var destination = direction.OriginName ?? string.Empty;
+        return CreateDirection(reversedDirection, origin, destination);
     }
 
     private static TransitArrivalResponse? MapArrival(

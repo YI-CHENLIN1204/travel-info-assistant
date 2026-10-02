@@ -31,6 +31,118 @@ public sealed class MtrTransitMapperTests
     }
 
     [Fact]
+    public void MapsBranchedLineDirectionsToPublicDestinations()
+    {
+        IReadOnlyList<MtrStationRow> rows =
+        [
+            new("TKL", "TKS-UT", "TIK", "49", "調景嶺", "Tiu Keng Leng", 1),
+            new("TKL", "TKS-UT", "TKO", "50", "將軍澳", "Tseung Kwan O", 2),
+            new("TKL", "TKS-UT", "LHP", "57", "康城", "LOHAS Park", 3),
+            new("TKL", "UT", "NOP", "31", "北角", "North Point", 1),
+            new("TKL", "UT", "TIK", "49", "調景嶺", "Tiu Keng Leng", 2),
+            new("TKL", "UT", "TKO", "50", "將軍澳", "Tseung Kwan O", 3),
+            new("TKL", "UT", "HAH", "51", "坑口", "Hang Hau", 4),
+            new("TKL", "UT", "POA", "52", "寶琳", "Po Lam", 5),
+            new("TKL", "TKS-DT", "LHP", "57", "康城", "LOHAS Park", 1),
+            new("TKL", "TKS-DT", "TKO", "50", "將軍澳", "Tseung Kwan O", 2),
+            new("TKL", "TKS-DT", "TIK", "49", "調景嶺", "Tiu Keng Leng", 3),
+            new("TKL", "DT", "POA", "52", "寶琳", "Po Lam", 1),
+            new("TKL", "DT", "HAH", "51", "坑口", "Hang Hau", 2),
+            new("TKL", "DT", "TKO", "50", "將軍澳", "Tseung Kwan O", 3),
+            new("TKL", "DT", "TIK", "49", "調景嶺", "Tiu Keng Leng", 4),
+            new("TKL", "DT", "NOP", "31", "北角", "North Point", 5)
+        ];
+
+        var route = Assert.Single(MtrTransitMapper.MapRoutes(rows));
+
+        Assert.Collection(
+            route.Directions,
+            northPoint =>
+            {
+                Assert.Equal(0, northPoint.Direction);
+                Assert.Equal("北角", northPoint.DestinationName);
+                Assert.Equal("寶琳／康城", northPoint.OriginName);
+            },
+            poLamOrLohasPark =>
+            {
+                Assert.Equal(1, poLamOrLohasPark.Direction);
+                Assert.Equal("寶琳／康城", poLamOrLohasPark.DestinationName);
+                Assert.Equal("北角", poLamOrLohasPark.OriginName);
+            });
+    }
+
+    [Fact]
+    public void MapsMultipleFullLengthBranchTerminalsWithoutLineSpecificOverrides()
+    {
+        IReadOnlyList<MtrStationRow> rows =
+        [
+            new("EAL", "LMC-UT", "ADM", "2", "金鐘", "Admiralty", 1),
+            new("EAL", "LMC-UT", "SHS", "75", "上水", "Sheung Shui", 2),
+            new("EAL", "LMC-UT", "LMC", "78", "落馬洲", "Lok Ma Chau", 3),
+            new("EAL", "DT", "LOW", "76", "羅湖", "Lo Wu", 1),
+            new("EAL", "DT", "SHS", "75", "上水", "Sheung Shui", 2),
+            new("EAL", "DT", "ADM", "2", "金鐘", "Admiralty", 3),
+            new("EAL", "UT", "ADM", "2", "金鐘", "Admiralty", 1),
+            new("EAL", "UT", "SHS", "75", "上水", "Sheung Shui", 2),
+            new("EAL", "UT", "LOW", "76", "羅湖", "Lo Wu", 3),
+            new("EAL", "LMC-DT", "LMC", "78", "落馬洲", "Lok Ma Chau", 1),
+            new("EAL", "LMC-DT", "SHS", "75", "上水", "Sheung Shui", 2),
+            new("EAL", "LMC-DT", "ADM", "2", "金鐘", "Admiralty", 3)
+        ];
+
+        var route = Assert.Single(MtrTransitMapper.MapRoutes(rows));
+
+        Assert.Equal("金鐘", route.Directions[0].DestinationName);
+        Assert.Equal("羅湖／落馬洲", route.Directions[1].DestinationName);
+    }
+
+    [Fact]
+    public void MapsBranchArrivalsToTheSharedPublicDirection()
+    {
+        IReadOnlyList<MtrStationRow> rows =
+        [
+            new("TKL", "DT", "NOP", "31", "北角", "North Point", 1),
+            new("TKL", "DT", "TKO", "50", "將軍澳", "Tseung Kwan O", 2),
+            new("TKL", "UT", "POA", "52", "寶琳", "Po Lam", 1),
+            new("TKL", "TKS-UT", "LHP", "57", "康城", "LOHAS Park", 1)
+        ];
+        var response = new MtrScheduleResponse
+        {
+            SystemTime = "2026-10-02 12:00:00",
+            IsDelay = "N",
+            Status = 1,
+            Data = new Dictionary<string, MtrStationSchedule>
+            {
+                ["TKL-TKO"] = new()
+                {
+                    Down =
+                    [
+                        new MtrTrainPrediction
+                        {
+                            Sequence = "1",
+                            DestinationCode = "POA",
+                            Time = "2026-10-02 12:03:00",
+                            Valid = "Y"
+                        },
+                        new MtrTrainPrediction
+                        {
+                            Sequence = "2",
+                            DestinationCode = "LHP",
+                            Time = "2026-10-02 12:06:00",
+                            Valid = "Y"
+                        }
+                    ]
+                }
+            }
+        };
+
+        var arrivals = MtrTransitMapper.MapArrivals("TKL", "TKO", response, rows);
+
+        Assert.Equal(["寶琳", "康城"], arrivals.Select(arrival => arrival.DestinationName));
+        Assert.All(arrivals, arrival => Assert.Equal(1, arrival.Direction));
+    }
+
+    [Fact]
     public void MapsRealtimeArrivalsWithDestinationPlatformAndDelay()
     {
         var response = new MtrScheduleResponse
