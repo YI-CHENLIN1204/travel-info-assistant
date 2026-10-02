@@ -62,10 +62,11 @@ const isHongKong = computed(() => cityStore.currentCity.code === 'hong-kong')
 const isSingapore = computed(() => cityStore.currentCity.code === 'singapore')
 const isTaipei = computed(() => cityStore.currentCity.code === 'taipei')
 const usesRouteMetro = computed(
-  () => isTokyo.value || isHongKong.value || isSingapore.value,
+  () => isTaipei.value || isTokyo.value || isHongKong.value || isSingapore.value,
 )
 const usesRealtimeMetro = computed(() => isHongKong.value || isSingapore.value)
 const metroSearchPlaceholder = computed(() => {
+  if (isTaipei.value) return '例如：板南線、台北車站、BL12'
   if (isHongKong.value) return '例如：尖沙咀、Central、TST'
   if (isSingapore.value) return '例如：烏節、Orchard、NS22'
   return '例如：銀座、Asakusa、A18'
@@ -135,6 +136,11 @@ const selectedMetroStatus = computed(() => {
   const status = transitStore.selectedMetroStatus
   return status && isMetroStatusCurrent(status, now.value) ? status : null
 })
+const displayedRouteMetroStations = computed(() =>
+  isTaipei.value && !transitStore.selectedMetroRoute
+    ? []
+    : transitStore.filteredMetroStations,
+)
 const selectedMetroStatusExpired = computed(
   () =>
     transitStore.selectedMetroStatus !== null &&
@@ -610,7 +616,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 <span class="eyebrow">METRO STATIONS</span>
                 <h3>車站</h3>
               </div>
-              <span>{{ transitStore.filteredMetroStations.length }} 筆</span>
+              <span>{{ displayedRouteMetroStations.length }} 筆</span>
             </div>
 
             <article
@@ -694,7 +700,7 @@ function formatTimestamp(value: string | null | undefined): string {
 
             <div class="route-result-list route-metro-station-list">
               <button
-                v-for="station in transitStore.filteredMetroStations"
+                v-for="station in displayedRouteMetroStations"
                 :key="station.id"
                 class="route-result"
                 :class="{ selected: transitStore.selectedStation?.id === station.id }"
@@ -708,8 +714,8 @@ function formatTimestamp(value: string | null | undefined): string {
                   <template v-if="station.railwayName"> · {{ localize(station.railwayName) }}</template>
                 </small>
               </button>
-              <div v-if="!transitStore.filteredMetroStations.length" class="inline-empty">
-                {{ transitStore.selectedMetroRoute ? '此路線沒有可顯示的車站。' : '沒有符合條件的車站。' }}
+              <div v-if="!displayedRouteMetroStations.length" class="inline-empty">
+                {{ transitStore.selectedMetroRoute ? '此路線沒有可顯示的車站。' : isTaipei ? '請先選擇一條捷運路線。' : '沒有符合條件的車站。' }}
               </div>
             </div>
 

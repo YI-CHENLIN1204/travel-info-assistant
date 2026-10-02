@@ -111,6 +111,66 @@ public sealed class TdxMetroStation
     public DateTimeOffset? UpdateTime { get; init; }
 }
 
+public sealed class TdxMetroLine
+{
+    public string? LineNO { get; init; }
+    public string? LineID { get; init; }
+    public TdxLocalizedName? LineName { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
+public sealed class TdxMetroStationOfRoute
+{
+    public string? LineNO { get; init; }
+    public string? LineID { get; init; }
+    public string? RouteID { get; init; }
+    public TdxLocalizedName? RouteName { get; init; }
+    public int Direction { get; init; }
+    public IReadOnlyList<TdxMetroRouteStation> Stations { get; init; } = [];
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
+public sealed class TdxMetroRouteStation
+{
+    public int Sequence { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+}
+
+public sealed class TdxMetroAlertResponse
+{
+    public DateTimeOffset? UpdateTime { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public int? UpdateInterval { get; init; }
+    public int? SrcUpdateInterval { get; init; }
+    public string? AuthorityCode { get; init; }
+    public IReadOnlyList<TdxMetroAlert> Alerts { get; init; } = [];
+}
+
+public sealed class TdxMetroAlert
+{
+    public string? AlertID { get; init; }
+    public string? Title { get; init; }
+    public string? Description { get; init; }
+    public int Status { get; init; }
+    public TdxMetroAlertScope? Scope { get; init; }
+    public DateTimeOffset? PublishTime { get; init; }
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
+public sealed class TdxMetroAlertScope
+{
+    public IReadOnlyList<TdxMetroAlertLine> Lines { get; init; } = [];
+}
+
+public sealed class TdxMetroAlertLine
+{
+    public string? LineNO { get; init; }
+    public string? LineID { get; init; }
+}
+
 public sealed class TdxMetroLiveBoard
 {
     public string? LineNO { get; init; }

@@ -129,7 +129,11 @@ public sealed class TransitService(
     {
         var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
         ProviderQueryResult<IReadOnlyList<TransitRouteResponse>> result;
-        if (cityCode == "tokyo")
+        if (cityCode == "taipei")
+        {
+            result = await tdxProvider.GetMetroRoutesAsync(cancellationToken);
+        }
+        else if (cityCode == "tokyo")
         {
             result = await odptProvider.GetMetroRoutesAsync(cancellationToken);
         }
@@ -195,6 +199,18 @@ public sealed class TransitService(
         CancellationToken cancellationToken)
     {
         var cityCode = await GetIntegratedCityCodeAsync(cityId, "metro", cancellationToken);
+        if (cityCode == "taipei" && !string.IsNullOrWhiteSpace(routeId))
+        {
+            return await tdxProvider.GetMetroStatusAsync(routeId.Trim(), cancellationToken);
+        }
+
+        if (cityCode == "taipei")
+        {
+            return Unavailable<MetroServiceStatusResponse>(
+                "請先選擇一條台北捷運路線。",
+                "TDX");
+        }
+
         if (cityCode == "tokyo")
         {
             return await odptProvider.GetMetroStatusAsync(cancellationToken);

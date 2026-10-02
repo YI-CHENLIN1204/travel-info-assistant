@@ -22,6 +22,13 @@ public interface ITdxTransitProvider
     Task<ProviderQueryResult<IReadOnlyList<MetroStationResponse>>> GetMetroStationsAsync(
         CancellationToken cancellationToken);
 
+    Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetMetroRoutesAsync(
+        CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
+        string routeId,
+        CancellationToken cancellationToken);
+
     Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetMetroArrivalsAsync(
         string stationId,
         CancellationToken cancellationToken);

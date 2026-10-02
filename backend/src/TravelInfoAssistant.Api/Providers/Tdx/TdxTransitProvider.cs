@@ -123,43 +123,111 @@ public sealed class TdxTransitProvider(
             feed.Message);
     }
 
-    public Task<ProviderQueryResult<IReadOnlyList<MetroStationResponse>>> GetMetroStationsAsync(
-        CancellationToken cancellationToken) =>
-        GetCachedSafelyAsync(
-            "transit:tdx:metro:stations:trtc:v1",
-            MetroStationFreshFor,
-            MetroStationRetainFor,
-            Array.Empty<MetroStationResponse>(),
-            async token =>
+    public async Task<ProviderQueryResult<IReadOnlyList<MetroStationResponse>>> GetMetroStationsAsync(
+        CancellationToken cancellationToken)
+    {
+        var lineTask = GetMetroLineFeedAsync(cancellationToken);
+        var routeTask = GetMetroStationOfRouteFeedAsync(cancellationToken);
+        await Task.WhenAll(lineTask, routeTask);
+        var lines = await lineTask;
+        var routes = await routeTask;
+        var lineNames = lines.Data
+            .Where(item => !string.IsNullOrWhiteSpace(item.LineID))
+            .GroupBy(item => item.LineID!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => PreferredName(group.First().LineName),
+                StringComparer.OrdinalIgnoreCase);
+        var stations = routes.Data
+            .Where(item => !string.IsNullOrWhiteSpace(item.LineID))
+            .SelectMany(route => route.Stations.Select(station =>
+                MapMetroRouteStation(route, station, lineNames)))
+            .Where(item => item is not null)
+            .Cast<MetroStationResponse>()
+            .GroupBy(
+                item => $"{item.RailwayId}:{item.Id}",
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(item => item.RailwayId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return CombineMetroNetworkMetadata<IReadOnlyList<MetroStationResponse>>(
+            lines,
+            routes,
+            stations);
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetMetroRoutesAsync(
+        CancellationToken cancellationToken)
+    {
+        var lineTask = GetMetroLineFeedAsync(cancellationToken);
+        var routeTask = GetMetroStationOfRouteFeedAsync(cancellationToken);
+        await Task.WhenAll(lineTask, routeTask);
+        var lines = await lineTask;
+        var routes = await routeTask;
+        var mapped = routes.Data
+            .Where(item => !string.IsNullOrWhiteSpace(item.LineID))
+            .GroupBy(item => item.LineID!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => MapMetroRoute(
+                group.Key,
+                lines.Data.FirstOrDefault(line => string.Equals(
+                    line.LineID,
+                    group.Key,
+                    StringComparison.OrdinalIgnoreCase)),
+                group))
+            .Where(item => item is not null)
+            .Cast<TransitRouteResponse>()
+            .OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return CombineMetroNetworkMetadata<IReadOnlyList<TransitRouteResponse>>(
+            lines,
+            routes,
+            mapped);
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>> GetMetroStatusAsync(
+        string routeId,
+        CancellationToken cancellationToken)
+    {
+        var lineId = ParseMetroLineId(routeId);
+        if (lineId is null)
+        {
+            return ProviderQueryResult<IReadOnlyList<MetroServiceStatusResponse>>.Unavailable(
+                Array.Empty<MetroServiceStatusResponse>(),
+                "無法辨識這條台北捷運路線。",
+                timeProvider);
+        }
+
+        var feed = await GetMetroAlertFeedAsync(cancellationToken);
+        var intervalSeconds = Math.Max(
+            60,
+            feed.Data.SrcUpdateInterval ?? feed.Data.UpdateInterval ?? 60);
+        var statuses = feed.Data.Alerts
+            .Where(alert => AppliesToMetroLine(alert.Scope, lineId))
+            .Select((alert, index) =>
             {
-                var response = await apiClient.GetAsync<IReadOnlyList<TdxMetroStation>>(
-                    "v2/Rail/Metro/Station/TRTC",
-                    new Dictionary<string, string?>
-                    {
-                        ["$select"] = "StationPosition,StationUID,StationID,StationName," +
-                                      "StationAddress,SrcUpdateTime,UpdateTime",
-                        ["$top"] = "500",
-                        ["$format"] = "JSON"
-                    },
-                    token);
+                var updatedAt = alert.UpdateTime
+                                ?? feed.Data.SrcUpdateTime
+                                ?? feed.Data.UpdateTime
+                                ?? feed.SourceUpdatedAt;
+                return new MetroServiceStatusResponse(
+                    $"tdx-metro-alert:{alert.AlertID ?? index.ToString(CultureInfo.InvariantCulture)}:{lineId}",
+                    routeId,
+                    lineId,
+                    null,
+                    null,
+                    updatedAt,
+                    updatedAt?.AddSeconds(intervalSeconds),
+                    FirstText(alert.Description, alert.Title, "目前沒有官方服務警示。"));
+            })
+            .ToList();
 
-                var stations = response.Data
-                    .Select(MapMetroStation)
-                    .Where(item => item is not null)
-                    .Cast<MetroStationResponse>()
-                    .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
-                    .Select(group => group.First())
-                    .OrderBy(item => item.NameZh, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                return new ProviderPayload<IReadOnlyList<MetroStationResponse>>(
-                    stations,
-                    "scheduled",
-                    Latest(response.Data.Select(item => item.SrcUpdateTime ?? item.UpdateTime))
-                        ?? response.LastModified,
-                    response.FetchedAt);
-            },
-            cancellationToken);
+        return CopyMetadata<TdxMetroAlertResponse, IReadOnlyList<MetroServiceStatusResponse>>(
+            feed,
+            statuses);
+    }
 
     public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetMetroArrivalsAsync(
         string stationId,
@@ -364,6 +432,92 @@ public sealed class TdxTransitProvider(
             },
             cancellationToken);
 
+    private Task<ProviderQueryResult<IReadOnlyList<TdxMetroLine>>> GetMetroLineFeedAsync(
+        CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            "transit:tdx:metro:lines:trtc:v1",
+            MetroStationFreshFor,
+            MetroStationRetainFor,
+            Array.Empty<TdxMetroLine>(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<IReadOnlyList<TdxMetroLine>>(
+                    "v2/Rail/Metro/Line/TRTC",
+                    new Dictionary<string, string?>
+                    {
+                        ["$select"] = "LineNO,LineID,LineName,SrcUpdateTime,UpdateTime",
+                        ["$top"] = "100",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<IReadOnlyList<TdxMetroLine>>(
+                    response.Data,
+                    "scheduled",
+                    Latest(response.Data.Select(item => item.SrcUpdateTime ?? item.UpdateTime))
+                        ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+
+    private Task<ProviderQueryResult<IReadOnlyList<TdxMetroStationOfRoute>>>
+        GetMetroStationOfRouteFeedAsync(CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            "transit:tdx:metro:station-of-route:trtc:v1",
+            MetroStationFreshFor,
+            MetroStationRetainFor,
+            Array.Empty<TdxMetroStationOfRoute>(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<IReadOnlyList<TdxMetroStationOfRoute>>(
+                    "v2/Rail/Metro/StationOfRoute/TRTC",
+                    new Dictionary<string, string?>
+                    {
+                        ["$select"] = "LineNO,LineID,RouteID,RouteName,Direction,Stations," +
+                                      "SrcUpdateTime,UpdateTime",
+                        ["$top"] = "500",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<IReadOnlyList<TdxMetroStationOfRoute>>(
+                    response.Data,
+                    "scheduled",
+                    Latest(response.Data.Select(item => item.SrcUpdateTime ?? item.UpdateTime))
+                        ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+
+    private Task<ProviderQueryResult<TdxMetroAlertResponse>> GetMetroAlertFeedAsync(
+        CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            "transit:tdx:metro:alerts:trtc:v1",
+            TimeSpan.FromMinutes(1),
+            RealtimeRetainFor,
+            new TdxMetroAlertResponse(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<TdxMetroAlertResponse>(
+                    "v2/Rail/Metro/Alert/TRTC",
+                    new Dictionary<string, string?>
+                    {
+                        ["$top"] = "200",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<TdxMetroAlertResponse>(
+                    response.Data,
+                    "realtime",
+                    Latest(response.Data.Alerts.Select(item => item.UpdateTime))
+                        ?? response.Data.SrcUpdateTime
+                        ?? response.Data.UpdateTime
+                        ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+
     private Task<ProviderQueryResult<IReadOnlyList<TdxMetroLiveBoard>>> GetMetroLiveBoardAsync(
         string stationId,
         CancellationToken cancellationToken) =>
@@ -527,6 +681,18 @@ public sealed class TdxTransitProvider(
             source.FetchedAt,
             source.Stale,
             source.Message);
+
+    private static ProviderQueryResult<TTarget> CombineMetroNetworkMetadata<TTarget>(
+        ProviderQueryResult<IReadOnlyList<TdxMetroLine>> lines,
+        ProviderQueryResult<IReadOnlyList<TdxMetroStationOfRoute>> routes,
+        TTarget data) =>
+        new(
+            data,
+            routes.DataStatus == "unavailable" ? routes.DataStatus : lines.DataStatus,
+            Latest([lines.SourceUpdatedAt, routes.SourceUpdatedAt]),
+            lines.FetchedAt > routes.FetchedAt ? lines.FetchedAt : routes.FetchedAt,
+            lines.Stale || routes.Stale,
+            routes.Message ?? lines.Message);
 
     private static TransitRouteResponse? MapBusRoute(TdxBusRoute route)
     {
@@ -732,20 +898,158 @@ public sealed class TdxTransitProvider(
         return string.Concat(normalized.Where(character => !char.IsWhiteSpace(character)));
     }
 
-    private static MetroStationResponse? MapMetroStation(TdxMetroStation station)
+    private static TransitRouteResponse? MapMetroRoute(
+        string lineId,
+        TdxMetroLine? line,
+        IEnumerable<TdxMetroStationOfRoute> routeVariants)
     {
-        var id = station.StationID ?? station.StationUID;
-        var nameZh = PreferredName(station.StationName);
-        return string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(nameZh)
-            ? null
-            : new MetroStationResponse(
-                id,
-                nameZh,
-                station.StationName?.En,
-                station.StationAddress,
-                station.StationPosition?.PositionLat,
-                station.StationPosition?.PositionLon);
+        var variants = routeVariants
+            .Where(item => item.Stations.Count > 0)
+            .ToList();
+        if (variants.Count == 0)
+        {
+            return null;
+        }
+
+        var nameZh = FirstText(PreferredName(line?.LineName), lineId)!;
+        var directions = variants
+            .GroupBy(item => item.Direction)
+            .Select(group => MapMetroDirection(group.Key, group))
+            .OrderBy(item => item.Direction)
+            .ToList();
+        var primaryDirection = directions.FirstOrDefault(item => item.Direction == 0)
+                               ?? directions.FirstOrDefault();
+        var stationNames = variants
+            .Where(item => item.Direction == (primaryDirection?.Direction ?? variants[0].Direction))
+            .OrderByDescending(item => item.Stations.Count)
+            .SelectMany(item => item.Stations.OrderBy(station => station.Sequence))
+            .Select(station => PreferredName(station.StationName))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new TransitRouteResponse(
+            $"TDX:TRTC:{lineId}",
+            nameZh,
+            line?.LineName?.En,
+            primaryDirection?.OriginName,
+            primaryDirection?.DestinationName,
+            ["台北捷運"],
+            directions,
+            stationNames);
     }
+
+    private static TransitDirectionResponse MapMetroDirection(
+        int direction,
+        IEnumerable<TdxMetroStationOfRoute> routeVariants)
+    {
+        var paths = routeVariants
+            .Select(route => route.Stations
+                .OrderBy(station => station.Sequence)
+                .Where(station => !string.IsNullOrWhiteSpace(station.StationID))
+                .ToList())
+            .Where(path => path.Count > 0)
+            .ToList();
+        var names = paths
+            .SelectMany(path => path)
+            .GroupBy(station => station.StationID!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => PreferredName(group.First().StationName),
+                StringComparer.OrdinalIgnoreCase);
+        var incoming = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var outgoing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            for (var index = 0; index < path.Count - 1; index++)
+            {
+                outgoing.Add(path[index].StationID!);
+                incoming.Add(path[index + 1].StationID!);
+            }
+        }
+
+        var origins = new HashSet<string>(
+            names.Keys.Where(id => !incoming.Contains(id)),
+            StringComparer.OrdinalIgnoreCase);
+        var destinations = new HashSet<string>(
+            names.Keys.Where(id => !outgoing.Contains(id)),
+            StringComparer.OrdinalIgnoreCase);
+        var originName = JoinMetroTerminals(paths, origins, first: true, names);
+        var destinationName = JoinMetroTerminals(paths, destinations, first: false, names);
+
+        return new TransitDirectionResponse(
+            direction,
+            destinationName,
+            originName,
+            destinationName);
+    }
+
+    private static string? JoinMetroTerminals(
+        IReadOnlyList<List<TdxMetroRouteStation>> paths,
+        IReadOnlySet<string> candidates,
+        bool first,
+        IReadOnlyDictionary<string, string> names)
+    {
+        var ids = paths
+            .Select(path => first ? path.First().StationID : path.Last().StationID)
+            .Where(id => id is not null && candidates.Contains(id))
+            .Cast<string>()
+            .Concat(candidates)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var terminalNames = ids
+            .Select(id => names.GetValueOrDefault(id))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return terminalNames.Count == 0 ? null : string.Join("／", terminalNames);
+    }
+
+    private static MetroStationResponse? MapMetroRouteStation(
+        TdxMetroStationOfRoute route,
+        TdxMetroRouteStation station,
+        IReadOnlyDictionary<string, string> lineNames)
+    {
+        var lineId = route.LineID;
+        var stationId = station.StationID;
+        var nameZh = PreferredName(station.StationName);
+        if (string.IsNullOrWhiteSpace(lineId) ||
+            string.IsNullOrWhiteSpace(stationId) ||
+            string.IsNullOrWhiteSpace(nameZh))
+        {
+            return null;
+        }
+
+        return new MetroStationResponse(
+            stationId,
+            nameZh,
+            station.StationName?.En,
+            null,
+            null,
+            null,
+            stationId,
+            $"TDX:TRTC:{lineId}",
+            FirstText(lineNames.GetValueOrDefault(lineId), lineId));
+    }
+
+    private static string? ParseMetroLineId(string routeId)
+    {
+        const string prefix = "TDX:TRTC:";
+        if (!routeId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var lineId = routeId[prefix.Length..].Trim();
+        return string.IsNullOrWhiteSpace(lineId) ? null : lineId;
+    }
+
+    private static bool AppliesToMetroLine(TdxMetroAlertScope? scope, string lineId) =>
+        scope?.Lines is not { Count: > 0 } ||
+        scope.Lines.Any(line => string.Equals(
+            FirstText(line.LineID, line.LineNO),
+            lineId,
+            StringComparison.OrdinalIgnoreCase));
 
     private static RailStationResponse? MapRailStation(TdxTraStation station)
     {

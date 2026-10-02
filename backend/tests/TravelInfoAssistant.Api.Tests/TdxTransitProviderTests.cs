@@ -181,6 +181,119 @@ public sealed class TdxTransitProviderTests
     }
 
     [Fact]
+    public async Task GetMetroRoutesAsync_MapsBranchedLineTerminalsAndDirections()
+    {
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v2/Rail/Metro/Line/TRTC"] = new[]
+            {
+                new TdxMetroLine
+                {
+                    LineID = "O",
+                    LineName = Name("中和新蘆線")
+                }
+            },
+            ["v2/Rail/Metro/StationOfRoute/TRTC"] = new[]
+            {
+                MetroRoute("O", "O-1", 0, ("O01", "南勢角"), ("O12", "大橋頭"), ("O21", "迴龍")),
+                MetroRoute("O", "O-2", 0, ("O01", "南勢角"), ("O12", "大橋頭"), ("O54", "蘆洲")),
+                MetroRoute("O", "O-3", 1, ("O21", "迴龍"), ("O12", "大橋頭"), ("O01", "南勢角")),
+                MetroRoute("O", "O-4", 1, ("O54", "蘆洲"), ("O12", "大橋頭"), ("O01", "南勢角"))
+            }
+        });
+
+        var result = await provider.GetMetroRoutesAsync(CancellationToken.None);
+
+        var route = Assert.Single(result.Data);
+        Assert.Equal("TDX:TRTC:O", route.Id);
+        Assert.Equal("中和新蘆線", route.NameZh);
+        Assert.Collection(
+            route.Directions,
+            outbound =>
+            {
+                Assert.Equal(0, outbound.Direction);
+                Assert.Equal("南勢角", outbound.OriginName);
+                Assert.Equal("迴龍／蘆洲", outbound.DestinationName);
+            },
+            inbound =>
+            {
+                Assert.Equal(1, inbound.Direction);
+                Assert.Equal("迴龍／蘆洲", inbound.OriginName);
+                Assert.Equal("南勢角", inbound.DestinationName);
+            });
+        Assert.Contains("迴龍", route.StationNames);
+        Assert.Contains("蘆洲", route.StationNames);
+    }
+
+    [Fact]
+    public async Task GetMetroStationsAsync_AssignsLineMembership()
+    {
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v2/Rail/Metro/Line/TRTC"] = new[]
+            {
+                new TdxMetroLine
+                {
+                    LineID = "BL",
+                    LineName = Name("板南線")
+                }
+            },
+            ["v2/Rail/Metro/StationOfRoute/TRTC"] = new[]
+            {
+                MetroRoute("BL", "BL-1", 0, ("BL01", "頂埔"), ("BL12", "台北車站"))
+            }
+        });
+
+        var result = await provider.GetMetroStationsAsync(CancellationToken.None);
+
+        Assert.Collection(
+            result.Data,
+            station =>
+            {
+                Assert.Equal("BL01", station.Id);
+                Assert.Equal("TDX:TRTC:BL", station.RailwayId);
+                Assert.Equal("板南線", station.RailwayName);
+            },
+            station => Assert.Equal("BL12", station.Code));
+    }
+
+    [Fact]
+    public async Task GetMetroStatusAsync_MapsNetworkWideOfficialAlert()
+    {
+        var updatedAt = DateTimeOffset.Parse("2026-10-02T10:00:00+08:00");
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v2/Rail/Metro/Alert/TRTC"] = new TdxMetroAlertResponse
+            {
+                SrcUpdateTime = updatedAt,
+                SrcUpdateInterval = 60,
+                Alerts =
+                [
+                    new TdxMetroAlert
+                    {
+                        AlertID = "0",
+                        Title = "正常營運",
+                        Description = "正常營運",
+                        Status = 1,
+                        Scope = new TdxMetroAlertScope(),
+                        UpdateTime = updatedAt
+                    }
+                ]
+            }
+        });
+
+        var result = await provider.GetMetroStatusAsync(
+            "TDX:TRTC:BL",
+            CancellationToken.None);
+
+        var status = Assert.Single(result.Data);
+        Assert.Equal("TDX:TRTC:BL", status.LineId);
+        Assert.Equal("正常營運", status.MessageZh);
+        Assert.Equal(updatedAt.AddSeconds(60), status.ValidUntil);
+        Assert.Equal("realtime", result.DataStatus);
+    }
+
+    [Fact]
     public async Task GetRailStationsAsync_MapsV3StationResponse()
     {
         var provider = CreateProviderWithResponses(new Dictionary<string, object>
@@ -347,6 +460,26 @@ public sealed class TdxTransitProviderTests
         };
 
     private static TdxLocalizedName Name(string value) => new() { ZhTw = value };
+
+    private static TdxMetroStationOfRoute MetroRoute(
+        string lineId,
+        string routeId,
+        int direction,
+        params (string Id, string Name)[] stations) =>
+        new()
+        {
+            LineID = lineId,
+            RouteID = routeId,
+            Direction = direction,
+            Stations = stations
+                .Select((station, index) => new TdxMetroRouteStation
+                {
+                    Sequence = index + 1,
+                    StationID = station.Id,
+                    StationName = Name(station.Name)
+                })
+                .ToList()
+        };
 
     private sealed class StubTdxApiClient(IReadOnlyDictionary<string, object> responses)
         : ITdxApiClient
