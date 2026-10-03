@@ -474,6 +474,117 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("realtime", result.DataStatus);
     }
 
+    [Fact]
+    public async Task GetRailArrivalsAsync_MergesLiveDataIntoNextTenTripsPerDirection()
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T02:00:00Z");
+        var northbound = Enumerable.Range(0, 12)
+            .Select(index => new TdxTraTimetableEntry
+            {
+                Sequence = index + 1,
+                TrainNo = $"N{index:00}",
+                DestinationStationID = "1000",
+                DestinationStationName = Name("基隆"),
+                ArrivalTime = $"10:{10 + index:00}"
+            })
+            .ToList();
+        var southbound = Enumerable.Range(0, 12)
+            .Select(index => new TdxTraTimetableEntry
+            {
+                Sequence = index + 1,
+                TrainNo = $"S{index:00}",
+                DestinationStationID = "5000",
+                DestinationStationName = Name("潮州"),
+                ArrivalTime = $"18:{index:00}"
+            })
+            .ToList();
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v3/Rail/TRA/Station"] = new TdxTraStationResponse
+                {
+                    Stations =
+                    [
+                        new TdxTraStation
+                        {
+                            StationID = "3470",
+                            StationName = Name("斗六"),
+                            StationPosition = new TdxPosition { PositionLat = 23.7117 }
+                        },
+                        new TdxTraStation
+                        {
+                            StationID = "1000",
+                            StationName = Name("基隆"),
+                            StationPosition = new TdxPosition { PositionLat = 25.1310 }
+                        },
+                        new TdxTraStation
+                        {
+                            StationID = "5000",
+                            StationName = Name("潮州"),
+                            StationPosition = new TdxPosition { PositionLat = 22.5500 }
+                        }
+                    ]
+                },
+                ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
+                ["v3/Rail/TRA/DailyStationTimetable/Today/Station/3470"] =
+                    new TdxTraDailyStationTimetableResponse
+                    {
+                        StationTimetables =
+                        [
+                            new TdxTraStationTimetable
+                            {
+                                StationID = "3470",
+                                StationName = Name("斗六"),
+                                Direction = 0,
+                                TimeTables = northbound
+                            },
+                            new TdxTraStationTimetable
+                            {
+                                StationID = "3470",
+                                StationName = Name("斗六"),
+                                Direction = 1,
+                                TimeTables = southbound
+                            }
+                        ]
+                    },
+                ["v3/Rail/TRA/StationLiveBoard/Station/3470"] =
+                    new TdxTraStationLiveBoardResponse
+                    {
+                        StationLiveBoards =
+                        [
+                            new TdxTraStationLiveBoard
+                            {
+                                StationID = "3470",
+                                StationName = Name("斗六"),
+                                TrainNo = "N00",
+                                Direction = 0,
+                                EndingStationID = "1000",
+                                EndingStationName = Name("基隆"),
+                                ScheduleArrivalTime = "10:10",
+                                DelayTime = 3,
+                                RunningStatus = 1
+                            }
+                        ]
+                    }
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+
+        Assert.Equal(20, result.Data.Count);
+        Assert.Equal(10, result.Data.Count(item => item.Direction == 0));
+        Assert.Equal(10, result.Data.Count(item => item.Direction == 1));
+        Assert.Equal(10, result.Data.Count(item => item.Heading == "north"));
+        Assert.Equal(10, result.Data.Count(item => item.Heading == "south"));
+        var liveArrival = Assert.Single(result.Data, item => item.RouteName == "N00");
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:13:00Z"), liveArrival.EstimatedAt);
+        Assert.Contains(result.Data, item =>
+            item.RouteName == "S00" &&
+            item.ScheduledAt == DateTimeOffset.Parse("2026-09-23T10:00:00Z"));
+        Assert.DoesNotContain(result.Data, item => item.RouteName is "N10" or "N11" or "S10" or "S11");
+        Assert.Equal("realtime", result.DataStatus);
+    }
+
     private static TdxTransitProvider CreateProvider(
         IReadOnlyList<TdxBusStopOfRoute> stops,
         IReadOnlyList<TdxBusArrival> arrivals,

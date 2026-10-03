@@ -5,8 +5,7 @@ import StatusPill from '@/components/StatusPill.vue'
 import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
 import {
   findIntegratedRailService,
-  getRailDirectionLabel,
-  getRailDirectionHeading,
+  getRailHeadingLabel,
   getRailNavigationLabel,
   getRailRegions,
   orderRailStations,
@@ -14,7 +13,7 @@ import {
 } from '@/services/railStationNavigation'
 import { useCityStore } from '@/stores/city'
 import { useTransitStore } from '@/stores/transit'
-import type { RailStation, TransitArrival, TransitDirection } from '@/types/api'
+import type { RailHeading, RailStation, TransitArrival } from '@/types/api'
 
 const cityStore = useCityStore()
 const transitStore = useTransitStore()
@@ -31,11 +30,8 @@ const selectedRegion = computed(
 const pageLabel = computed(() =>
   getRailNavigationLabel(cityStore.currentCity.countryCode, railService.value?.displayName),
 )
-const selectedRailHeading = computed(() =>
-  getRailDirectionHeading(transitStore.arrivals, transitStore.selectedRailDirection),
-)
 const orderedRailStations = computed(() =>
-  orderRailStations(transitStore.railStations, selectedRailHeading.value),
+  orderRailStations(transitStore.railStations, transitStore.selectedRailHeading),
 )
 const isTaiwanRail = computed(() => cityStore.currentCity.countryCode === 'TW')
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
@@ -109,8 +105,8 @@ function chooseStation(station: RailStation): void {
   void transitStore.chooseRailStation(cityStore.currentCity.id, station)
 }
 
-function chooseDirection(direction: number): void {
-  transitStore.chooseRailDirection(direction)
+function chooseHeading(heading: RailHeading): void {
+  transitStore.chooseRailHeading(heading)
 }
 
 function clearRailResults(): void {
@@ -118,7 +114,7 @@ function clearRailResults(): void {
   transitStore.railQuery = ''
   transitStore.railStations = []
   transitStore.selectedRailStation = null
-  transitStore.selectedRailDirection = null
+  transitStore.selectedRailHeading = null
   transitStore.arrivals = []
   transitStore.resultMeta = null
   transitStore.error = null
@@ -178,11 +174,14 @@ function arrivalTimingCaption(arrival: TransitArrival): string {
   return labels.join(' · ')
 }
 
-function directionLabel(direction: TransitDirection): string {
-  return getRailDirectionLabel(
-    cityStore.currentCity.countryCode,
-    direction,
-    transitStore.arrivals,
+function emptyRailMessage(): string {
+  if (transitStore.arrivals.length && transitStore.selectedRailHeading) {
+    return `目前沒有${getRailHeadingLabel(transitStore.selectedRailHeading)}列車資訊。`
+  }
+  return (
+    transitStore.error ??
+    transitStore.resultMeta?.message ??
+    '目前查無這個車站的列車資料。'
   )
 }
 
@@ -311,19 +310,15 @@ function formatTimestamp(value: string | null | undefined): string {
               </button>
             </div>
 
-            <div
-              v-if="transitStore.railDirectionOptions.length"
-              class="direction-switch metro-direction-switch"
-              aria-label="鐵路方向"
-            >
+            <div class="direction-switch metro-direction-switch" aria-label="鐵路方向">
               <button
-                v-for="direction in transitStore.railDirectionOptions"
-                :key="direction.direction"
+                v-for="heading in transitStore.railHeadingOptions"
+                :key="heading"
                 type="button"
-                :class="{ active: transitStore.selectedRailDirection === direction.direction }"
-                @click="chooseDirection(direction.direction)"
+                :class="{ active: transitStore.selectedRailHeading === heading }"
+                @click="chooseHeading(heading)"
               >
-                {{ directionLabel(direction) }}
+                {{ getRailHeadingLabel(heading) }}
               </button>
             </div>
 
@@ -352,11 +347,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 </div>
               </article>
               <div v-if="!transitStore.visibleRailArrivals.length && !transitStore.loading" class="inline-empty">
-                {{
-                  transitStore.error ??
-                  transitStore.resultMeta?.message ??
-                  '目前查無這個車站的列車資料。'
-                }}
+                {{ emptyRailMessage() }}
               </div>
             </div>
           </template>

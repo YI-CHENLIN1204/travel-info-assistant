@@ -16,6 +16,7 @@ import type {
   ApiMeta,
   MetroServiceStatus,
   MetroStation,
+  RailHeading,
   RailStation,
   TdxProviderStatus,
   TransitArrival,
@@ -160,7 +161,7 @@ export const useTransitStore = defineStore('transit', () => {
   const selectedStop = ref<TransitStop | null>(null)
   const selectedStation = ref<MetroStation | null>(null)
   const selectedRailStation = ref<RailStation | null>(null)
-  const selectedRailDirection = ref<number | null>(null)
+  const selectedRailHeading = ref<RailHeading | null>(null)
   const arrivals = ref<TransitArrival[]>([])
   const metroDirectionOptions = computed<TransitDirection[]>(() => {
     if (selectedMetroRoute.value?.directions.length) {
@@ -177,16 +178,12 @@ export const useTransitStore = defineStore('transit', () => {
       (arrival) => arrival.direction === selectedMetroDirection.value,
     )
   })
-  const railDirectionOptions = computed<TransitDirection[]>(() =>
-    buildFixedDirectionOptions(arrivals.value),
-  )
+  const railHeadingOptions: readonly RailHeading[] = ['north', 'south']
   const visibleRailArrivals = computed(() => {
-    if (selectedRailDirection.value === null) return arrivals.value
-    const directional = arrivals.value.filter((arrival) => arrival.direction !== null)
+    if (selectedRailHeading.value === null) return arrivals.value
+    const directional = arrivals.value.filter((arrival) => arrival.heading !== null)
     if (directional.length === 0) return arrivals.value
-    return arrivals.value.filter(
-      (arrival) => arrival.direction === selectedRailDirection.value,
-    )
+    return arrivals.value.filter((arrival) => arrival.heading === selectedRailHeading.value)
   })
   const resultMeta = ref<ApiMeta | null>(null)
   const providerStatus = ref<TdxProviderStatus | null>(null)
@@ -218,7 +215,7 @@ export const useTransitStore = defineStore('transit', () => {
     selectedStop.value = null
     selectedStation.value = null
     selectedRailStation.value = null
-    selectedRailDirection.value = null
+    selectedRailHeading.value = null
     arrivals.value = []
     resultMeta.value = null
     error.value = null
@@ -462,35 +459,31 @@ export const useTransitStore = defineStore('transit', () => {
       const response = await requestRailStations(cityId, railQuery.value.trim())
       railStations.value = response.data
       selectedRailStation.value = null
-      selectedRailDirection.value = null
+      selectedRailHeading.value = null
       arrivals.value = []
       resultMeta.value = response.meta
     })
   }
 
   async function chooseRailStation(cityId: string, station: RailStation): Promise<void> {
+    const stationChanged = selectedRailStation.value?.id !== station.id
     selectedRailStation.value = station
+    if (stationChanged) selectedRailHeading.value = null
     await run(async () => {
       const response = await getRailArrivals(cityId, station.id)
       arrivals.value = response.data
-      syncRailDirection()
+      syncRailHeading()
       resultMeta.value = response.meta
     })
   }
 
-  function chooseRailDirection(direction: number): void {
-    selectedRailDirection.value = direction
+  function chooseRailHeading(heading: RailHeading): void {
+    selectedRailHeading.value = heading
   }
 
-  function syncRailDirection(): void {
-    const options = railDirectionOptions.value
-    if (
-      selectedRailDirection.value !== null &&
-      options.some((item) => item.direction === selectedRailDirection.value)
-    ) {
-      return
-    }
-    selectedRailDirection.value = options[0]?.direction ?? null
+  function syncRailHeading(): void {
+    if (selectedRailHeading.value !== null) return
+    selectedRailHeading.value = arrivals.value.find((item) => item.heading)?.heading ?? 'north'
   }
 
   async function refreshRailArrivals(cityId: string): Promise<void> {
@@ -551,7 +544,7 @@ export const useTransitStore = defineStore('transit', () => {
     selectedMetroStatus,
     metroDirectionOptions,
     visibleMetroArrivals,
-    railDirectionOptions,
+    railHeadingOptions,
     visibleRailArrivals,
     selectedRoute,
     selectedDirection,
@@ -559,7 +552,7 @@ export const useTransitStore = defineStore('transit', () => {
     selectedStop,
     selectedStation,
     selectedRailStation,
-    selectedRailDirection,
+    selectedRailHeading,
     arrivals,
     resultMeta,
     providerStatus,
@@ -587,7 +580,7 @@ export const useTransitStore = defineStore('transit', () => {
     stopMetroArrivalRefresh,
     searchRailStations,
     chooseRailStation,
-    chooseRailDirection,
+    chooseRailHeading,
     refreshRailArrivals,
     startRailArrivalRefresh,
     stopRailArrivalRefresh,

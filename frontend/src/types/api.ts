@@ -113,6 +113,8 @@ export interface RailStationLinePosition {
   cumulativeDistance: number | null
 }
 
+export type RailHeading = 'north' | 'south'
+
 export interface TransitArrival {
   id: string
   mode: 'bus' | 'metro' | 'rail'
@@ -130,7 +132,7 @@ export interface TransitArrival {
   serviceStatus: string
   isLastService: boolean
   platform: string | null
-  heading: 'north' | 'south' | null
+  heading: RailHeading | null
 }
 
 export interface MetroServiceStatus {

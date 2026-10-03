@@ -339,7 +339,7 @@ describe('arrival direction controls', () => {
     ])
   })
 
-  it('filters Taiwan Rail arrivals by direction and destination', async () => {
+  it('keeps fixed Taiwan Rail heading controls and filters arrivals by heading', async () => {
     setActivePinia(createPinia())
     const store = useTransitStore()
     const station = { id: '1000', nameZh: '臺北' } as RailStation
@@ -363,15 +363,36 @@ describe('arrival direction controls', () => {
 
     await store.chooseRailStation('taipei-id', station)
 
-    expect(store.railDirectionOptions.map((item) => item.destinationName)).toEqual([
-      null,
-      null,
-    ])
-    expect(store.selectedRailDirection).toBe(0)
-    expect(store.visibleRailArrivals).toEqual([northbound])
-
-    store.chooseRailDirection(1)
+    expect(store.railHeadingOptions).toEqual(['north', 'south'])
+    expect(store.selectedRailHeading).toBe('south')
     expect(store.visibleRailArrivals).toEqual([southbound])
+
+    store.chooseRailHeading('north')
+    expect(store.visibleRailArrivals).toEqual([northbound])
+  })
+
+  it('keeps both Taiwan Rail headings when only one has upcoming trains', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const station = { id: '3470', nameZh: '斗六' } as RailStation
+    const northbound = {
+      id: 'rail-196',
+      direction: 0,
+      destinationName: '臺中',
+      heading: 'north',
+    } as TransitArrival
+    vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
+      data: [northbound],
+      meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.chooseRailStation('taipei-id', station)
+
+    expect(store.railHeadingOptions).toEqual(['north', 'south'])
+    expect(store.selectedRailHeading).toBe('north')
+    store.chooseRailHeading('south')
+    expect(store.visibleRailArrivals).toEqual([])
   })
 
   it('refreshes selected bus and rail arrivals on their intervals', async () => {

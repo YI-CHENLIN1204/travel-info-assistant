@@ -1,6 +1,4 @@
-import type { RailStation, ServiceCapability, TransitDirection } from '@/types/api'
-
-export type RailHeading = 'north' | 'south'
+import type { RailHeading, RailStation, ServiceCapability } from '@/types/api'
 
 export interface RailLocality {
   name: string
@@ -68,36 +66,8 @@ export function getRailRegions(countryCode: string): readonly RailRegion[] {
   return countryCode.toUpperCase() === 'TW' ? taiwanRailRegions : []
 }
 
-export function getRailDirectionLabel(
-  countryCode: string,
-  direction: TransitDirection,
-  arrivals: readonly { direction: number | null; destinationName: string | null; heading: RailHeading | null }[] = [],
-): string {
-  if (countryCode.toUpperCase() === 'TW') {
-    const heading = getRailDirectionHeading(arrivals, direction.direction)
-    if (heading === 'north') return '往北'
-    if (heading === 'south') return '往南'
-
-    const destinations = uniqueDirectionDestinations(arrivals, direction.direction)
-    if (destinations.length) return `往 ${destinations.join('／')}`
-  }
-
-  const destination = direction.destinationName ?? direction.headsign
-  return destination ? `往 ${destination}` : `方向 ${direction.direction + 1}`
-}
-
-export function getRailDirectionHeading(
-  arrivals: readonly { direction: number | null; heading: RailHeading | null }[],
-  direction: number | null,
-): RailHeading | null {
-  if (direction === null) return null
-
-  const headings = new Set(
-    arrivals
-      .filter((arrival) => arrival.direction === direction && arrival.heading)
-      .map((arrival) => arrival.heading as RailHeading),
-  )
-  return headings.size === 1 ? [...headings][0]! : null
+export function getRailHeadingLabel(heading: RailHeading): string {
+  return heading === 'north' ? '往北' : '往南'
 }
 
 export function orderRailStations(
@@ -158,20 +128,6 @@ function compareLinePositions(
 ): number {
   const lineOrder = left.lineId.localeCompare(right.lineId)
   return lineOrder || left.sequence - right.sequence
-}
-
-function uniqueDirectionDestinations(
-  arrivals: readonly { direction: number | null; destinationName: string | null }[],
-  direction: number,
-): string[] {
-  return [
-    ...new Set(
-      arrivals
-        .filter((arrival) => arrival.direction === direction)
-        .map((arrival) => arrival.destinationName?.trim())
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ]
 }
 
 function toLocality(name: string): RailLocality {

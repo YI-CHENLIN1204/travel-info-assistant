@@ -360,10 +360,11 @@ public sealed class TdxTransitProvider(
 
         if (liveBoard.Data.StationLiveBoards.Count == 0)
         {
-            if (scheduled.Count > 0)
+            var nextScheduled = SelectNextRailArrivals(scheduled, [], now);
+            if (nextScheduled.Count > 0)
             {
                 return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
-                    scheduled,
+                    nextScheduled,
                     timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
                     timetable.SourceUpdatedAt,
                     timetable.FetchedAt,
@@ -379,7 +380,7 @@ public sealed class TdxTransitProvider(
                 timeProvider);
         }
 
-        var arrivals = liveBoard.Data.StationLiveBoards
+        var liveArrivals = liveBoard.Data.StationLiveBoards
             .Select((item, index) => MapRailLiveArrival(
                 item,
                 stationId,
@@ -390,9 +391,8 @@ public sealed class TdxTransitProvider(
                 index))
             .Where(item => item is not null)
             .Cast<TransitArrivalResponse>()
-            .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
-            .Take(12)
             .ToList();
+        var arrivals = SelectNextRailArrivals(scheduled, liveArrivals, now);
 
         return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
             arrivals,
@@ -1148,8 +1148,7 @@ public sealed class TdxTransitProvider(
                 var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
                     entry.ArrivalTime ?? entry.DepartureTime,
                     now);
-                if (scheduledAt is null || scheduledAt < now.AddMinutes(-2) ||
-                    scheduledAt > now.AddHours(4))
+                if (scheduledAt is null || scheduledAt < now.AddMinutes(-2))
                 {
                     continue;
                 }
@@ -1179,10 +1178,7 @@ public sealed class TdxTransitProvider(
             }
         }
 
-        return arrivals
-            .OrderBy(item => item.ScheduledAt)
-            .Take(12)
-            .ToList();
+        return arrivals;
     }
 
     private static TransitArrivalResponse? MapRailLiveArrival(
@@ -1246,6 +1242,37 @@ public sealed class TdxTransitProvider(
             GetRailHeading(stationId, item.EndingStationID, stationsById)
                 ?? matchingSchedule?.Heading);
     }
+
+    private static IReadOnlyList<TransitArrivalResponse> SelectNextRailArrivals(
+        IReadOnlyList<TransitArrivalResponse> scheduled,
+        IReadOnlyList<TransitArrivalResponse> live,
+        DateTimeOffset now)
+    {
+        var liveKeys = live
+            .Select(GetRailArrivalKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return live
+            .Concat(scheduled.Where(item => !liveKeys.Contains(GetRailArrivalKey(item))))
+            .Where(item => (item.EstimatedAt ?? item.ScheduledAt) >= now.AddMinutes(-2))
+            .GroupBy(GetRailArrivalKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .GroupBy(GetRailArrivalDirectionKey, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(group => group
+                .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
+                .Take(10))
+            .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
+            .ToList();
+    }
+
+    private static string GetRailArrivalKey(TransitArrivalResponse arrival) =>
+        string.IsNullOrWhiteSpace(arrival.RouteName)
+            ? arrival.Id
+            : $"{arrival.Direction?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}:{arrival.RouteName}";
+
+    private static string GetRailArrivalDirectionKey(TransitArrivalResponse arrival) =>
+        !string.IsNullOrWhiteSpace(arrival.Heading)
+            ? arrival.Heading
+            : $"direction:{arrival.Direction?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}";
 
     private static string? GetRailHeading(
         string stationId,

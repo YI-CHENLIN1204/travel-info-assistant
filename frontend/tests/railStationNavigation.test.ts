@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   findIntegratedRailService,
-  getRailDirectionLabel,
-  getRailDirectionHeading,
+  getRailHeadingLabel,
   getRailNavigationLabel,
   getRailRegions,
   orderRailStations,
 } from '@/services/railStationNavigation'
-import type { RailStation, ServiceCapability, TransitDirection } from '@/types/api'
+import type { RailStation, ServiceCapability } from '@/types/api'
 
 describe('rail navigation', () => {
   it('shows only an integrated rail capability', () => {
@@ -56,33 +55,9 @@ describe('rail navigation', () => {
     expect(getRailRegions('JP')).toEqual([])
   })
 
-  it('uses arrival headings instead of provider direction numbers for Taiwan labels', () => {
-    const directionZero = { direction: 0 } as TransitDirection
-    const directionOne = { direction: 1 } as TransitDirection
-    const arrivals = [
-      { direction: 0, destinationName: '基隆', heading: 'north' as const },
-      { direction: 1, destinationName: '潮州', heading: 'south' as const },
-    ]
-
-    expect(getRailDirectionLabel('TW', directionZero, arrivals)).toBe('往北')
-    expect(getRailDirectionLabel('TW', directionOne, arrivals)).toBe('往南')
-    expect(getRailDirectionHeading(arrivals, 0)).toBe('north')
-    expect(getRailDirectionHeading(arrivals, 1)).toBe('south')
-    expect(
-      getRailDirectionLabel('JP', {
-        direction: 0,
-        destinationName: '東京',
-      } as TransitDirection),
-    ).toBe('往 東京')
-  })
-
-  it('falls back to actual destinations when a cardinal heading is unavailable', () => {
-    expect(
-      getRailDirectionLabel('TW', { direction: 1 } as TransitDirection, [
-        { direction: 1, destinationName: '潮州', heading: null },
-        { direction: 1, destinationName: '屏東', heading: null },
-      ]),
-    ).toBe('往 潮州／屏東')
+  it('labels the two fixed Taiwan Rail headings', () => {
+    expect(getRailHeadingLabel('north')).toBe('往北')
+    expect(getRailHeadingLabel('south')).toBe('往南')
   })
 
   it('orders Taiwan Rail stations by official line sequence for each direction', () => {

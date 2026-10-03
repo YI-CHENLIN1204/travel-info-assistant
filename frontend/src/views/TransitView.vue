@@ -240,7 +240,7 @@ async function activateMode(mode: TransitModeKey): Promise<void> {
   transitStore.selectedStation = null
   transitStore.selectedMetroDirection = null
   transitStore.selectedRailStation = null
-  transitStore.selectedRailDirection = null
+  transitStore.selectedRailHeading = null
   await loadModeIndex(mode)
 }
 
