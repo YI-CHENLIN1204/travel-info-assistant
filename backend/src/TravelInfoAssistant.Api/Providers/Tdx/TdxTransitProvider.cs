@@ -253,6 +253,20 @@ public sealed class TdxTransitProvider(
                         : "目前沒有即時列車資料，顯示表定時刻。");
             }
 
+            var lastDepartureAt = GetEndedMetroServiceDayLastDeparture(timetable.Data, now);
+            if (lastDepartureAt.HasValue)
+            {
+                return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+                    [],
+                    timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
+                    timetable.SourceUpdatedAt,
+                    timetable.FetchedAt,
+                    timetable.Stale,
+                    null,
+                    ServiceDayStatus: "ended",
+                    LastDepartureAt: lastDepartureAt);
+            }
+
             return ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>.Unavailable(
                 Array.Empty<TransitArrivalResponse>(),
                 liveBoard.Message ?? timetable.Message ?? "目前查無可顯示的捷運班次。",
@@ -265,6 +279,9 @@ public sealed class TdxTransitProvider(
             .Cast<TransitArrivalResponse>()
             .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
             .ToList();
+        var endedAt = arrivals.Count == 0
+            ? GetEndedMetroServiceDayLastDeparture(timetable.Data, now)
+            : null;
 
         return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
             arrivals,
@@ -272,7 +289,9 @@ public sealed class TdxTransitProvider(
             liveBoard.SourceUpdatedAt,
             liveBoard.FetchedAt,
             liveBoard.Stale,
-            liveBoard.Message ?? timetable.Message);
+            liveBoard.Message ?? timetable.Message,
+            ServiceDayStatus: endedAt.HasValue ? "ended" : null,
+            LastDepartureAt: endedAt);
     }
 
     public Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> GetRailStationsAsync(
@@ -1349,8 +1368,8 @@ public sealed class TdxTransitProvider(
         {
             foreach (var entry in timetable.Timetables)
             {
-                var scheduledAt = TdxTimeParser.ParseNextOccurrence(
-                    entry.ArrivalTime ?? entry.DepartureTime,
+                var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
+                    entry.DepartureTime ?? entry.ArrivalTime,
                     now);
                 if (scheduledAt is null || scheduledAt < now.AddMinutes(-2) ||
                     scheduledAt > now.AddHours(3))
@@ -1381,6 +1400,25 @@ public sealed class TdxTransitProvider(
             .OrderBy(item => item.ScheduledAt)
             .Take(12)
             .ToList();
+    }
+
+    private static DateTimeOffset? GetEndedMetroServiceDayLastDeparture(
+        IReadOnlyList<TdxMetroStationTimetable> timetables,
+        DateTimeOffset now)
+    {
+        var lastDepartureAt = timetables
+            .Where(item => TdxTimeParser.IsServiceDay(item.ServiceDay, now))
+            .SelectMany(item => item.Timetables)
+            .Select(item => TdxTimeParser.ParseOccurrenceOnReferenceDate(
+                item.DepartureTime ?? item.ArrivalTime,
+                now))
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .DefaultIfEmpty()
+            .Max();
+        return lastDepartureAt != default && lastDepartureAt < now
+            ? lastDepartureAt
+            : null;
     }
 
     private static TransitArrivalResponse? MapMetroLiveArrival(

@@ -294,6 +294,70 @@ public sealed class TdxTransitProviderTests
     }
 
     [Fact]
+    public async Task GetMetroArrivalsAsync_ReportsScheduledLastDepartureAfterServiceEnds()
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T15:00:00Z");
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v2/Rail/Metro/StationTimeTable/TRTC"] = new[]
+                {
+                    new TdxMetroStationTimetable
+                    {
+                        StationID = "BL12",
+                        StationName = Name("臺北車站"),
+                        LineID = "BL",
+                        Direction = 0,
+                        Timetables =
+                        [
+                            new TdxMetroTimetableEntry
+                            {
+                                Sequence = 1,
+                                ArrivalTime = "22:10",
+                                DepartureTime = "22:12"
+                            },
+                            new TdxMetroTimetableEntry
+                            {
+                                Sequence = 2,
+                                ArrivalTime = "22:40",
+                                DepartureTime = "22:43"
+                            }
+                        ]
+                    }
+                },
+                ["v2/Rail/Metro/LiveBoard/TRTC"] = Array.Empty<TdxMetroLiveBoard>()
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetMetroArrivalsAsync("BL12", CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T14:43:00Z"), result.LastDepartureAt);
+        Assert.Null(result.Message);
+    }
+
+    [Fact]
+    public async Task GetMetroArrivalsAsync_DoesNotReportServiceEndedWithoutATimetable()
+    {
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v2/Rail/Metro/StationTimeTable/TRTC"] =
+                    Array.Empty<TdxMetroStationTimetable>(),
+                ["v2/Rail/Metro/LiveBoard/TRTC"] = Array.Empty<TdxMetroLiveBoard>()
+            },
+            new FixedTimeProvider(DateTimeOffset.Parse("2026-09-23T15:00:00Z")));
+
+        var result = await provider.GetMetroArrivalsAsync("BL12", CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Null(result.ServiceDayStatus);
+        Assert.Null(result.LastDepartureAt);
+        Assert.Equal("unavailable", result.DataStatus);
+    }
+
+    [Fact]
     public async Task GetRailStationsAsync_MapsAndOrdersStationsByOfficialLineSequence()
     {
         var provider = CreateProviderWithResponses(new Dictionary<string, object>

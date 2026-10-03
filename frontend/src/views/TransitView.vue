@@ -11,7 +11,11 @@ import {
   TrainFront,
 } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
+import {
+  getArrivalDisplay,
+  getTransitEmptyMessage,
+  type ArrivalDisplayResult,
+} from '@/services/arrivalDisplay'
 import { getBusDirectionLabel } from '@/services/transitDirection'
 import {
   getTaiwanTraditionalConverter,
@@ -369,6 +373,14 @@ function arrivalTimingCaption(arrival: TransitArrival): string {
   }
 
   return labels.join(' · ')
+}
+
+function metroEmptyMessage(fallback: string): string {
+  return transitStore.error ?? getTransitEmptyMessage(
+    transitStore.resultMeta,
+    cityStore.currentCity.timeZone,
+    fallback,
+  )
 }
 
 function directionLabel(route: TransitRoute, direction: number): string {
@@ -793,10 +805,11 @@ function formatTimestamp(value: string | null | undefined): string {
                   </div>
                 </article>
                 <div v-if="!transitStore.visibleMetroArrivals.length && !transitStore.loading" class="inline-empty">
-                  {{
-                    transitStore.resultMeta?.message ??
-                    (usesRealtimeMetro ? '目前查無接下來的即時到站班次。' : '目前查無接下來的表定班次。')
-                  }}
+                  {{ metroEmptyMessage(
+                    usesRealtimeMetro
+                      ? '目前查無接下來的即時到站班次。'
+                      : '目前查無接下來的表定班次。',
+                  ) }}
                 </div>
               </div>
             </div>
@@ -904,7 +917,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   </div>
                 </article>
                 <div v-if="!transitStore.visibleMetroArrivals.length && !transitStore.loading" class="inline-empty">
-                  {{ transitStore.resultMeta?.message ?? '目前查無這個車站的列車資料。' }}
+                  {{ metroEmptyMessage('目前查無這個車站的列車資料。') }}
                 </div>
               </div>
             </template>
