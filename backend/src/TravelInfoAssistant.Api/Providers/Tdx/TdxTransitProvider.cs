@@ -337,14 +337,26 @@ public sealed class TdxTransitProvider(
         string stationId,
         CancellationToken cancellationToken)
     {
-        var timetable = await GetRailTimetableAsync(stationId, cancellationToken);
-        var liveBoard = await GetRailLiveBoardAsync(stationId, cancellationToken);
+        var stationsTask = GetRailStationsAsync(cancellationToken);
+        var timetableTask = GetRailTimetableAsync(stationId, cancellationToken);
+        var liveBoardTask = GetRailLiveBoardAsync(stationId, cancellationToken);
+        await Task.WhenAll(stationsTask, timetableTask, liveBoardTask);
+        var stations = await stationsTask;
+        var timetable = await timetableTask;
+        var liveBoard = await liveBoardTask;
+        var stationsById = stations.Data
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First(),
+                StringComparer.OrdinalIgnoreCase);
         var now = timeProvider.GetUtcNow();
         var scheduled = BuildScheduledRailArrivals(
             stationId,
             timetable.Data.StationTimetables,
             timetable.SourceUpdatedAt,
-            now);
+            now,
+            stationsById);
 
         if (liveBoard.Data.StationLiveBoards.Count == 0)
         {
@@ -372,6 +384,7 @@ public sealed class TdxTransitProvider(
                 item,
                 stationId,
                 scheduled,
+                stationsById,
                 liveBoard.SourceUpdatedAt,
                 now,
                 index))
@@ -1124,7 +1137,8 @@ public sealed class TdxTransitProvider(
         string stationId,
         IReadOnlyList<TdxTraStationTimetable> timetables,
         DateTimeOffset? sourceUpdatedAt,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        IReadOnlyDictionary<string, RailStationResponse> stationsById)
     {
         var arrivals = new List<TransitArrivalResponse>();
         foreach (var timetable in timetables)
@@ -1157,7 +1171,11 @@ public sealed class TdxTransitProvider(
                     null,
                     sourceUpdatedAt,
                     "表定班次",
-                    false));
+                    false,
+                    Heading: GetRailHeading(
+                        responseStationId,
+                        entry.DestinationStationID,
+                        stationsById)));
             }
         }
 
@@ -1171,6 +1189,7 @@ public sealed class TdxTransitProvider(
         TdxTraStationLiveBoard item,
         string requestedStationId,
         IReadOnlyList<TransitArrivalResponse> scheduled,
+        IReadOnlyDictionary<string, RailStationResponse> stationsById,
         DateTimeOffset? feedUpdatedAt,
         DateTimeOffset now,
         int index)
@@ -1223,7 +1242,33 @@ public sealed class TdxTransitProvider(
             sourceUpdatedAt,
             GetRailServiceStatus(item.RunningStatus, item.DelayTime),
             false,
-            item.Platform is "00" ? null : item.Platform);
+            item.Platform is "00" ? null : item.Platform,
+            GetRailHeading(stationId, item.EndingStationID, stationsById)
+                ?? matchingSchedule?.Heading);
+    }
+
+    private static string? GetRailHeading(
+        string stationId,
+        string? destinationStationId,
+        IReadOnlyDictionary<string, RailStationResponse> stationsById)
+    {
+        if (string.IsNullOrWhiteSpace(destinationStationId) ||
+            !stationsById.TryGetValue(stationId, out var station) ||
+            !stationsById.TryGetValue(destinationStationId, out var destination) ||
+            station.Latitude is null ||
+            destination.Latitude is null)
+        {
+            return null;
+        }
+
+        const double latitudeTolerance = 0.0001;
+        var latitudeDifference = destination.Latitude.Value - station.Latitude.Value;
+        if (Math.Abs(latitudeDifference) < latitudeTolerance)
+        {
+            return null;
+        }
+
+        return latitudeDifference > 0 ? "north" : "south";
     }
 
     private static IReadOnlyList<TransitArrivalResponse> BuildScheduledMetroArrivals(

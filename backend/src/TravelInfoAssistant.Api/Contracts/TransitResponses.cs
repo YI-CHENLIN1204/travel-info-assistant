@@ -72,7 +72,8 @@ public sealed record TransitArrivalResponse(
     DateTimeOffset? SourceUpdatedAt,
     string ServiceStatus,
     bool IsLastService,
-    string? Platform = null);
+    string? Platform = null,
+    string? Heading = null);
 
 public sealed record MetroServiceStatusResponse(
     string Id,

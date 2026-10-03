@@ -130,6 +130,7 @@ export interface TransitArrival {
   serviceStatus: string
   isLastService: boolean
   platform: string | null
+  heading: 'north' | 'south' | null
 }
 
 export interface MetroServiceStatus {

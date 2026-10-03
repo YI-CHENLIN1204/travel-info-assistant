@@ -1,5 +1,7 @@
 import type { RailStation, ServiceCapability, TransitDirection } from '@/types/api'
 
+export type RailHeading = 'north' | 'south'
+
 export interface RailLocality {
   name: string
   query: string
@@ -69,21 +71,40 @@ export function getRailRegions(countryCode: string): readonly RailRegion[] {
 export function getRailDirectionLabel(
   countryCode: string,
   direction: TransitDirection,
+  arrivals: readonly { direction: number | null; destinationName: string | null; heading: RailHeading | null }[] = [],
 ): string {
   if (countryCode.toUpperCase() === 'TW') {
-    if (direction.direction === 0) return '往南'
-    if (direction.direction === 1) return '往北'
+    const heading = getRailDirectionHeading(arrivals, direction.direction)
+    if (heading === 'north') return '往北'
+    if (heading === 'south') return '往南'
+
+    const destinations = uniqueDirectionDestinations(arrivals, direction.direction)
+    if (destinations.length) return `往 ${destinations.join('／')}`
   }
 
   const destination = direction.destinationName ?? direction.headsign
   return destination ? `往 ${destination}` : `方向 ${direction.direction + 1}`
 }
 
+export function getRailDirectionHeading(
+  arrivals: readonly { direction: number | null; heading: RailHeading | null }[],
+  direction: number | null,
+): RailHeading | null {
+  if (direction === null) return null
+
+  const headings = new Set(
+    arrivals
+      .filter((arrival) => arrival.direction === direction && arrival.heading)
+      .map((arrival) => arrival.heading as RailHeading),
+  )
+  return headings.size === 1 ? [...headings][0]! : null
+}
+
 export function orderRailStations(
   stations: readonly RailStation[],
-  direction: number | null,
+  heading: RailHeading | null,
 ): RailStation[] {
-  const ordered = stations
+  const entries = stations
     .map((station, originalIndex) => ({
       station,
       originalIndex,
@@ -100,9 +121,35 @@ export function orderRailStations(
       const sequenceOrder = left.position.sequence - right.position.sequence
       return sequenceOrder || left.originalIndex - right.originalIndex
     })
-    .map(({ station }) => station)
 
-  return direction === 1 ? ordered.reverse() : ordered
+  if (!heading) return entries.map(({ station }) => station)
+
+  const result: RailStation[] = []
+  for (let start = 0; start < entries.length; ) {
+    const lineId = entries[start]!.position?.lineId ?? null
+    let end = start + 1
+    while (end < entries.length && (entries[end]!.position?.lineId ?? null) === lineId) end += 1
+
+    const group = entries.slice(start, end)
+    const positioned = group.filter(({ station }) => station.latitude !== null)
+    const firstLatitude = positioned[0]?.station.latitude
+    const lastLatitude = positioned[positioned.length - 1]?.station.latitude
+    const sequenceMovesNorth =
+      firstLatitude !== null &&
+      firstLatitude !== undefined &&
+      lastLatitude !== null &&
+      lastLatitude !== undefined &&
+      lastLatitude > firstLatitude
+    const shouldReverse =
+      lineId !== null &&
+      firstLatitude !== lastLatitude &&
+      ((heading === 'north' && !sequenceMovesNorth) ||
+        (heading === 'south' && sequenceMovesNorth))
+
+    result.push(...(shouldReverse ? group.reverse() : group).map(({ station }) => station))
+    start = end
+  }
+  return result
 }
 
 function compareLinePositions(
@@ -111,6 +158,20 @@ function compareLinePositions(
 ): number {
   const lineOrder = left.lineId.localeCompare(right.lineId)
   return lineOrder || left.sequence - right.sequence
+}
+
+function uniqueDirectionDestinations(
+  arrivals: readonly { direction: number | null; destinationName: string | null }[],
+  direction: number,
+): string[] {
+  return [
+    ...new Set(
+      arrivals
+        .filter((arrival) => arrival.direction === direction)
+        .map((arrival) => arrival.destinationName?.trim())
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ]
 }
 
 function toLocality(name: string): RailLocality {

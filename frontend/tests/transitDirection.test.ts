@@ -343,15 +343,17 @@ describe('arrival direction controls', () => {
     setActivePinia(createPinia())
     const store = useTransitStore()
     const station = { id: '1000', nameZh: '臺北' } as RailStation
-    const southbound = {
+    const northbound = {
       id: 'rail-0',
       direction: 0,
-      destinationName: '高雄',
+      destinationName: '花蓮',
+      heading: 'north',
     } as TransitArrival
-    const northbound = {
+    const southbound = {
       id: 'rail-1',
       direction: 1,
-      destinationName: '花蓮',
+      destinationName: '高雄',
+      heading: 'south',
     } as TransitArrival
     vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
       data: [southbound, northbound],
@@ -366,10 +368,10 @@ describe('arrival direction controls', () => {
       null,
     ])
     expect(store.selectedRailDirection).toBe(0)
-    expect(store.visibleRailArrivals).toEqual([southbound])
+    expect(store.visibleRailArrivals).toEqual([northbound])
 
     store.chooseRailDirection(1)
-    expect(store.visibleRailArrivals).toEqual([northbound])
+    expect(store.visibleRailArrivals).toEqual([southbound])
   })
 
   it('refreshes selected bus and rail arrivals on their intervals', async () => {

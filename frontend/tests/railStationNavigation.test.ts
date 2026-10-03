@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   findIntegratedRailService,
   getRailDirectionLabel,
+  getRailDirectionHeading,
   getRailNavigationLabel,
   getRailRegions,
   orderRailStations,
@@ -55,18 +56,33 @@ describe('rail navigation', () => {
     expect(getRailRegions('JP')).toEqual([])
   })
 
-  it('uses Taiwan northbound and southbound direction labels', () => {
-    const southbound = { direction: 0 } as TransitDirection
-    const northbound = { direction: 1 } as TransitDirection
+  it('uses arrival headings instead of provider direction numbers for Taiwan labels', () => {
+    const directionZero = { direction: 0 } as TransitDirection
+    const directionOne = { direction: 1 } as TransitDirection
+    const arrivals = [
+      { direction: 0, destinationName: '基隆', heading: 'north' as const },
+      { direction: 1, destinationName: '潮州', heading: 'south' as const },
+    ]
 
-    expect(getRailDirectionLabel('TW', southbound)).toBe('往南')
-    expect(getRailDirectionLabel('TW', northbound)).toBe('往北')
+    expect(getRailDirectionLabel('TW', directionZero, arrivals)).toBe('往北')
+    expect(getRailDirectionLabel('TW', directionOne, arrivals)).toBe('往南')
+    expect(getRailDirectionHeading(arrivals, 0)).toBe('north')
+    expect(getRailDirectionHeading(arrivals, 1)).toBe('south')
     expect(
       getRailDirectionLabel('JP', {
         direction: 0,
         destinationName: '東京',
       } as TransitDirection),
     ).toBe('往 東京')
+  })
+
+  it('falls back to actual destinations when a cardinal heading is unavailable', () => {
+    expect(
+      getRailDirectionLabel('TW', { direction: 1 } as TransitDirection, [
+        { direction: 1, destinationName: '潮州', heading: null },
+        { direction: 1, destinationName: '屏東', heading: null },
+      ]),
+    ).toBe('往 潮州／屏東')
   })
 
   it('orders Taiwan Rail stations by official line sequence for each direction', () => {
@@ -77,13 +93,13 @@ describe('rail navigation', () => {
       railStation('3460', '石榴', 46),
     ]
 
-    expect(orderRailStations(stations, 0).map((station) => station.id)).toEqual([
+    expect(orderRailStations(stations, 'south').map((station) => station.id)).toEqual([
       '3450',
       '3460',
       '3470',
       '3480',
     ])
-    expect(orderRailStations(stations, 1).map((station) => station.id)).toEqual([
+    expect(orderRailStations(stations, 'north').map((station) => station.id)).toEqual([
       '3480',
       '3470',
       '3460',
@@ -94,7 +110,8 @@ describe('rail navigation', () => {
   it('keeps provider order for stations without official line positions', () => {
     const stations = [railStation('A', '甲', null), railStation('B', '乙', null)]
 
-    expect(orderRailStations(stations, 0)).toEqual(stations)
+    expect(orderRailStations(stations, null)).toEqual(stations)
+    expect(orderRailStations(stations, 'north')).toEqual(stations)
   })
 })
 
@@ -104,7 +121,7 @@ function railStation(id: string, nameZh: string, sequence: number | null): RailS
     nameZh,
     nameEn: null,
     address: null,
-    latitude: null,
+    latitude: sequence === null ? null : 24 - sequence / 100,
     longitude: null,
     linePositions:
       sequence === null

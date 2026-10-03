@@ -371,6 +371,39 @@ public sealed class TdxTransitProviderTests
         var provider = CreateProviderWithResponses(
             new Dictionary<string, object>
             {
+                ["v3/Rail/TRA/Station"] = new TdxTraStationResponse
+                {
+                    Stations =
+                    [
+                        new TdxTraStation
+                        {
+                            StationID = "1000",
+                            StationName = Name("臺北"),
+                            StationPosition = new TdxPosition { PositionLat = 25.0478 }
+                        },
+                        new TdxTraStation
+                        {
+                            StationID = "4400",
+                            StationName = Name("高雄"),
+                            StationPosition = new TdxPosition { PositionLat = 22.6398 }
+                        }
+                    ]
+                },
+                ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse
+                {
+                    StationOfLines =
+                    [
+                        new TdxTraStationOfLine
+                        {
+                            LineID = "WL",
+                            Stations =
+                            [
+                                new TdxTraLineStation { StationID = "1000", Sequence = 1 },
+                                new TdxTraLineStation { StationID = "4400", Sequence = 2 }
+                            ]
+                        }
+                    ]
+                },
                 ["v3/Rail/TRA/DailyStationTimetable/Today/Station/1000"] =
                     new TdxTraDailyStationTimetableResponse
                     {
@@ -381,7 +414,7 @@ public sealed class TdxTransitProviderTests
                             {
                                 StationID = "1000",
                                 StationName = Name("臺北"),
-                                Direction = 0,
+                                Direction = 1,
                                 TimeTables =
                                 [
                                     new TdxTraTimetableEntry
@@ -390,6 +423,7 @@ public sealed class TdxTransitProviderTests
                                         TrainNo = "123",
                                         TrainTypeID = "1100",
                                         TrainTypeName = Name("自強"),
+                                        DestinationStationID = "4400",
                                         DestinationStationName = Name("高雄"),
                                         ArrivalTime = "10:10"
                                     }
@@ -408,9 +442,10 @@ public sealed class TdxTransitProviderTests
                                 StationID = "1000",
                                 StationName = Name("臺北"),
                                 TrainNo = "123",
-                                Direction = 0,
+                                Direction = 1,
                                 TrainTypeID = "1100",
                                 TrainTypeName = Name("自強"),
+                                EndingStationID = "4400",
                                 EndingStationName = Name("高雄"),
                                 Platform = "2B",
                                 ScheduleArrivalTime = "10:10",
@@ -430,6 +465,8 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("123", arrival.RouteName);
         Assert.Equal("自強", arrival.LineName);
         Assert.Equal("高雄", arrival.DestinationName);
+        Assert.Equal(1, arrival.Direction);
+        Assert.Equal("south", arrival.Heading);
         Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:10:00Z"), arrival.ScheduledAt);
         Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:15:00Z"), arrival.EstimatedAt);
         Assert.Equal("誤點 5 分", arrival.ServiceStatus);

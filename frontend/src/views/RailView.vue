@@ -6,6 +6,7 @@ import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrival
 import {
   findIntegratedRailService,
   getRailDirectionLabel,
+  getRailDirectionHeading,
   getRailNavigationLabel,
   getRailRegions,
   orderRailStations,
@@ -30,8 +31,11 @@ const selectedRegion = computed(
 const pageLabel = computed(() =>
   getRailNavigationLabel(cityStore.currentCity.countryCode, railService.value?.displayName),
 )
+const selectedRailHeading = computed(() =>
+  getRailDirectionHeading(transitStore.arrivals, transitStore.selectedRailDirection),
+)
 const orderedRailStations = computed(() =>
-  orderRailStations(transitStore.railStations, transitStore.selectedRailDirection),
+  orderRailStations(transitStore.railStations, selectedRailHeading.value),
 )
 const isTaiwanRail = computed(() => cityStore.currentCity.countryCode === 'TW')
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
@@ -175,7 +179,11 @@ function arrivalTimingCaption(arrival: TransitArrival): string {
 }
 
 function directionLabel(direction: TransitDirection): string {
-  return getRailDirectionLabel(cityStore.currentCity.countryCode, direction)
+  return getRailDirectionLabel(
+    cityStore.currentCity.countryCode,
+    direction,
+    transitStore.arrivals,
+  )
 }
 
 function formatTimestamp(value: string | null | undefined): string {
