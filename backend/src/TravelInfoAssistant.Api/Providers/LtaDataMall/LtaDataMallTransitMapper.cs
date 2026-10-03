@@ -208,6 +208,75 @@ public static class LtaDataMallTransitMapper
             .ToList();
     }
 
+    public static DateTimeOffset? GetEndedServiceDayLastDeparture(
+        string routeId,
+        string stationStopId,
+        LtaGtfsNetwork network,
+        DateTimeOffset now)
+    {
+        var stops = StopLookup(network);
+        var group = FindRouteGroup(routeId, network);
+        if (group is null || !stops.ContainsKey(stationStopId))
+        {
+            return null;
+        }
+
+        var canonicalStationId = CanonicalStopId(stationStopId, stops);
+        var sourceRouteIds = SourceRouteIds(group);
+        var trips = network.Trips
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                item => item.Key,
+                item => item.First(),
+                StringComparer.OrdinalIgnoreCase);
+        var localNow = TimeZoneInfo.ConvertTime(now, SingaporeTimeZone);
+        var currentServiceDate = DateOnly.FromDateTime(localNow.DateTime);
+        var serviceDates = new[]
+        {
+            currentServiceDate.AddDays(-1),
+            currentServiceDate
+        };
+        var scheduledDepartures = new List<DateTimeOffset>();
+
+        foreach (var stopTime in network.StopTimes ?? [])
+        {
+            if (!trips.TryGetValue(stopTime.TripId, out var trip) ||
+                !sourceRouteIds.Contains(trip.RouteId) ||
+                !CanonicalStopId(stopTime.StopId, stops)
+                    .Equals(canonicalStationId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var serviceDate in serviceDates)
+            {
+                if (!IsServiceActive(trip.ServiceId, serviceDate, network) ||
+                    !TryParseGtfsTime(
+                        serviceDate,
+                        stopTime.DepartureTime ?? stopTime.ArrivalTime,
+                        out var scheduledAt))
+                {
+                    continue;
+                }
+
+                var localScheduledAt = TimeZoneInfo.ConvertTime(scheduledAt, SingaporeTimeZone);
+                if (DateOnly.FromDateTime(localScheduledAt.DateTime) < currentServiceDate)
+                {
+                    continue;
+                }
+
+                scheduledDepartures.Add(scheduledAt);
+            }
+        }
+
+        if (scheduledDepartures.Count == 0 || scheduledDepartures.Any(item => item >= now))
+        {
+            return null;
+        }
+
+        return scheduledDepartures.Max();
+    }
+
     public static MetroServiceStatusResponse? MapStatus(
         string routeId,
         LtaRealtimeFeed feed,

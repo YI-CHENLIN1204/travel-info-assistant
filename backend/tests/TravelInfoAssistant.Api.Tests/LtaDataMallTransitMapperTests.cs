@@ -117,6 +117,87 @@ public sealed class LtaDataMallTransitMapperTests
     }
 
     [Fact]
+    public void FindsScheduledLastDepartureAfterTheServiceDayEnds()
+    {
+        var now = DateTimeOffset.Parse("2026-10-01T15:00:00Z");
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "weekday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "22:40:00", "22:43:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "weekday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Thursday])],
+            CalendarDates = []
+        };
+
+        var lastDepartureAt = LtaDataMallTransitMapper.GetEndedServiceDayLastDeparture(
+            "NS",
+            "NS22",
+            network,
+            now);
+
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T14:43:00Z"), lastDepartureAt);
+    }
+
+    [Fact]
+    public void DoesNotEndServiceForDeparturesOutsideTheFourHourArrivalWindow()
+    {
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "weekday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "18:30:00", "18:30:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "weekday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Thursday])],
+            CalendarDates = []
+        };
+
+        var arrivals = LtaDataMallTransitMapper.MapArrivals(
+            "NS",
+            "NS22",
+            new LtaRealtimeFeed(Now, [], []),
+            network,
+            Now);
+        var lastDepartureAt = LtaDataMallTransitMapper.GetEndedServiceDayLastDeparture(
+            "NS",
+            "NS22",
+            network,
+            Now);
+
+        Assert.Empty(arrivals);
+        Assert.Null(lastDepartureAt);
+    }
+
+    [Fact]
+    public void KeepsPreviousServiceDayDepartureAfterMidnightActive()
+    {
+        var now = DateTimeOffset.Parse("2026-10-01T16:15:00Z");
+        var network = CreateNetwork() with
+        {
+            Trips = [new LtaGtfsTrip("trip-5", "NS", "Marina South Pier", 5, "thursday")],
+            StopTimes = [new LtaGtfsStopTime("trip-5", "NS22-P1", 1, "24:30:00", "24:30:00")],
+            Calendars = [new LtaGtfsCalendar(
+                "thursday",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                [DayOfWeek.Thursday])],
+            CalendarDates = []
+        };
+
+        var lastDepartureAt = LtaDataMallTransitMapper.GetEndedServiceDayLastDeparture(
+            "NS",
+            "NS22",
+            network,
+            now);
+
+        Assert.Null(lastDepartureAt);
+    }
+
+    [Fact]
     public void KeepsScheduleLabelWhenTripUpdateDoesNotContainSelectedStation()
     {
         var network = CreateNetwork() with

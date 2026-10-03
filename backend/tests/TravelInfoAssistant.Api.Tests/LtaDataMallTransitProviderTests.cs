@@ -88,11 +88,44 @@ public sealed class LtaDataMallTransitProviderTests
         Assert.False(result.Stale);
     }
 
-    private static LtaDataMallTransitProvider CreateProvider(StubClient client) =>
+    [Fact]
+    public async Task ReportsScheduledLastDepartureAfterServiceEnds()
+    {
+        var now = DateTimeOffset.Parse("2026-10-01T15:00:00Z");
+        var client = new StubClient
+        {
+            Network = CreateNetwork() with
+            {
+                StopTimes =
+                [
+                    new LtaGtfsStopTime(
+                        "trip-1",
+                        "NS22",
+                        1,
+                        "22:40:00",
+                        "22:43:00")
+                ]
+            },
+            TripFeed = new LtaRealtimeFeed(now, [], [])
+        };
+        var provider = CreateProvider(client, now);
+
+        var result = await provider.GetMetroArrivalsAsync(
+            "LTA:NS:NS22",
+            CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T14:43:00Z"), result.LastDepartureAt);
+    }
+
+    private static LtaDataMallTransitProvider CreateProvider(
+        StubClient client,
+        DateTimeOffset? now = null) =>
         new(
             client,
             new PassThroughProviderCache(),
-            new FixedTimeProvider(Now),
+            new FixedTimeProvider(now ?? Now),
             NullLogger<LtaDataMallTransitProvider>.Instance);
 
     private static LtaGtfsNetwork CreateNetwork() =>

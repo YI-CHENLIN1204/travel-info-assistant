@@ -100,13 +100,21 @@ public sealed class LtaDataMallTransitProvider(
             }
 
             var feed = updates?.Data ?? new LtaRealtimeFeed(null, [], []);
+            var now = timeProvider.GetUtcNow();
             var arrivals = LtaDataMallTransitMapper.MapArrivals(
                 routeId,
                 stopId,
                 feed,
                 network.Data,
-                timeProvider.GetUtcNow());
+                now);
             var hasRealtime = arrivals.Any(item => item.EstimatedAt.HasValue);
+            var lastDepartureAt = arrivals.Count == 0
+                ? LtaDataMallTransitMapper.GetEndedServiceDayLastDeparture(
+                    routeId,
+                    stopId,
+                    network.Data,
+                    now)
+                : null;
             return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
                 arrivals,
                 hasRealtime
@@ -120,7 +128,9 @@ public sealed class LtaDataMallTransitProvider(
                     : hasRealtime
                         ? updates?.Message
                         : "目前顯示官方表定班次；收到即時預估後會自動更新。",
-                Source);
+                Source,
+                ServiceDayStatus: lastDepartureAt.HasValue ? "ended" : null,
+                LastDepartureAt: lastDepartureAt);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
