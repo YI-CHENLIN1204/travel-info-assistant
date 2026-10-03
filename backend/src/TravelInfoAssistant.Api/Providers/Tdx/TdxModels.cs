@@ -241,6 +241,28 @@ public sealed class TdxTraStation
     public string? StationAddress { get; init; }
 }
 
+public sealed class TdxTraStationOfLineResponse
+{
+    public DateTimeOffset? UpdateTime { get; init; }
+    public DateTimeOffset? SrcUpdateTime { get; init; }
+    public IReadOnlyList<TdxTraStationOfLine> StationOfLines { get; init; } = [];
+}
+
+public sealed class TdxTraStationOfLine
+{
+    public string? LineID { get; init; }
+    public string? LineNo { get; init; }
+    public IReadOnlyList<TdxTraLineStation> Stations { get; init; } = [];
+}
+
+public sealed class TdxTraLineStation
+{
+    public int Sequence { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public double? CumulativeDistance { get; init; }
+}
+
 public sealed class TdxTraDailyStationTimetableResponse
 {
     public DateTimeOffset? UpdateTime { get; init; }

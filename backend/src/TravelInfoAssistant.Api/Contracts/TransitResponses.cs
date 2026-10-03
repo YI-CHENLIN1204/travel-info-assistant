@@ -48,7 +48,13 @@ public sealed record RailStationResponse(
     string? NameEn,
     string? Address,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    IReadOnlyList<RailStationLinePositionResponse> LinePositions);
+
+public sealed record RailStationLinePositionResponse(
+    string LineId,
+    int Sequence,
+    double? CumulativeDistance);
 
 public sealed record TransitArrivalResponse(
     string Id,

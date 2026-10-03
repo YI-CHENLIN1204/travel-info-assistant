@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   findIntegratedRailService,
+  getRailDirectionLabel,
   getRailNavigationLabel,
   getRailRegions,
+  orderRailStations,
 } from '@/services/railStationNavigation'
-import type { ServiceCapability } from '@/types/api'
+import type { RailStation, ServiceCapability, TransitDirection } from '@/types/api'
 
 describe('rail navigation', () => {
   it('shows only an integrated rail capability', () => {
@@ -52,4 +54,61 @@ describe('rail navigation', () => {
     })
     expect(getRailRegions('JP')).toEqual([])
   })
+
+  it('uses Taiwan northbound and southbound direction labels', () => {
+    const southbound = { direction: 0 } as TransitDirection
+    const northbound = { direction: 1 } as TransitDirection
+
+    expect(getRailDirectionLabel('TW', southbound)).toBe('往南')
+    expect(getRailDirectionLabel('TW', northbound)).toBe('往北')
+    expect(
+      getRailDirectionLabel('JP', {
+        direction: 0,
+        destinationName: '東京',
+      } as TransitDirection),
+    ).toBe('往 東京')
+  })
+
+  it('orders Taiwan Rail stations by official line sequence for each direction', () => {
+    const stations = [
+      railStation('3480', '斗南', 48),
+      railStation('3450', '林內', 45),
+      railStation('3470', '斗六', 47),
+      railStation('3460', '石榴', 46),
+    ]
+
+    expect(orderRailStations(stations, 0).map((station) => station.id)).toEqual([
+      '3450',
+      '3460',
+      '3470',
+      '3480',
+    ])
+    expect(orderRailStations(stations, 1).map((station) => station.id)).toEqual([
+      '3480',
+      '3470',
+      '3460',
+      '3450',
+    ])
+  })
+
+  it('keeps provider order for stations without official line positions', () => {
+    const stations = [railStation('A', '甲', null), railStation('B', '乙', null)]
+
+    expect(orderRailStations(stations, 0)).toEqual(stations)
+  })
 })
+
+function railStation(id: string, nameZh: string, sequence: number | null): RailStation {
+  return {
+    id,
+    nameZh,
+    nameEn: null,
+    address: null,
+    latitude: null,
+    longitude: null,
+    linePositions:
+      sequence === null
+        ? []
+        : [{ lineId: 'WL', sequence, cumulativeDistance: null }],
+  }
+}

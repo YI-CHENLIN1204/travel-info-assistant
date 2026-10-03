@@ -278,13 +278,13 @@ public sealed class TdxTransitProvider(
     public Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> GetRailStationsAsync(
         CancellationToken cancellationToken) =>
         GetCachedSafelyAsync(
-            "transit:tdx:rail:stations:tra:v1",
+            "transit:tdx:rail:stations:tra:v2",
             MetroStationFreshFor,
             MetroStationRetainFor,
             Array.Empty<RailStationResponse>(),
             async token =>
             {
-                var response = await apiClient.GetAsync<TdxTraStationResponse>(
+                var stationTask = apiClient.GetAsync<TdxTraStationResponse>(
                     "v3/Rail/TRA/Station",
                     new Dictionary<string, string?>
                     {
@@ -292,21 +292,44 @@ public sealed class TdxTransitProvider(
                         ["$format"] = "JSON"
                     },
                     token);
+                var stationOfLineTask = apiClient.GetAsync<TdxTraStationOfLineResponse>(
+                    "v3/Rail/TRA/StationOfLine",
+                    new Dictionary<string, string?>
+                    {
+                        ["$top"] = "100",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+                await Task.WhenAll(stationTask, stationOfLineTask);
+                var response = await stationTask;
+                var stationOfLineResponse = await stationOfLineTask;
+                var positionsByStation = BuildRailStationPositions(
+                    stationOfLineResponse.Data.StationOfLines);
 
                 var stations = response.Data.Stations
-                    .Select(MapRailStation)
+                    .Select(station => MapRailStation(station, positionsByStation))
                     .Where(item => item is not null)
                     .Cast<RailStationResponse>()
                     .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
                     .Select(group => group.First())
-                    .OrderBy(item => item.NameZh, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(item => item.LinePositions.FirstOrDefault()?.LineId,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.LinePositions.FirstOrDefault()?.Sequence ?? int.MaxValue)
+                    .ThenBy(item => item.NameZh, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 return new ProviderPayload<IReadOnlyList<RailStationResponse>>(
                     stations,
                     "scheduled",
-                    response.Data.SrcUpdateTime ?? response.Data.UpdateTime ?? response.LastModified,
-                    response.FetchedAt);
+                    Latest([
+                        response.Data.SrcUpdateTime ?? response.Data.UpdateTime ?? response.LastModified,
+                        stationOfLineResponse.Data.SrcUpdateTime
+                            ?? stationOfLineResponse.Data.UpdateTime
+                            ?? stationOfLineResponse.LastModified
+                    ]),
+                    response.FetchedAt > stationOfLineResponse.FetchedAt
+                        ? response.FetchedAt
+                        : stationOfLineResponse.FetchedAt);
             },
             cancellationToken);
 
@@ -1051,7 +1074,37 @@ public sealed class TdxTransitProvider(
             lineId,
             StringComparison.OrdinalIgnoreCase));
 
-    private static RailStationResponse? MapRailStation(TdxTraStation station)
+    private static IReadOnlyDictionary<string, IReadOnlyList<RailStationLinePositionResponse>>
+        BuildRailStationPositions(IReadOnlyList<TdxTraStationOfLine> lines) =>
+        lines
+            .Where(line => !string.IsNullOrWhiteSpace(line.LineID))
+            .SelectMany(line => line.Stations
+                .Where(station => !string.IsNullOrWhiteSpace(station.StationID))
+                .Select(station => new
+                {
+                    StationId = station.StationID!,
+                    Position = new RailStationLinePositionResponse(
+                        line.LineID!,
+                        station.Sequence,
+                        station.CumulativeDistance)
+                }))
+            .GroupBy(item => item.StationId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<RailStationLinePositionResponse>)group
+                    .Select(item => item.Position)
+                    .GroupBy(
+                        position => $"{position.LineId}:{position.Sequence}",
+                        StringComparer.OrdinalIgnoreCase)
+                    .Select(positionGroup => positionGroup.First())
+                    .OrderBy(position => position.LineId, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(position => position.Sequence)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
+
+    private static RailStationResponse? MapRailStation(
+        TdxTraStation station,
+        IReadOnlyDictionary<string, IReadOnlyList<RailStationLinePositionResponse>> positionsByStation)
     {
         var id = station.StationID ?? station.StationUID;
         var nameZh = PreferredName(station.StationName);
@@ -1063,7 +1116,8 @@ public sealed class TdxTransitProvider(
                 station.StationName?.En,
                 station.StationAddress,
                 station.StationPosition?.PositionLat,
-                station.StationPosition?.PositionLon);
+                station.StationPosition?.PositionLon,
+                positionsByStation.GetValueOrDefault(id) ?? []);
     }
 
     private static IReadOnlyList<TransitArrivalResponse> BuildScheduledRailArrivals(

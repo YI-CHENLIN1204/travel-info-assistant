@@ -104,6 +104,13 @@ export interface RailStation {
   address: string | null
   latitude: number | null
   longitude: number | null
+  linePositions: RailStationLinePosition[]
+}
+
+export interface RailStationLinePosition {
+  lineId: string
+  sequence: number
+  cumulativeDistance: number | null
 }
 
 export interface TransitArrival {

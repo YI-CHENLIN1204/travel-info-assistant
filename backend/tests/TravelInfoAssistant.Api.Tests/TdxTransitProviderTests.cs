@@ -294,7 +294,7 @@ public sealed class TdxTransitProviderTests
     }
 
     [Fact]
-    public async Task GetRailStationsAsync_MapsV3StationResponse()
+    public async Task GetRailStationsAsync_MapsAndOrdersStationsByOfficialLineSequence()
     {
         var provider = CreateProviderWithResponses(new Dictionary<string, object>
         {
@@ -305,15 +305,47 @@ public sealed class TdxTransitProviderTests
                 [
                     new TdxTraStation
                     {
-                        StationUID = "TRA1000",
-                        StationID = "1000",
-                        StationName = new TdxLocalizedName { ZhTw = "臺北", En = "Taipei" },
-                        StationAddress = "臺北市中正區北平西路3號",
+                        StationID = "3480",
+                        StationName = new TdxLocalizedName { ZhTw = "斗南", En = "Dounan" },
+                        StationAddress = "雲林縣斗南鎮"
+                    },
+                    new TdxTraStation
+                    {
+                        StationUID = "TRA3470",
+                        StationID = "3470",
+                        StationName = new TdxLocalizedName { ZhTw = "斗六", En = "Douliu" },
+                        StationAddress = "雲林縣斗六市",
                         StationPosition = new TdxPosition
                         {
-                            PositionLat = 25.0478,
-                            PositionLon = 121.5170
+                            PositionLat = 23.7117,
+                            PositionLon = 120.5412
                         }
+                    }
+                ]
+            },
+            ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse
+            {
+                SrcUpdateTime = DateTimeOffset.Parse("2026-09-23T08:00:00+08:00"),
+                StationOfLines =
+                [
+                    new TdxTraStationOfLine
+                    {
+                        LineID = "WL",
+                        Stations =
+                        [
+                            new TdxTraLineStation
+                            {
+                                StationID = "3470",
+                                Sequence = 47,
+                                CumulativeDistance = 260.6
+                            },
+                            new TdxTraLineStation
+                            {
+                                StationID = "3480",
+                                Sequence = 48,
+                                CumulativeDistance = 268.2
+                            }
+                        ]
                     }
                 ]
             }
@@ -321,11 +353,15 @@ public sealed class TdxTransitProviderTests
 
         var result = await provider.GetRailStationsAsync(CancellationToken.None);
 
-        var station = Assert.Single(result.Data);
-        Assert.Equal("1000", station.Id);
-        Assert.Equal("臺北", station.NameZh);
-        Assert.Equal("Taipei", station.NameEn);
-        Assert.Equal(25.0478, station.Latitude);
+        Assert.Equal(["3470", "3480"], result.Data.Select(station => station.Id));
+        var station = result.Data[0];
+        Assert.Equal("斗六", station.NameZh);
+        Assert.Equal("Douliu", station.NameEn);
+        Assert.Equal(23.7117, station.Latitude);
+        var position = Assert.Single(station.LinePositions);
+        Assert.Equal("WL", position.LineId);
+        Assert.Equal(47, position.Sequence);
+        Assert.Equal(260.6, position.CumulativeDistance);
     }
 
     [Fact]

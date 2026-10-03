@@ -1,4 +1,4 @@
-import type { ServiceCapability } from '@/types/api'
+import type { RailStation, ServiceCapability, TransitDirection } from '@/types/api'
 
 export interface RailLocality {
   name: string
@@ -64,6 +64,53 @@ export function getRailNavigationLabel(
 
 export function getRailRegions(countryCode: string): readonly RailRegion[] {
   return countryCode.toUpperCase() === 'TW' ? taiwanRailRegions : []
+}
+
+export function getRailDirectionLabel(
+  countryCode: string,
+  direction: TransitDirection,
+): string {
+  if (countryCode.toUpperCase() === 'TW') {
+    if (direction.direction === 0) return '往南'
+    if (direction.direction === 1) return '往北'
+  }
+
+  const destination = direction.destinationName ?? direction.headsign
+  return destination ? `往 ${destination}` : `方向 ${direction.direction + 1}`
+}
+
+export function orderRailStations(
+  stations: readonly RailStation[],
+  direction: number | null,
+): RailStation[] {
+  const ordered = stations
+    .map((station, originalIndex) => ({
+      station,
+      originalIndex,
+      position: [...(station.linePositions ?? [])].sort(compareLinePositions)[0] ?? null,
+    }))
+    .sort((left, right) => {
+      if (!left.position && !right.position) return left.originalIndex - right.originalIndex
+      if (!left.position) return 1
+      if (!right.position) return -1
+
+      const lineOrder = left.position.lineId.localeCompare(right.position.lineId)
+      if (lineOrder !== 0) return lineOrder
+
+      const sequenceOrder = left.position.sequence - right.position.sequence
+      return sequenceOrder || left.originalIndex - right.originalIndex
+    })
+    .map(({ station }) => station)
+
+  return direction === 1 ? ordered.reverse() : ordered
+}
+
+function compareLinePositions(
+  left: RailStation['linePositions'][number],
+  right: RailStation['linePositions'][number],
+): number {
+  const lineOrder = left.lineId.localeCompare(right.lineId)
+  return lineOrder || left.sequence - right.sequence
 }
 
 function toLocality(name: string): RailLocality {

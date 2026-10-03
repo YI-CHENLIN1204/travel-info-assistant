@@ -5,8 +5,10 @@ import StatusPill from '@/components/StatusPill.vue'
 import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
 import {
   findIntegratedRailService,
+  getRailDirectionLabel,
   getRailNavigationLabel,
   getRailRegions,
+  orderRailStations,
   type RailLocality,
 } from '@/services/railStationNavigation'
 import { useCityStore } from '@/stores/city'
@@ -27,6 +29,9 @@ const selectedRegion = computed(
 )
 const pageLabel = computed(() =>
   getRailNavigationLabel(cityStore.currentCity.countryCode, railService.value?.displayName),
+)
+const orderedRailStations = computed(() =>
+  orderRailStations(transitStore.railStations, transitStore.selectedRailDirection),
 )
 const isTaiwanRail = computed(() => cityStore.currentCity.countryCode === 'TW')
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
@@ -170,8 +175,7 @@ function arrivalTimingCaption(arrival: TransitArrival): string {
 }
 
 function directionLabel(direction: TransitDirection): string {
-  const destination = direction.destinationName ?? direction.headsign
-  return destination ? `往 ${destination}` : `方向 ${direction.direction + 1}`
+  return getRailDirectionLabel(cityStore.currentCity.countryCode, direction)
 }
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -267,7 +271,7 @@ function formatTimestamp(value: string | null | undefined): string {
           </div>
           <div class="route-result-list">
             <button
-              v-for="station in transitStore.railStations"
+              v-for="station in orderedRailStations"
               :key="station.id"
               class="route-result"
               :class="{ selected: transitStore.selectedRailStation?.id === station.id }"
