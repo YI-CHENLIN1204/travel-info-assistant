@@ -5,6 +5,8 @@ export interface ApiMeta {
   fetchedAt: string
   stale: boolean
   message: string | null
+  serviceDayStatus?: 'ended' | null
+  lastDepartureAt?: string | null
 }
 
 export interface ApiResponse<T> {

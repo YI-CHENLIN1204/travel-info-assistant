@@ -585,6 +585,81 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("realtime", result.DataStatus);
     }
 
+    [Fact]
+    public async Task GetRailArrivalsAsync_ReportsScheduledLastDepartureAfterServiceEnds()
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T15:00:00Z");
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v3/Rail/TRA/Station"] = new TdxTraStationResponse(),
+                ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
+                ["v3/Rail/TRA/DailyStationTimetable/Today/Station/3470"] =
+                    new TdxTraDailyStationTimetableResponse
+                    {
+                        StationTimetables =
+                        [
+                            new TdxTraStationTimetable
+                            {
+                                StationID = "3470",
+                                StationName = Name("斗六"),
+                                Direction = 0,
+                                TimeTables =
+                                [
+                                    new TdxTraTimetableEntry
+                                    {
+                                        Sequence = 1,
+                                        TrainNo = "150",
+                                        ArrivalTime = "22:10",
+                                        DepartureTime = "22:12"
+                                    },
+                                    new TdxTraTimetableEntry
+                                    {
+                                        Sequence = 2,
+                                        TrainNo = "152",
+                                        ArrivalTime = "22:40",
+                                        DepartureTime = "22:43"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                ["v3/Rail/TRA/StationLiveBoard/Station/3470"] =
+                    new TdxTraStationLiveBoardResponse()
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T14:43:00Z"), result.LastDepartureAt);
+        Assert.Null(result.Message);
+    }
+
+    [Fact]
+    public async Task GetRailArrivalsAsync_DoesNotReportServiceEndedWithoutATimetable()
+    {
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v3/Rail/TRA/Station"] = new TdxTraStationResponse(),
+                ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
+                ["v3/Rail/TRA/DailyStationTimetable/Today/Station/3470"] =
+                    new TdxTraDailyStationTimetableResponse(),
+                ["v3/Rail/TRA/StationLiveBoard/Station/3470"] =
+                    new TdxTraStationLiveBoardResponse()
+            },
+            new FixedTimeProvider(DateTimeOffset.Parse("2026-09-23T15:00:00Z")));
+
+        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Null(result.ServiceDayStatus);
+        Assert.Null(result.LastDepartureAt);
+        Assert.Equal("unavailable", result.DataStatus);
+    }
+
     private static TdxTransitProvider CreateProvider(
         IReadOnlyList<TdxBusStopOfRoute> stops,
         IReadOnlyList<TdxBusArrival> arrivals,

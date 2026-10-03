@@ -1,3 +1,5 @@
+import type { ApiMeta } from '@/types/api'
+
 export type ArrivalDisplayMode = 'realtime' | 'scheduled'
 
 export interface ArrivalDisplayInput {
@@ -51,6 +53,21 @@ export function getArrivalDisplay(input: ArrivalDisplayInput): ArrivalDisplayRes
     stale: false,
     scheduledLabel,
   }
+}
+
+export function getTransitEmptyMessage(
+  meta: ApiMeta | null,
+  timeZone: string,
+  fallback: string,
+): string {
+  if (meta?.serviceDayStatus === 'ended' && meta.lastDepartureAt) {
+    const lastDepartureAt = new Date(meta.lastDepartureAt)
+    if (!Number.isNaN(lastDepartureAt.getTime())) {
+      return `本日已無車次，末班車已於 ${formatTime(lastDepartureAt, timeZone)} 駛離站。`
+    }
+  }
+
+  return meta?.message ?? fallback
 }
 
 function countdownLabel(minutes: number): string {

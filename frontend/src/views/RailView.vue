@@ -2,7 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Database, MapPinned, RefreshCw, TrainFront } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { getArrivalDisplay, type ArrivalDisplayResult } from '@/services/arrivalDisplay'
+import {
+  getArrivalDisplay,
+  getTransitEmptyMessage,
+  type ArrivalDisplayResult,
+} from '@/services/arrivalDisplay'
 import {
   findIntegratedRailService,
   getRailHeadingLabel,
@@ -178,10 +182,10 @@ function emptyRailMessage(): string {
   if (transitStore.arrivals.length && transitStore.selectedRailHeading) {
     return `目前沒有${getRailHeadingLabel(transitStore.selectedRailHeading)}列車資訊。`
   }
-  return (
-    transitStore.error ??
-    transitStore.resultMeta?.message ??
-    '目前查無這個車站的列車資料。'
+  return transitStore.error ?? getTransitEmptyMessage(
+    transitStore.resultMeta,
+    cityStore.currentCity.timeZone,
+    '目前查無這個車站的列車資料。',
   )
 }
 

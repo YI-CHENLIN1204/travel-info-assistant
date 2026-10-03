@@ -239,5 +239,7 @@ public sealed class TransitController(ITransitService transitService) : Controll
                 result.SourceUpdatedAt,
                 result.FetchedAt,
                 result.Stale,
-                result.Message));
+                result.Message,
+                result.ServiceDayStatus,
+                result.LastDepartureAt));
 }

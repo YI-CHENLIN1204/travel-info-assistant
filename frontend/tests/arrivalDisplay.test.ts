@@ -1,4 +1,5 @@
-import { getArrivalDisplay } from '@/services/arrivalDisplay'
+import { getArrivalDisplay, getTransitEmptyMessage } from '@/services/arrivalDisplay'
+import type { ApiMeta } from '@/types/api'
 
 const now = new Date('2026-09-21T10:00:00+08:00')
 
@@ -75,5 +76,47 @@ describe('getArrivalDisplay', () => {
     })
 
     expect(result).toMatchObject({ label: '10:00', mode: 'scheduled' })
+  })
+})
+
+describe('getTransitEmptyMessage', () => {
+  const baseMeta: ApiMeta = {
+    dataStatus: 'scheduled',
+    source: 'TDX',
+    sourceUpdatedAt: null,
+    fetchedAt: '2026-10-04T15:00:00Z',
+    stale: false,
+    message: null,
+  }
+
+  it('formats the scheduled last departure in the selected city time zone', () => {
+    expect(
+      getTransitEmptyMessage(
+        {
+          ...baseMeta,
+          serviceDayStatus: 'ended',
+          lastDepartureAt: '2026-10-04T15:48:00Z',
+        },
+        'Asia/Taipei',
+        '目前查無班次。',
+      ),
+    ).toBe('本日已無車次，末班車已於 23:48 駛離站。')
+  })
+
+  it('does not claim service ended without an explicit valid last departure', () => {
+    expect(
+      getTransitEmptyMessage(
+        { ...baseMeta, message: '資料來源暫時無法使用。' },
+        'Asia/Taipei',
+        '目前查無班次。',
+      ),
+    ).toBe('資料來源暫時無法使用。')
+    expect(
+      getTransitEmptyMessage(
+        { ...baseMeta, serviceDayStatus: 'ended', lastDepartureAt: 'invalid' },
+        'Asia/Taipei',
+        '目前查無班次。',
+      ),
+    ).toBe('目前查無班次。')
   })
 })

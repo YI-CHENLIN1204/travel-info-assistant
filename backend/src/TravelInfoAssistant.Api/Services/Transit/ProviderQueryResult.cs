@@ -7,7 +7,9 @@ public sealed record ProviderQueryResult<T>(
     DateTimeOffset FetchedAt,
     bool Stale,
     string? Message,
-    string Source = "TDX")
+    string Source = "TDX",
+    string? ServiceDayStatus = null,
+    DateTimeOffset? LastDepartureAt = null)
 {
     public static ProviderQueryResult<T> Unavailable(
         T fallback,
