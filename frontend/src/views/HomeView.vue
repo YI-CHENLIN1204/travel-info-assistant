@@ -9,23 +9,44 @@ import {
   Plane,
   ShieldAlert,
   Siren,
+  TrainFront,
 } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
+import {
+  findIntegratedRailService,
+  getRailNavigationLabel,
+} from '@/services/railStationNavigation'
 import { useAppStore } from '@/stores/app'
 import { useCityStore } from '@/stores/city'
 
 const cityStore = useCityStore()
 const appStore = useAppStore()
 
-const modules = [
+const railService = computed(() => findIntegratedRailService(cityStore.currentCity.services))
+const modules = computed(() => [
   {
     title: '大眾運輸',
-    description: '依城市查詢公車、捷運與火車班次。',
+    description: '依城市查詢公車與捷運班次。',
     to: '/transit',
     icon: BusFront,
     accent: 'teal',
     detail: 'MVP · 台北 TDX 真實資料',
   },
+  ...(railService.value
+    ? [
+        {
+          title: getRailNavigationLabel(
+            cityStore.currentCity.countryCode,
+            railService.value.displayName,
+          ),
+          description: '依區域與城市逐步選擇車站及查看列車資訊。',
+          to: '/rail',
+          icon: TrainFront,
+          accent: 'teal',
+          detail: `${cityStore.currentCity.nameZh} · ${railService.value.displayName}`,
+        },
+      ]
+    : []),
   {
     title: '全球航班',
     description: '查詢全球任意兩座機場間的直飛航班。',
@@ -58,7 +79,7 @@ const modules = [
     accent: 'violet',
     detail: 'Phase 5 · 官方人工確認資料',
   },
-]
+])
 
 const integratedServices = computed(() =>
   cityStore.currentCity.services.filter((service) => service.integrationStatus === 'integrated'),

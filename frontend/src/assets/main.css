@@ -1040,6 +1040,47 @@ p {
   border-bottom: 1px solid var(--line);
 }
 
+.rail-choice-stack {
+  display: grid;
+  margin-bottom: 22px;
+  gap: 18px;
+}
+
+.rail-choice-group {
+  padding: 18px;
+  background: #f7faf9;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.rail-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rail-locality-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.rail-choice-button {
+  min-height: 44px;
+  padding: 9px 12px;
+  cursor: pointer;
+  color: #526c70;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-weight: 800;
+}
+
+.rail-choice-button:hover,
+.rail-choice-button.active {
+  color: #fff;
+  background: var(--teal);
+  border-color: var(--teal);
+}
+
 .transit-mode-tab {
   position: relative;
   display: flex;
@@ -1527,6 +1568,10 @@ p {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .rail-locality-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .flight-form {
     grid-template-columns: 1fr auto 1fr;
   }
@@ -1641,6 +1686,11 @@ p {
 
   .page-content {
     padding: 20px 16px 42px;
+  }
+
+  .rail-choice-grid,
+  .rail-locality-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .context-banner {

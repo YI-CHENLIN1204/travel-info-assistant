@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import TransitView from '@/views/TransitView.vue'
+import RailView from '@/views/RailView.vue'
 import FlightsView from '@/views/FlightsView.vue'
 import WeatherView from '@/views/WeatherView.vue'
 import AlertsView from '@/views/AlertsView.vue'
@@ -11,6 +12,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView, meta: { title: '首頁' } },
     { path: '/transit', name: 'transit', component: TransitView, meta: { title: '大眾運輸' } },
+    { path: '/rail', name: 'rail', component: RailView, meta: { title: '鐵路查詢' } },
     { path: '/flights', name: 'flights', component: FlightsView, meta: { title: '航班查詢' } },
     {
       path: '/weather',

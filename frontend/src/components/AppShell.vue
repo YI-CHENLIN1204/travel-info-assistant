@@ -13,8 +13,13 @@ import {
   Plane,
   ShieldAlert,
   Siren,
+  TrainFront,
   X,
 } from '@lucide/vue'
+import {
+  findIntegratedRailService,
+  getRailNavigationLabel,
+} from '@/services/railStationNavigation'
 import { useAppStore } from '@/stores/app'
 import { useCityStore } from '@/stores/city'
 
@@ -25,14 +30,27 @@ const cityStore = useCityStore()
 const collapsed = ref(false)
 const mobileOpen = ref(false)
 
-const navigation = [
+const railService = computed(() => findIntegratedRailService(cityStore.currentCity.services))
+const navigation = computed(() => [
   { to: '/', label: '首頁', icon: Home },
   { to: '/transit', label: '大眾運輸', icon: BusFront },
+  ...(railService.value
+    ? [
+        {
+          to: '/rail',
+          label: getRailNavigationLabel(
+            cityStore.currentCity.countryCode,
+            railService.value.displayName,
+          ),
+          icon: TrainFront,
+        },
+      ]
+    : []),
   { to: '/flights', label: '航班查詢', icon: Plane },
   { to: '/weather', label: '天氣', icon: CloudSun },
   { to: '/alerts', label: '旅遊警示', icon: ShieldAlert },
   { to: '/emergency', label: '應急資訊', icon: Siren },
-]
+])
 
 const pageTitle = computed(() => String(route.meta.title ?? '旅途通'))
 const apiLabel = computed(() => {
