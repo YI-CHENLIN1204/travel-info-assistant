@@ -11,6 +11,11 @@ public sealed record MtrStationRow(
     string NameEn,
     int Sequence);
 
+public sealed record MtrLastTrainSchedule(
+    string LineCode,
+    string DestinationStationId,
+    string DepartureTime);
+
 public sealed class MtrScheduleResponse
 {
     [JsonPropertyName("sys_time")]

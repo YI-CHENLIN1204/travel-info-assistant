@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using TravelInfoAssistant.Api.Options;
 
@@ -21,9 +23,13 @@ public interface IMtrApiClient
         string lineCode,
         string stationCode,
         CancellationToken cancellationToken);
+
+    Task<MtrHttpResult<IReadOnlyList<MtrLastTrainSchedule>>> GetLastTrainSchedulesAsync(
+        string stationId,
+        CancellationToken cancellationToken);
 }
 
-public sealed class MtrApiClient(
+public sealed partial class MtrApiClient(
     IHttpClientFactory httpClientFactory,
     IOptions<MtrOptions> options,
     TimeProvider timeProvider) : IMtrApiClient
@@ -87,6 +93,38 @@ public sealed class MtrApiClient(
             data,
             timeProvider.GetUtcNow(),
             ParseHongKongTime(data.SystemTime));
+    }
+
+    public async Task<MtrHttpResult<IReadOnlyList<MtrLastTrainSchedule>>> GetLastTrainSchedulesAsync(
+        string stationId,
+        CancellationToken cancellationToken)
+    {
+        var query = new Dictionary<string, string>
+        {
+            ["mobile-app"] = "true",
+            ["query_type"] = "search",
+            ["station"] = stationId,
+            ["theme"] = "false"
+        };
+        var requestUri = new Uri(
+            $"./{options.Value.ServiceHoursPath.TrimStart('/')}?{string.Join('&', query.Select(item =>
+                $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value)}"))}",
+            UriKind.Relative);
+
+        var client = httpClientFactory.CreateClient("mtr-service-hours");
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var html = await response.Content.ReadAsStringAsync(cancellationToken);
+        return new MtrHttpResult<IReadOnlyList<MtrLastTrainSchedule>>(
+            ParseLastTrainSchedules(html),
+            timeProvider.GetUtcNow(),
+            response.Content.Headers.LastModified);
     }
 
     internal static IReadOnlyList<MtrStationRow> ParseLinesAndStations(string csv)
@@ -180,4 +218,68 @@ public sealed class MtrApiClient(
             DateTime.SpecifyKind(local, DateTimeKind.Unspecified),
             timeZone.GetUtcOffset(local));
     }
+
+    internal static IReadOnlyList<MtrLastTrainSchedule> ParseLastTrainSchedules(string html)
+    {
+        var content = HtmlCommentRegex().Replace(html, string.Empty);
+        var headers = TrainLineHeaderRegex().Matches(content);
+        var schedules = new List<MtrLastTrainSchedule>();
+
+        for (var index = 0; index < headers.Count; index++)
+        {
+            var header = headers[index];
+            var sectionStart = header.Index + header.Length;
+            var sectionEnd = index + 1 < headers.Count
+                ? headers[index + 1].Index
+                : content.Length;
+            var section = content[sectionStart..sectionEnd];
+
+            foreach (Match row in TableRowRegex().Matches(section))
+            {
+                var cells = TableCellRegex().Matches(row.Groups["content"].Value);
+                if (cells.Count < 3)
+                {
+                    continue;
+                }
+
+                var destination = DestinationStationIdRegex().Match(cells[0].Value);
+                var departureTime = WebUtility.HtmlDecode(
+                    HtmlTagRegex().Replace(cells[^1].Groups["content"].Value, string.Empty)).Trim();
+                if (!destination.Success || !LastTrainTimeRegex().IsMatch(departureTime))
+                {
+                    continue;
+                }
+
+                schedules.Add(new MtrLastTrainSchedule(
+                    header.Groups["line"].Value.ToUpperInvariant(),
+                    destination.Groups["id"].Value,
+                    departureTime));
+            }
+        }
+
+        return schedules;
+    }
+
+    [GeneratedRegex("<!--.*?-->", RegexOptions.Singleline)]
+    private static partial Regex HtmlCommentRegex();
+
+    [GeneratedRegex(
+        "<h2\\b[^>]*class\\s*=\\s*[\\\"'][^\\\"']*\\btrainLine\\s+(?<line>[A-Za-z0-9-]+)[^\\\"']*[\\\"'][^>]*>.*?</h2>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex TrainLineHeaderRegex();
+
+    [GeneratedRegex("<tr\\b[^>]*>(?<content>.*?)</tr>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex TableRowRegex();
+
+    [GeneratedRegex("<td\\b[^>]*>(?<content>.*?)</td>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex TableCellRegex();
+
+    [GeneratedRegex("\\bjs_station_(?<id>\\d+)\\b", RegexOptions.IgnoreCase)]
+    private static partial Regex DestinationStationIdRegex();
+
+    [GeneratedRegex("<[^>]+>", RegexOptions.Singleline)]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex("^(?:[01]\\d|2[0-3])[0-5]\\d$")]
+    private static partial Regex LastTrainTimeRegex();
 }

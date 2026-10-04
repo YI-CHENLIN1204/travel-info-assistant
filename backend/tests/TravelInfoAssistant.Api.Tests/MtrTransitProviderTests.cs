@@ -71,6 +71,79 @@ public sealed class MtrTransitProviderTests
         Assert.Equal("列車服務正常。", Assert.Single(status.Data).MessageZh);
         Assert.Contains(("TWL", "TST"), client.ScheduleRequests);
         Assert.Contains(("TWL", "CEN"), client.ScheduleRequests);
+        Assert.Empty(client.LastTrainScheduleRequests);
+    }
+
+    [Fact]
+    public async Task ReportsScheduledLastDepartureWhenDailyServiceHasEnded()
+    {
+        var now = DateTimeOffset.Parse("2026-10-02T01:20:00+08:00");
+        var client = new StubMtrApiClient
+        {
+            Network =
+            [
+                new("TWL", "UT", "TST", "3", "尖沙咀", "Tsim Sha Tsui", 1)
+            ],
+            Schedule = new MtrScheduleResponse
+            {
+                SystemTime = "2026-10-02 01:20:00",
+                Status = 1,
+                Data = new Dictionary<string, MtrStationSchedule>
+                {
+                    ["TWL-TST"] = new()
+                }
+            },
+            LastTrainSchedules =
+            [
+                new("TWL", "1", "0054"),
+                new("TWL", "25", "0104")
+            ]
+        };
+        var provider = CreateProvider(client, now);
+
+        var result = await provider.GetMetroArrivalsAsync(
+            "MTR:TWL:TST",
+            CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-02T01:04:00+08:00"), result.LastDepartureAt);
+        Assert.Null(result.Message);
+        Assert.Equal(["3"], client.LastTrainScheduleRequests);
+    }
+
+    [Fact]
+    public async Task DoesNotReportServiceEndedWithoutAnOfficialLastTrainSchedule()
+    {
+        var client = new StubMtrApiClient
+        {
+            Network =
+            [
+                new("TWL", "UT", "TST", "3", "尖沙咀", "Tsim Sha Tsui", 1)
+            ],
+            Schedule = new MtrScheduleResponse
+            {
+                SystemTime = "2026-10-02 01:20:00",
+                Status = 1,
+                Data = new Dictionary<string, MtrStationSchedule>
+                {
+                    ["TWL-TST"] = new()
+                }
+            }
+        };
+        var provider = CreateProvider(
+            client,
+            DateTimeOffset.Parse("2026-10-02T01:20:00+08:00"));
+
+        var result = await provider.GetMetroArrivalsAsync(
+            "MTR:TWL:TST",
+            CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Null(result.ServiceDayStatus);
+        Assert.Null(result.LastDepartureAt);
+        Assert.NotNull(result.Message);
+        Assert.Equal(["3"], client.LastTrainScheduleRequests);
     }
 
     [Fact]
@@ -88,18 +161,22 @@ public sealed class MtrTransitProviderTests
         Assert.Empty(client.ScheduleRequests);
     }
 
-    private static MtrTransitProvider CreateProvider(StubMtrApiClient client) =>
+    private static MtrTransitProvider CreateProvider(
+        StubMtrApiClient client,
+        DateTimeOffset? now = null) =>
         new(
             client,
             new PassThroughProviderCache(),
-            new FixedTimeProvider(Now),
+            new FixedTimeProvider(now ?? Now),
             NullLogger<MtrTransitProvider>.Instance);
 
     private sealed class StubMtrApiClient : IMtrApiClient
     {
         public IReadOnlyList<MtrStationRow> Network { get; init; } = [];
         public MtrScheduleResponse Schedule { get; init; } = new();
+        public IReadOnlyList<MtrLastTrainSchedule> LastTrainSchedules { get; init; } = [];
         public List<(string Line, string Station)> ScheduleRequests { get; } = [];
+        public List<string> LastTrainScheduleRequests { get; } = [];
 
         public Task<MtrHttpResult<IReadOnlyList<MtrStationRow>>> GetLinesAndStationsAsync(
             CancellationToken cancellationToken) =>
@@ -112,6 +189,17 @@ public sealed class MtrTransitProviderTests
         {
             ScheduleRequests.Add((lineCode, stationCode));
             return Task.FromResult(new MtrHttpResult<MtrScheduleResponse>(Schedule, Now, Now));
+        }
+
+        public Task<MtrHttpResult<IReadOnlyList<MtrLastTrainSchedule>>> GetLastTrainSchedulesAsync(
+            string stationId,
+            CancellationToken cancellationToken)
+        {
+            LastTrainScheduleRequests.Add(stationId);
+            return Task.FromResult(
+                new MtrHttpResult<IReadOnlyList<MtrLastTrainSchedule>>(
+                    LastTrainSchedules,
+                    Now));
         }
     }
 

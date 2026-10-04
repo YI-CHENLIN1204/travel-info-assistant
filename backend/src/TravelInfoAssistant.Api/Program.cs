@@ -125,6 +125,17 @@ builder.Services
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
     });
 builder.Services
+    .AddHttpClient("mtr-service-hours", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<MtrOptions>>().Value;
+        client.BaseAddress = new Uri(settings.ServiceHoursBaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
     .AddHttpClient("lta-datamall", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<LtaDataMallOptions>>().Value;

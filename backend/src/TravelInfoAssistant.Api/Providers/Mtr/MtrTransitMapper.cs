@@ -1,9 +1,14 @@
+using System.Globalization;
 using TravelInfoAssistant.Api.Contracts;
 
 namespace TravelInfoAssistant.Api.Providers.Mtr;
 
 public static class MtrTransitMapper
 {
+    private static readonly TimeZoneInfo HongKongTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById("Asia/Hong_Kong");
+    private static readonly TimeOnly ServiceDayBoundary = new(4, 0);
+
     private static readonly IReadOnlyDictionary<string, (string Zh, string En)> LineNames =
         new Dictionary<string, (string Zh, string En)>(StringComparer.OrdinalIgnoreCase)
         {
@@ -129,6 +134,32 @@ public static class MtrTransitMapper
             updatedAt,
             updatedAt?.AddSeconds(45),
             message);
+    }
+
+    public static DateTimeOffset? GetEndedServiceDayLastDeparture(
+        string lineCode,
+        IReadOnlyList<MtrLastTrainSchedule> schedules,
+        DateTimeOffset now)
+    {
+        var localNow = TimeZoneInfo.ConvertTime(now, HongKongTimeZone);
+        var serviceDate = DateOnly.FromDateTime(localNow.DateTime);
+        if (TimeOnly.FromDateTime(localNow.DateTime) < ServiceDayBoundary)
+        {
+            serviceDate = serviceDate.AddDays(-1);
+        }
+
+        var departures = schedules
+            .Where(item => item.LineCode.Equals(lineCode, StringComparison.OrdinalIgnoreCase))
+            .Select(item => ParseScheduledDeparture(item.DepartureTime, serviceDate))
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .ToList();
+        if (departures.Count == 0 || departures.Any(item => item >= now))
+        {
+            return null;
+        }
+
+        return departures.Max();
     }
 
     public static bool TryParseStationId(
@@ -321,6 +352,27 @@ public static class MtrTransitMapper
             serviceStatus,
             false,
             prediction.Platform);
+    }
+
+    private static DateTimeOffset? ParseScheduledDeparture(
+        string value,
+        DateOnly serviceDate)
+    {
+        if (!TimeOnly.TryParseExact(
+                value,
+                "HHmm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var time))
+        {
+            return null;
+        }
+
+        var departureDate = time < ServiceDayBoundary
+            ? serviceDate.AddDays(1)
+            : serviceDate;
+        var local = departureDate.ToDateTime(time);
+        return new DateTimeOffset(local, HongKongTimeZone.GetUtcOffset(local));
     }
 
     private static string RouteId(string lineCode) => $"MTR:{lineCode.ToUpperInvariant()}";

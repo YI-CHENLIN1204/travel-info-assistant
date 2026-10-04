@@ -204,6 +204,37 @@ public sealed class MtrTransitMapperTests
         Assert.Equal(DateTimeOffset.Parse("2026-10-01T12:03:00+08:00"), arrival.EstimatedAt);
     }
 
+    [Fact]
+    public void ReportsScheduledLastDepartureAfterServiceEndsPastMidnight()
+    {
+        IReadOnlyList<MtrLastTrainSchedule> schedules =
+        [
+            new("TWL", "1", "0054"),
+            new("TWL", "25", "0104"),
+            new("ISL", "37", "0108")
+        ];
+
+        var result = MtrTransitMapper.GetEndedServiceDayLastDeparture(
+            "TWL",
+            schedules,
+            DateTimeOffset.Parse("2026-10-02T01:20:00+08:00"));
+
+        Assert.Equal(DateTimeOffset.Parse("2026-10-02T01:04:00+08:00"), result);
+    }
+
+    [Theory]
+    [InlineData("2026-10-02T00:50:00+08:00")]
+    [InlineData("2026-10-02T12:00:00+08:00")]
+    public void DoesNotReportEndedWhileScheduledLastDepartureIsStillAhead(string now)
+    {
+        var result = MtrTransitMapper.GetEndedServiceDayLastDeparture(
+            "TWL",
+            [new("TWL", "25", "0054")],
+            DateTimeOffset.Parse(now));
+
+        Assert.Null(result);
+    }
+
     [Theory]
     [InlineData("N", 1, "列車服務正常。")]
     [InlineData("Y", 1, "列車服務受延誤，請預留額外乘車時間。")]

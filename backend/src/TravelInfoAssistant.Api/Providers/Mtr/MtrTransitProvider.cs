@@ -30,6 +30,8 @@ public sealed class MtrTransitProvider(
     private static readonly TimeSpan NetworkRetainFor = TimeSpan.FromDays(7);
     private static readonly TimeSpan RealtimeFreshFor = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan RealtimeRetainFor = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan ServiceHoursFreshFor = TimeSpan.FromHours(24);
+    private static readonly TimeSpan ServiceHoursRetainFor = TimeSpan.FromDays(7);
 
     public async Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetMetroRoutesAsync(
         CancellationToken cancellationToken)
@@ -87,7 +89,14 @@ public sealed class MtrTransitProvider(
                 stationCode,
                 schedule.Data,
                 network.Data);
-            return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+            var lastDepartureAt = arrivals.Count == 0
+                ? await GetEndedServiceDayLastDepartureAsync(
+                    lineCode,
+                    stationCode,
+                    network.Data,
+                    cancellationToken)
+                : null;
+            var result = new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
                 arrivals,
                 schedule.DataStatus == "cached" ? "cached" : "realtime",
                 schedule.SourceUpdatedAt,
@@ -95,6 +104,12 @@ public sealed class MtrTransitProvider(
                 schedule.Stale,
                 schedule.Message ?? (arrivals.Count == 0 ? "目前查無接下來的港鐵列車。" : null),
                 "香港港鐵開放數據");
+            return result with
+            {
+                Message = lastDepartureAt.HasValue ? null : result.Message,
+                ServiceDayStatus = lastDepartureAt.HasValue ? "ended" : null,
+                LastDepartureAt = lastDepartureAt
+            };
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -190,6 +205,59 @@ public sealed class MtrTransitProvider(
         }
 
         return result with { Source = "香港港鐵開放數據" };
+    }
+
+    private async Task<DateTimeOffset?> GetEndedServiceDayLastDepartureAsync(
+        string lineCode,
+        string stationCode,
+        IReadOnlyList<MtrStationRow> network,
+        CancellationToken cancellationToken)
+    {
+        var stationId = network
+            .FirstOrDefault(row =>
+                row.LineCode.Equals(lineCode, StringComparison.OrdinalIgnoreCase) &&
+                row.StationCode.Equals(stationCode, StringComparison.OrdinalIgnoreCase))
+            ?.StationId;
+        if (string.IsNullOrWhiteSpace(stationId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var serviceHours = await cache.GetOrCreateAsync<IReadOnlyList<MtrLastTrainSchedule>>(
+                $"transit:mtr:service-hours:v1:{stationId}",
+                ServiceHoursFreshFor,
+                ServiceHoursRetainFor,
+                async token =>
+                {
+                    var response = await apiClient.GetLastTrainSchedulesAsync(stationId, token);
+                    return new ProviderPayload<IReadOnlyList<MtrLastTrainSchedule>>(
+                        response.Data,
+                        "scheduled",
+                        response.SourceUpdatedAt,
+                        response.FetchedAt);
+                },
+                cancellationToken);
+            if (serviceHours.Stale)
+            {
+                return null;
+            }
+
+            return MtrTransitMapper.GetEndedServiceDayLastDeparture(
+                lineCode,
+                serviceHours.Data,
+                timeProvider.GetUtcNow());
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                exception,
+                "MTR service-hours query failed for {LineCode}-{StationCode}.",
+                lineCode,
+                stationCode);
+            return null;
+        }
     }
 
     private static ProviderQueryResult<IReadOnlyList<TOutput>> Copy<TInput, TOutput>(
