@@ -127,10 +127,7 @@ public static class OdptTransitMapper
             serviceDate,
             tokyoNow.DayOfWeek);
 
-        return timetables
-            .Where(item => applicableCalendars.Count == 0 ||
-                           string.IsNullOrWhiteSpace(item.Calendar) ||
-                           applicableCalendars.Contains(item.Calendar))
+        return SelectApplicableTimetables(timetables, applicableCalendars)
             .SelectMany((timetable, timetableIndex) => timetable.Objects.Select(
                 (item, itemIndex) => MapDeparture(
                     timetable,
@@ -149,6 +146,35 @@ public static class OdptTransitMapper
             .ToList();
     }
 
+    public static DateTimeOffset? GetEndedServiceDayLastDeparture(
+        IReadOnlyList<OdptStationTimetable> timetables,
+        IReadOnlyList<OdptCalendar> calendars,
+        DateTimeOffset now)
+    {
+        var tokyoNow = TimeZoneInfo.ConvertTime(now, TokyoTimeZone);
+        var serviceDate = DateOnly.FromDateTime(tokyoNow.DateTime);
+        var applicableCalendars = SelectApplicableCalendars(
+            timetables,
+            calendars,
+            serviceDate,
+            tokyoNow.DayOfWeek);
+        var scheduledDepartures = SelectApplicableTimetables(timetables, applicableCalendars)
+            .SelectMany(item => item.Objects)
+            .Select(item => ParseScheduledAt(
+                item.DepartureTime?.Trim() ?? item.ArrivalTime?.Trim(),
+                serviceDate))
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .ToList();
+
+        if (scheduledDepartures.Count == 0 || scheduledDepartures.Any(item => item >= now))
+        {
+            return null;
+        }
+
+        return scheduledDepartures.Max();
+    }
+
     private static TransitArrivalResponse? MapDeparture(
         OdptStationTimetable timetable,
         OdptStationTimetableObject item,
@@ -161,20 +187,11 @@ public static class OdptTransitMapper
         int itemIndex)
     {
         var timeText = item.DepartureTime?.Trim() ?? item.ArrivalTime?.Trim();
-        if (!TimeOnly.TryParseExact(
-                timeText,
-                "HH:mm",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out var time))
+        var scheduledAt = ParseScheduledAt(timeText, serviceDate);
+        if (!scheduledAt.HasValue)
         {
             return null;
         }
-
-        var localDateTime = serviceDate.ToDateTime(time, DateTimeKind.Unspecified);
-        var scheduledAt = new DateTimeOffset(
-            localDateTime,
-            TokyoTimeZone.GetUtcOffset(localDateTime));
         var stationId = timetable.Station?.Trim();
         if (string.IsNullOrWhiteSpace(stationId))
         {
@@ -193,7 +210,7 @@ public static class OdptTransitMapper
         var liveTrain = FindLiveTrain(timetable, item, trains, now);
         var delaySeconds = liveTrain?.Delay is >= 0 ? liveTrain.Delay.Value : (int?)null;
         var estimatedAt = delaySeconds.HasValue
-            ? scheduledAt.AddSeconds(delaySeconds.Value)
+            ? scheduledAt.Value.AddSeconds(delaySeconds.Value)
             : (DateTimeOffset?)null;
 
         return new TransitArrivalResponse(
@@ -214,6 +231,34 @@ public static class OdptTransitMapper
             item.IsLast,
             platform);
     }
+
+    private static DateTimeOffset? ParseScheduledAt(
+        string? timeText,
+        DateOnly serviceDate)
+    {
+        if (!TimeOnly.TryParseExact(
+                timeText,
+                "HH:mm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var time))
+        {
+            return null;
+        }
+
+        var localDateTime = serviceDate.ToDateTime(time, DateTimeKind.Unspecified);
+        return new DateTimeOffset(
+            localDateTime,
+            TokyoTimeZone.GetUtcOffset(localDateTime));
+    }
+
+    private static IEnumerable<OdptStationTimetable> SelectApplicableTimetables(
+        IReadOnlyList<OdptStationTimetable> timetables,
+        IReadOnlySet<string> applicableCalendars) =>
+        timetables.Where(item =>
+            applicableCalendars.Count == 0 ||
+            string.IsNullOrWhiteSpace(item.Calendar) ||
+            applicableCalendars.Contains(item.Calendar));
 
     private static OdptTrain? FindLiveTrain(
         OdptStationTimetable timetable,

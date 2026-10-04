@@ -215,6 +215,65 @@ public sealed class OdptTransitProviderTests
         Assert.Empty(client.TrainRequests);
     }
 
+    [Theory]
+    [InlineData("TokyoMetro", "Ginza", "Ueno", false)]
+    [InlineData("Toei", "Asakusa", "Asakusa", true)]
+    public async Task TokyoSubwayDepartures_ReportScheduledLastDepartureAfterServiceEnds(
+        string operatorKey,
+        string railwayKey,
+        string stationKey,
+        bool expectsLiveFeed)
+    {
+        var operatorId = $"odpt.Operator:{operatorKey}";
+        var stationId = $"odpt.Station:{operatorKey}.{railwayKey}.{stationKey}";
+        var now = DateTimeOffset.Parse("2026-10-01T14:00:00Z");
+        var client = new StubOdptApiClient
+        {
+            Stations =
+            {
+                [operatorId] =
+                    [Station(operatorKey, railwayKey, stationKey, stationKey)]
+            },
+            Timetables =
+            {
+                [(operatorId, stationId)] =
+                [
+                    new OdptStationTimetable
+                    {
+                        Railway = $"odpt.Railway:{operatorKey}.{railwayKey}",
+                        Station = stationId,
+                        Calendar = "odpt.Calendar:Weekday",
+                        Objects =
+                        [
+                            new OdptStationTimetableObject
+                            {
+                                ArrivalTime = "22:40",
+                                DepartureTime = "22:43"
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+        var provider = CreateProvider(client, now);
+
+        var result = await provider.GetMetroDeparturesAsync(
+            stationId,
+            CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T13:43:00Z"), result.LastDepartureAt);
+        if (expectsLiveFeed)
+        {
+            Assert.Contains(operatorId, client.TrainRequests);
+        }
+        else
+        {
+            Assert.Empty(client.TrainRequests);
+        }
+    }
+
     [Fact]
     public async Task Status_CombinesBothOperatorsAndExcludesOtherToeiModes()
     {
@@ -260,13 +319,15 @@ public sealed class OdptTransitProviderTests
         Assert.Contains("都營地下鐵", result.Message);
     }
 
-    private static OdptTransitProvider CreateProvider(StubOdptApiClient client) =>
+    private static OdptTransitProvider CreateProvider(
+        StubOdptApiClient client,
+        DateTimeOffset? now = null) =>
         new(
             client,
             new PassThroughProviderCache(),
             Microsoft.Extensions.Options.Options.Create(
                 new OdptOptions { ConsumerKey = "not-a-real-key" }),
-            new FixedTimeProvider(Now),
+            new FixedTimeProvider(now ?? Now),
             NullLogger<OdptTransitProvider>.Instance);
 
     private static OdptRailway Railway(string operatorKey, string railwayKey, string name) =>

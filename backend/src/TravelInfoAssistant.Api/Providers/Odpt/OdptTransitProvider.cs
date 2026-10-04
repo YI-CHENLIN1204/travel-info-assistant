@@ -189,14 +189,21 @@ public sealed class OdptTransitProvider(
                 stationNames,
                 cancellationToken);
             var railwayFeed = await GetRailwayFeedAsync(subwayOperator, cancellationToken);
+            var now = timeProvider.GetUtcNow();
             var departures = OdptTransitMapper.MapStationDepartures(
                 timetableFeed.Data,
                 calendarFeed?.Data ?? [],
                 stationNames,
-                timeProvider.GetUtcNow(),
+                now,
                 railwayFeed.Result.Data,
                 liveTrains);
             var hasRealtimeEstimate = departures.Any(item => item.EstimatedAt.HasValue);
+            var lastDepartureAt = departures.Count == 0
+                ? OdptTransitMapper.GetEndedServiceDayLastDeparture(
+                    timetableFeed.Data,
+                    calendarFeed?.Data ?? [],
+                    now)
+                : null;
             var message = timetableFeed.Message
                           ?? calendarFeed?.Message
                           ?? stationFeed.Message
@@ -219,7 +226,9 @@ public sealed class OdptTransitProvider(
                     : timetableFeed.FetchedAt,
                 timetableFeed.Stale,
                 message,
-                "ODPT");
+                "ODPT",
+                ServiceDayStatus: lastDepartureAt.HasValue ? "ended" : null,
+                LastDepartureAt: lastDepartureAt);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

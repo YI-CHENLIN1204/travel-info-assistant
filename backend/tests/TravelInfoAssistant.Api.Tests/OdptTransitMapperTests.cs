@@ -391,6 +391,54 @@ public sealed class OdptTransitMapperTests
         Assert.Equal("表定時刻", departure.ServiceStatus);
     }
 
+    [Fact]
+    public void GetEndedServiceDayLastDeparture_UsesApplicableScheduledDepartureTime()
+    {
+        const string stationId = "odpt.Station:TokyoMetro.Ginza.Ueno";
+        var now = DateTimeOffset.Parse("2026-10-01T14:00:00Z");
+        var weekday = new OdptStationTimetable
+        {
+            Station = stationId,
+            Calendar = "odpt.Calendar:Weekday",
+            Objects =
+            [
+                new OdptStationTimetableObject
+                {
+                    ArrivalTime = "22:40",
+                    DepartureTime = "22:43"
+                }
+            ]
+        };
+        var saturday = CreateTimetable(
+            stationId,
+            "odpt.Calendar:SaturdayHoliday",
+            "23:30");
+
+        var lastDepartureAt = OdptTransitMapper.GetEndedServiceDayLastDeparture(
+            [weekday, saturday],
+            [],
+            now);
+
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T13:43:00Z"), lastDepartureAt);
+    }
+
+    [Fact]
+    public void GetEndedServiceDayLastDeparture_DoesNotEndBeforeAFutureDeparture()
+    {
+        var now = DateTimeOffset.Parse("2026-10-01T14:00:00Z");
+        var timetable = CreateTimetable(
+            "odpt.Station:TokyoMetro.Ginza.Ueno",
+            "odpt.Calendar:Weekday",
+            "23:30");
+
+        var lastDepartureAt = OdptTransitMapper.GetEndedServiceDayLastDeparture(
+            [timetable],
+            [],
+            now);
+
+        Assert.Null(lastDepartureAt);
+    }
+
     private static OdptStationTimetable CreateTimetable(
         string stationId,
         string calendar,
