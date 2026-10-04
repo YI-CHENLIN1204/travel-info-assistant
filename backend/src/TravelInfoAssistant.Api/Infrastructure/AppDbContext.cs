@@ -223,6 +223,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 1,
                 IntegrationStatus.Integrated),
             Capability(
+                "30dbf5b9-52a8-4c44-8932-4fd1b764c63f",
+                hongKongId,
+                "bus",
+                "巴士",
+                2,
+                IntegrationStatus.Integrated),
+            Capability(
                 "2856bd80-c98a-4a68-b881-2f4d4f1375fe",
                 hongKongId,
                 "weather",

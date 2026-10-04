@@ -63,7 +63,8 @@ export function getTransitEmptyMessage(
   if (meta?.serviceDayStatus === 'ended' && meta.lastDepartureAt) {
     const lastDepartureAt = new Date(meta.lastDepartureAt)
     if (!Number.isNaN(lastDepartureAt.getTime())) {
-      return `本日已無車次，末班車已於 ${formatTime(lastDepartureAt, timeZone)} 駛離站。`
+      const description = meta.lastDepartureDescription ?? '駛離站'
+      return `本日已無車次，末班車已於 ${formatTime(lastDepartureAt, timeZone)} ${description}。`
     }
   }
 

@@ -1,5 +1,6 @@
 using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.LtaDataMall;
+using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
@@ -12,6 +13,7 @@ public sealed class TransitService(
     IOdptTransitProvider odptProvider,
     IMtrTransitProvider mtrProvider,
     ILtaDataMallTransitProvider ltaDataMallProvider,
+    IKmbTransitProvider kmbProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -36,12 +38,21 @@ public sealed class TransitService(
         string? query,
         CancellationToken cancellationToken)
     {
-        if (!await IsTaipeiAsync(cityId, "bus", cancellationToken))
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "bus", cancellationToken);
+        ProviderQueryResult<IReadOnlyList<TransitRouteResponse>> result;
+        if (cityCode == "taipei")
+        {
+            result = await tdxProvider.GetBusRoutesAsync(cancellationToken);
+        }
+        else if (cityCode == "hong-kong")
+        {
+            result = await kmbProvider.GetBusRoutesAsync(cancellationToken);
+        }
+        else
         {
             return Unavailable<TransitRouteResponse>("這個城市目前尚未整合公車查詢。");
         }
 
-        var result = await tdxProvider.GetBusRoutesAsync(cancellationToken);
         var search = query?.Trim();
         var filtered = result.Data
             .Where(item => string.IsNullOrWhiteSpace(search) || MatchesRoute(item, search))
@@ -56,7 +67,12 @@ public sealed class TransitService(
         int direction,
         CancellationToken cancellationToken)
     {
-        if (!await IsTaipeiAsync(cityId, "bus", cancellationToken))
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "bus", cancellationToken);
+        if (cityCode == "hong-kong")
+        {
+            return await kmbProvider.GetBusStopsAsync(routeName.Trim(), direction, cancellationToken);
+        }
+        if (cityCode != "taipei")
         {
             return Unavailable<TransitStopResponse>("這個城市目前尚未整合公車查詢。");
         }
@@ -74,7 +90,13 @@ public sealed class TransitService(
         string stopId,
         CancellationToken cancellationToken)
     {
-        if (!await IsTaipeiAsync(cityId, "bus", cancellationToken))
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "bus", cancellationToken);
+        if (cityCode == "hong-kong")
+        {
+            return await kmbProvider.GetBusArrivalsAsync(
+                routeName.Trim(), direction, stopId.Trim(), cancellationToken);
+        }
+        if (cityCode != "taipei")
         {
             return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合公車查詢。");
         }
@@ -357,5 +379,8 @@ public sealed class TransitService(
             source.FetchedAt,
             source.Stale,
             source.Message,
-            source.Source);
+            source.Source,
+            source.ServiceDayStatus,
+            source.LastDepartureAt,
+            source.LastDepartureDescription);
 }

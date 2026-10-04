@@ -26,4 +26,5 @@ public sealed record ApiMeta(
     bool Stale,
     string? Message,
     string? ServiceDayStatus = null,
-    DateTimeOffset? LastDepartureAt = null);
+    DateTimeOffset? LastDepartureAt = null,
+    string? LastDepartureDescription = null);

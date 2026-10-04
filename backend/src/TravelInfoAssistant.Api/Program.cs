@@ -8,6 +8,7 @@ using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
 using TravelInfoAssistant.Api.Providers.LtaDataMall;
+using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Providers.MetNorway;
 using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
@@ -47,6 +48,7 @@ builder.Services.Configure<MtrOptions>(
     builder.Configuration.GetSection(MtrOptions.SectionName));
 builder.Services.Configure<LtaDataMallOptions>(
     builder.Configuration.GetSection(LtaDataMallOptions.SectionName));
+builder.Services.Configure<KmbOptions>(builder.Configuration.GetSection(KmbOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -163,6 +165,33 @@ builder.Services
             DecompressionMethods.Brotli
     });
 builder.Services
+    .AddHttpClient("kmb-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<KmbOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
+    .AddHttpClient("kmb-schedule", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<KmbOptions>>().Value;
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
     .AddHttpClient("tdx-auth", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<TdxOptions>>().Value;
@@ -215,6 +244,8 @@ builder.Services.AddSingleton<IMtrApiClient, MtrApiClient>();
 builder.Services.AddSingleton<IMtrTransitProvider, MtrTransitProvider>();
 builder.Services.AddSingleton<ILtaDataMallApiClient, LtaDataMallApiClient>();
 builder.Services.AddSingleton<ILtaDataMallTransitProvider, LtaDataMallTransitProvider>();
+builder.Services.AddSingleton<IKmbApiClient, KmbApiClient>();
+builder.Services.AddSingleton<IKmbTransitProvider, KmbTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

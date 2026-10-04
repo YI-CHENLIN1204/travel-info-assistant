@@ -119,4 +119,19 @@ describe('getTransitEmptyMessage', () => {
       ),
     ).toBe('目前查無班次。')
   })
+
+  it('uses a provider-specific last departure description', () => {
+    expect(
+      getTransitEmptyMessage(
+        {
+          ...baseMeta,
+          serviceDayStatus: 'ended',
+          lastDepartureAt: '2026-10-04T15:48:00Z',
+          lastDepartureDescription: '由起點開出',
+        },
+        'Asia/Hong_Kong',
+        '目前查無班次。',
+      ),
+    ).toBe('本日已無車次，末班車已於 23:48 由起點開出。')
+  })
 })

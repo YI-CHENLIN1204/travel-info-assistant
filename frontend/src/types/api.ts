@@ -7,6 +7,7 @@ export interface ApiMeta {
   message: string | null
   serviceDayStatus?: 'ended' | null
   lastDepartureAt?: string | null
+  lastDepartureDescription?: string | null
 }
 
 export interface ApiResponse<T> {
