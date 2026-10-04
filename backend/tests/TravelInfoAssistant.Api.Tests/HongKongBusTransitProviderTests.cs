@@ -2,6 +2,7 @@ using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.Citybus;
 using TravelInfoAssistant.Api.Providers.HongKong;
 using TravelInfoAssistant.Api.Providers.Kmb;
+using TravelInfoAssistant.Api.Providers.Nlb;
 using TravelInfoAssistant.Api.Services.Transit;
 using Xunit;
 
@@ -16,16 +17,19 @@ public sealed class HongKongBusTransitProviderTests
     {
         var kmb = new StubKmbProvider { Routes = [Route("KMB:1", "九巴／龍運")] };
         var citybus = new StubCitybusProvider { Routes = [Route("CTB:1", "城巴")] };
-        var provider = new HongKongBusTransitProvider(kmb, citybus, TimeProvider.System);
+        var nlb = new StubNlbProvider { Routes = [Route("NLB:2", "新大嶼山巴士")] };
+        var provider = new HongKongBusTransitProvider(kmb, citybus, nlb, TimeProvider.System);
 
         var routes = await provider.GetBusRoutesAsync(CancellationToken.None);
         await provider.GetBusStopsAsync("CTB:1", 1, CancellationToken.None);
         await provider.GetBusArrivalsAsync("KMB:1", 0, "A", CancellationToken.None);
+        await provider.GetBusStopsAsync("NLB:2", 0, CancellationToken.None);
 
-        Assert.Equal(2, routes.Data.Count);
-        Assert.Equal(["CTB:1", "KMB:1"], routes.Data.Select(item => item.QueryId).Order());
+        Assert.Equal(3, routes.Data.Count);
+        Assert.Equal(["CTB:1", "KMB:1", "NLB:2"], routes.Data.Select(item => item.QueryId).Order());
         Assert.Equal([("1", 1)], citybus.StopRequests);
         Assert.Equal([("1", 0, "A")], kmb.ArrivalRequests);
+        Assert.Equal([("2", 0)], nlb.StopRequests);
     }
 
     [Fact]
@@ -33,7 +37,7 @@ public sealed class HongKongBusTransitProviderTests
     {
         var kmb = new StubKmbProvider { Routes = [Route("KMB:1", "九巴／龍運")] };
         var citybus = new StubCitybusProvider { Unavailable = true };
-        var provider = new HongKongBusTransitProvider(kmb, citybus, TimeProvider.System);
+        var provider = new HongKongBusTransitProvider(kmb, citybus, new StubNlbProvider(), TimeProvider.System);
 
         var result = await provider.GetBusRoutesAsync(CancellationToken.None);
 
@@ -105,6 +109,31 @@ public sealed class HongKongBusTransitProviderTests
             string stopId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Result<IReadOnlyList<TransitArrivalResponse>>([], "城巴"));
+    }
+
+    private sealed class StubNlbProvider : INlbTransitProvider
+    {
+        public IReadOnlyList<TransitRouteResponse> Routes { get; init; } = [];
+        public List<(string Route, int Direction)> StopRequests { get; } = [];
+
+        public Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetBusRoutesAsync(
+            CancellationToken cancellationToken) => Task.FromResult(Result(Routes, "新大嶼山巴士"));
+
+        public Task<ProviderQueryResult<IReadOnlyList<TransitStopResponse>>> GetBusStopsAsync(
+            string route,
+            int direction,
+            CancellationToken cancellationToken)
+        {
+            StopRequests.Add((route, direction));
+            return Task.FromResult(Result<IReadOnlyList<TransitStopResponse>>([], "新大嶼山巴士"));
+        }
+
+        public Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetBusArrivalsAsync(
+            string route,
+            int direction,
+            string stopId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Result<IReadOnlyList<TransitArrivalResponse>>([], "新大嶼山巴士"));
     }
 
     private static ProviderQueryResult<T> Result<T>(T data, string source) =>

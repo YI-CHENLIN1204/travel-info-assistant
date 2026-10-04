@@ -7,7 +7,7 @@ namespace TravelInfoAssistant.Api.Providers.HongKong;
 public static class HongKongGtfsParser
 {
     private static readonly HashSet<string> SupportedAgencies =
-        new(["KMB", "LWB", "CTB"], StringComparer.OrdinalIgnoreCase);
+        new(["KMB", "LWB", "CTB", "NLB"], StringComparer.OrdinalIgnoreCase);
 
     public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
@@ -40,8 +40,17 @@ public static class HongKongGtfsParser
             .Select(row => new HongKongGtfsStopTime(
                 Get(row, "trip_id"),
                 ParseInt(Get(row, "stop_sequence")) ?? int.MaxValue,
-                Optional(row, "departure_time")))
+                Optional(row, "departure_time"),
+                Optional(row, "stop_id")))
             .Where(item => tripIds.Contains(item.TripId))
+            .ToList();
+        var stopIds = stopTimes
+            .Where(item => !string.IsNullOrWhiteSpace(item.StopId))
+            .Select(item => item.StopId!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var stops = Read(zipBytes, "stops.txt", false)
+            .Select(row => new HongKongGtfsStop(Get(row, "stop_id"), Get(row, "stop_name")))
+            .Where(item => stopIds.Contains(item.Id))
             .ToList();
         var calendars = Read(zipBytes, "calendar.txt", false)
             .Select(row => new HongKongGtfsCalendar(
@@ -58,7 +67,14 @@ public static class HongKongGtfsParser
             .Where(item => item.Date != DateOnly.MinValue && item.ExceptionType is 1 or 2)
             .ToList();
 
-        return new HongKongGtfsSchedule(routes, trips, frequencies, stopTimes, calendars, calendarDates);
+        return new HongKongGtfsSchedule(
+            routes,
+            trips,
+            frequencies,
+            stopTimes,
+            calendars,
+            calendarDates,
+            stops);
     }
 
     private static IReadOnlyList<IReadOnlyDictionary<string, string>> Read(

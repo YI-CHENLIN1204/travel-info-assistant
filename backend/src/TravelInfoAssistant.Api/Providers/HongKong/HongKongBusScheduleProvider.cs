@@ -15,7 +15,8 @@ public interface IHongKongBusScheduleProvider
         string route,
         int direction,
         DateTimeOffset now,
-        HongKongGtfsSchedule schedule);
+        HongKongGtfsSchedule schedule,
+        string? originName = null);
 }
 
 public sealed class HongKongBusScheduleProvider(
@@ -58,7 +59,8 @@ public sealed class HongKongBusScheduleProvider(
         string route,
         int direction,
         DateTimeOffset now,
-        HongKongGtfsSchedule schedule)
+        HongKongGtfsSchedule schedule,
+        string? originName = null)
     {
         var localNow = TimeZoneInfo.ConvertTime(now, HongKongTimeZone);
         var serviceDate = DateOnly.FromDateTime(localNow.DateTime);
@@ -75,7 +77,7 @@ public sealed class HongKongBusScheduleProvider(
         var trips = schedule.Trips
             .Where(item =>
                 routeIds.Contains(item.RouteId) &&
-                item.Direction == direction &&
+                IsRequestedDirection(item, direction, originName, schedule) &&
                 IsServiceActive(item.ServiceId, serviceDate, schedule))
             .ToList();
         if (trips.Count == 0) return null;
@@ -93,6 +95,38 @@ public sealed class HongKongBusScheduleProvider(
             .Select(item => item!.Value)
             .ToList();
         return candidates.Count == 0 ? null : candidates.Max();
+    }
+
+    private static bool IsRequestedDirection(
+        HongKongGtfsTrip trip,
+        int direction,
+        string? originName,
+        HongKongGtfsSchedule schedule)
+    {
+        if (string.IsNullOrWhiteSpace(originName)) return trip.Direction == direction;
+
+        var firstStopId = schedule.StopTimes
+            .Where(item => item.TripId.Equals(trip.Id, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Sequence)
+            .Select(item => item.StopId)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstStopId)) return false;
+
+        var firstStopName = schedule.Stops?.FirstOrDefault(item =>
+            item.Id.Equals(firstStopId, StringComparison.OrdinalIgnoreCase))?.Name;
+        return NormalizeStopName(firstStopName).Equals(
+            NormalizeStopName(originName),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeStopName(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (normalized.StartsWith("[", StringComparison.Ordinal) && normalized.IndexOf(']') is var end && end >= 0)
+        {
+            normalized = normalized[(end + 1)..].Trim();
+        }
+        return normalized;
     }
 
     private static DateTimeOffset? LastFrequencyDeparture(

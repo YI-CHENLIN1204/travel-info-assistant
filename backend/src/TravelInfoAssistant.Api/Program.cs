@@ -13,6 +13,7 @@ using TravelInfoAssistant.Api.Providers.LtaDataMall;
 using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Providers.MetNorway;
 using TravelInfoAssistant.Api.Providers.Mtr;
+using TravelInfoAssistant.Api.Providers.Nlb;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
@@ -52,6 +53,7 @@ builder.Services.Configure<LtaDataMallOptions>(
     builder.Configuration.GetSection(LtaDataMallOptions.SectionName));
 builder.Services.Configure<KmbOptions>(builder.Configuration.GetSection(KmbOptions.SectionName));
 builder.Services.Configure<CitybusOptions>(builder.Configuration.GetSection(CitybusOptions.SectionName));
+builder.Services.Configure<NlbOptions>(builder.Configuration.GetSection(NlbOptions.SectionName));
 builder.Services.Configure<HongKongTransitOptions>(
     builder.Configuration.GetSection(HongKongTransitOptions.SectionName));
 builder.Services
@@ -198,6 +200,20 @@ builder.Services
             DecompressionMethods.Brotli
     });
 builder.Services
+    .AddHttpClient("nlb-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<NlbOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
     .AddHttpClient("hong-kong-gtfs", (services, client) =>
     {
         var settings = services.GetRequiredService<IOptions<HongKongTransitOptions>>().Value;
@@ -267,6 +283,8 @@ builder.Services.AddSingleton<IKmbApiClient, KmbApiClient>();
 builder.Services.AddSingleton<IKmbTransitProvider, KmbTransitProvider>();
 builder.Services.AddSingleton<ICitybusApiClient, CitybusApiClient>();
 builder.Services.AddSingleton<ICitybusTransitProvider, CitybusTransitProvider>();
+builder.Services.AddSingleton<INlbApiClient, NlbApiClient>();
+builder.Services.AddSingleton<INlbTransitProvider, NlbTransitProvider>();
 builder.Services.AddSingleton<IHongKongBusScheduleProvider, HongKongBusScheduleProvider>();
 builder.Services.AddSingleton<IHongKongBusTransitProvider, HongKongBusTransitProvider>();
 

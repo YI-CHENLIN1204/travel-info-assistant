@@ -1,6 +1,7 @@
 using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.Citybus;
 using TravelInfoAssistant.Api.Providers.Kmb;
+using TravelInfoAssistant.Api.Providers.Nlb;
 using TravelInfoAssistant.Api.Services.Transit;
 
 namespace TravelInfoAssistant.Api.Providers.HongKong;
@@ -23,6 +24,7 @@ public interface IHongKongBusTransitProvider
 public sealed class HongKongBusTransitProvider(
     IKmbTransitProvider kmbProvider,
     ICitybusTransitProvider citybusProvider,
+    INlbTransitProvider nlbProvider,
     TimeProvider timeProvider) : IHongKongBusTransitProvider
 {
     private const string Source = "香港巴士開放數據";
@@ -32,7 +34,8 @@ public sealed class HongKongBusTransitProvider(
     {
         var results = await Task.WhenAll(
             kmbProvider.GetBusRoutesAsync(cancellationToken),
-            citybusProvider.GetBusRoutesAsync(cancellationToken));
+            citybusProvider.GetBusRoutesAsync(cancellationToken),
+            nlbProvider.GetBusRoutesAsync(cancellationToken));
         var data = results
             .SelectMany(item => item.Data)
             .OrderBy(item => item.NameZh.PadLeft(8, '0'), StringComparer.OrdinalIgnoreCase)
@@ -73,6 +76,7 @@ public sealed class HongKongBusTransitProvider(
         {
             "CTB" => citybusProvider.GetBusStopsAsync(route, direction, cancellationToken),
             "KMB" => kmbProvider.GetBusStopsAsync(route, direction, cancellationToken),
+            "NLB" => nlbProvider.GetBusStopsAsync(route, direction, cancellationToken),
             _ => Task.FromResult(Unavailable<TransitStopResponse>())
         };
     }
@@ -88,6 +92,7 @@ public sealed class HongKongBusTransitProvider(
         {
             "CTB" => citybusProvider.GetBusArrivalsAsync(route, direction, stopId, cancellationToken),
             "KMB" => kmbProvider.GetBusArrivalsAsync(route, direction, stopId, cancellationToken),
+            "NLB" => nlbProvider.GetBusArrivalsAsync(route, direction, stopId, cancellationToken),
             _ => Task.FromResult(Unavailable<TransitArrivalResponse>())
         };
     }

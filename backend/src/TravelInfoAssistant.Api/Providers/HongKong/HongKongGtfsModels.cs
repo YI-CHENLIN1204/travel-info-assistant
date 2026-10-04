@@ -7,7 +7,12 @@ public sealed record HongKongGtfsFrequency(
     string StartTime,
     string EndTime,
     int HeadwaySeconds);
-public sealed record HongKongGtfsStopTime(string TripId, int Sequence, string? DepartureTime);
+public sealed record HongKongGtfsStopTime(
+    string TripId,
+    int Sequence,
+    string? DepartureTime,
+    string? StopId = null);
+public sealed record HongKongGtfsStop(string Id, string Name);
 public sealed record HongKongGtfsCalendar(
     string ServiceId,
     DateOnly StartDate,
@@ -20,4 +25,5 @@ public sealed record HongKongGtfsSchedule(
     IReadOnlyList<HongKongGtfsFrequency> Frequencies,
     IReadOnlyList<HongKongGtfsStopTime> StopTimes,
     IReadOnlyList<HongKongGtfsCalendar> Calendars,
-    IReadOnlyList<HongKongGtfsCalendarDate> CalendarDates);
+    IReadOnlyList<HongKongGtfsCalendarDate> CalendarDates,
+    IReadOnlyList<HongKongGtfsStop>? Stops = null);

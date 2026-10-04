@@ -82,8 +82,9 @@ public sealed class KmbTransitProviderTests
             string route,
             int direction,
             DateTimeOffset now,
-            HongKongGtfsSchedule value) =>
-            _calculator.FindLastOriginDeparture(agencyId, route, direction, now, value);
+            HongKongGtfsSchedule value,
+            string? originName = null) =>
+            _calculator.FindLastOriginDeparture(agencyId, route, direction, now, value, originName);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

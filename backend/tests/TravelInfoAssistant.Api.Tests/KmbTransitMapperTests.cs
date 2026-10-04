@@ -92,8 +92,9 @@ public sealed class KmbTransitMapperTests
             schedule);
 
         Assert.Equal(DateTimeOffset.Parse("2026-10-05T00:55:00+08:00"), lastDeparture);
-        Assert.Equal(2, schedule.Routes.Count);
+        Assert.Equal(3, schedule.Routes.Count);
         Assert.Contains(schedule.Routes, item => item.AgencyId == "CTB");
+        Assert.Contains(schedule.Routes, item => item.AgencyId == "NLB");
     }
 
     private static KmbRouteRow Route(
@@ -148,7 +149,7 @@ public sealed class KmbTransitMapperTests
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            Add(archive, "routes.txt", "route_id,agency_id,route_short_name\n1053,KMB,1A\n9999,CTB,1A\n");
+            Add(archive, "routes.txt", "route_id,agency_id,route_short_name\n1053,KMB,1A\n9999,CTB,1A\n1723,NLB,1\n");
             Add(archive, "trips.txt", "route_id,service_id,trip_id,direction_id\n1053,WEEKDAY,trip-1,0\n");
             Add(archive, "frequencies.txt", "trip_id,start_time,end_time,headway_secs\ntrip-1,23:55:00,25:00:00,600\n");
             Add(archive, "stop_times.txt", "trip_id,departure_time,stop_id,stop_sequence\ntrip-1,23:55:00,A,1\n");
