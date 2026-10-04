@@ -1,6 +1,7 @@
 using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.LtaDataMall;
 using TravelInfoAssistant.Api.Providers.Kmb;
+using TravelInfoAssistant.Api.Providers.HongKong;
 using TravelInfoAssistant.Api.Providers.Mtr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
@@ -13,7 +14,7 @@ public sealed class TransitService(
     IOdptTransitProvider odptProvider,
     IMtrTransitProvider mtrProvider,
     ILtaDataMallTransitProvider ltaDataMallProvider,
-    IKmbTransitProvider kmbProvider,
+    IHongKongBusTransitProvider hongKongBusProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -46,7 +47,7 @@ public sealed class TransitService(
         }
         else if (cityCode == "hong-kong")
         {
-            result = await kmbProvider.GetBusRoutesAsync(cancellationToken);
+            result = await hongKongBusProvider.GetBusRoutesAsync(cancellationToken);
         }
         else
         {
@@ -70,7 +71,7 @@ public sealed class TransitService(
         var cityCode = await GetIntegratedCityCodeAsync(cityId, "bus", cancellationToken);
         if (cityCode == "hong-kong")
         {
-            return await kmbProvider.GetBusStopsAsync(routeName.Trim(), direction, cancellationToken);
+            return await hongKongBusProvider.GetBusStopsAsync(routeName.Trim(), direction, cancellationToken);
         }
         if (cityCode != "taipei")
         {
@@ -93,7 +94,7 @@ public sealed class TransitService(
         var cityCode = await GetIntegratedCityCodeAsync(cityId, "bus", cancellationToken);
         if (cityCode == "hong-kong")
         {
-            return await kmbProvider.GetBusArrivalsAsync(
+            return await hongKongBusProvider.GetBusArrivalsAsync(
                 routeName.Trim(), direction, stopId.Trim(), cancellationToken);
         }
         if (cityCode != "taipei")

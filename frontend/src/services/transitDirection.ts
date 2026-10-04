@@ -9,3 +9,7 @@ export function getBusDirectionLabel(route: TransitRoute, direction: number): st
   if (item?.headsign) return `往 ${item.headsign}`
   return direction === 0 ? '去程' : '返程'
 }
+
+export function getBusRouteQueryId(route: TransitRoute): string {
+  return route.queryId ?? route.nameZh
+}

@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import * as transitApi from '@/api/transit'
-import { getBusDirectionLabel } from '@/services/transitDirection'
+import { getBusDirectionLabel, getBusRouteQueryId } from '@/services/transitDirection'
 import {
   buildArrivalDirectionOptions,
   buildFixedDirectionOptions,
@@ -70,6 +70,16 @@ describe('getBusDirectionLabel', () => {
   it('falls back to outbound and return labels when metadata is missing', () => {
     expect(getBusDirectionLabel({ ...route, directions: [] }, 0)).toBe('去程')
     expect(getBusDirectionLabel({ ...route, directions: [] }, 1)).toBe('返程')
+  })
+})
+
+describe('getBusRouteQueryId', () => {
+  it('uses an operator-qualified query id when providers share a route number', () => {
+    expect(getBusRouteQueryId({ ...route, nameZh: '1', queryId: 'CTB:1' })).toBe('CTB:1')
+  })
+
+  it('keeps existing providers compatible when no query id is supplied', () => {
+    expect(getBusRouteQueryId(route)).toBe(route.nameZh)
   })
 })
 

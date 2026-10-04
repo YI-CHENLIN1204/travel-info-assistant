@@ -7,6 +7,8 @@ using TravelInfoAssistant.Api.Infrastructure;
 using TravelInfoAssistant.Api.Options;
 using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
+using TravelInfoAssistant.Api.Providers.Citybus;
+using TravelInfoAssistant.Api.Providers.HongKong;
 using TravelInfoAssistant.Api.Providers.LtaDataMall;
 using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Providers.MetNorway;
@@ -49,6 +51,9 @@ builder.Services.Configure<MtrOptions>(
 builder.Services.Configure<LtaDataMallOptions>(
     builder.Configuration.GetSection(LtaDataMallOptions.SectionName));
 builder.Services.Configure<KmbOptions>(builder.Configuration.GetSection(KmbOptions.SectionName));
+builder.Services.Configure<CitybusOptions>(builder.Configuration.GetSection(CitybusOptions.SectionName));
+builder.Services.Configure<HongKongTransitOptions>(
+    builder.Configuration.GetSection(HongKongTransitOptions.SectionName));
 builder.Services
     .AddHttpClient("tdx-api", (services, client) =>
     {
@@ -179,9 +184,23 @@ builder.Services
             DecompressionMethods.Brotli
     });
 builder.Services
-    .AddHttpClient("kmb-schedule", (services, client) =>
+    .AddHttpClient("citybus-api", (services, client) =>
     {
-        var settings = services.GetRequiredService<IOptions<KmbOptions>>().Value;
+        var settings = services.GetRequiredService<IOptions<CitybusOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
+    .AddHttpClient("hong-kong-gtfs", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<HongKongTransitOptions>>().Value;
         client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
     })
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -246,6 +265,10 @@ builder.Services.AddSingleton<ILtaDataMallApiClient, LtaDataMallApiClient>();
 builder.Services.AddSingleton<ILtaDataMallTransitProvider, LtaDataMallTransitProvider>();
 builder.Services.AddSingleton<IKmbApiClient, KmbApiClient>();
 builder.Services.AddSingleton<IKmbTransitProvider, KmbTransitProvider>();
+builder.Services.AddSingleton<ICitybusApiClient, CitybusApiClient>();
+builder.Services.AddSingleton<ICitybusTransitProvider, CitybusTransitProvider>();
+builder.Services.AddSingleton<IHongKongBusScheduleProvider, HongKongBusScheduleProvider>();
+builder.Services.AddSingleton<IHongKongBusTransitProvider, HongKongBusTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

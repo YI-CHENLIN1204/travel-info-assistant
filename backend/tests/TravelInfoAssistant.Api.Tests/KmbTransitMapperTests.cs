@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using TravelInfoAssistant.Api.Providers.HongKong;
 using TravelInfoAssistant.Api.Providers.Kmb;
 using Xunit;
 
@@ -80,17 +81,19 @@ public sealed class KmbTransitMapperTests
     [Fact]
     public void ParsesGtfsAndUsesTheLastPublishedOriginDeparture()
     {
-        var schedule = KmbGtfsParser.Parse(BuildGtfs());
+        var schedule = HongKongGtfsParser.Parse(BuildGtfs());
+        var calculator = new HongKongBusScheduleProvider(null!, null!, null!, TimeProvider.System);
 
-        var lastDeparture = KmbTransitMapper.FindLastOriginDeparture(
+        var lastDeparture = calculator.FindLastOriginDeparture(
+            "KMB",
             "1A",
             0,
             DateTimeOffset.Parse("2026-10-05T01:00:00+08:00"),
             schedule);
 
         Assert.Equal(DateTimeOffset.Parse("2026-10-05T00:55:00+08:00"), lastDeparture);
-        Assert.Single(schedule.Routes);
-        Assert.DoesNotContain(schedule.Routes, item => item.AgencyId == "CTB");
+        Assert.Equal(2, schedule.Routes.Count);
+        Assert.Contains(schedule.Routes, item => item.AgencyId == "CTB");
     }
 
     private static KmbRouteRow Route(

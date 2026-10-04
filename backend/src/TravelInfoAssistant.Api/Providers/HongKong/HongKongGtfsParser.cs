@@ -2,22 +2,25 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 
-namespace TravelInfoAssistant.Api.Providers.Kmb;
+namespace TravelInfoAssistant.Api.Providers.HongKong;
 
-public static class KmbGtfsParser
+public static class HongKongGtfsParser
 {
-    public static KmbGtfsSchedule Parse(byte[] zipBytes)
+    private static readonly HashSet<string> SupportedAgencies =
+        new(["KMB", "LWB", "CTB"], StringComparer.OrdinalIgnoreCase);
+
+    public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
         var routes = Read(zipBytes, "routes.txt")
-            .Select(row => new KmbGtfsRoute(
+            .Select(row => new HongKongGtfsRoute(
                 Get(row, "route_id"),
                 Get(row, "agency_id"),
                 Get(row, "route_short_name")))
-            .Where(item => item.AgencyId is "KMB" or "LWB")
+            .Where(item => SupportedAgencies.Contains(item.AgencyId))
             .ToList();
         var routeIds = routes.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var trips = Read(zipBytes, "trips.txt")
-            .Select(row => new KmbGtfsTrip(
+            .Select(row => new HongKongGtfsTrip(
                 Get(row, "trip_id"),
                 Get(row, "route_id"),
                 Get(row, "service_id"),
@@ -26,7 +29,7 @@ public static class KmbGtfsParser
             .ToList();
         var tripIds = trips.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var frequencies = Read(zipBytes, "frequencies.txt", false)
-            .Select(row => new KmbGtfsFrequency(
+            .Select(row => new HongKongGtfsFrequency(
                 Get(row, "trip_id"),
                 Get(row, "start_time"),
                 Get(row, "end_time"),
@@ -34,28 +37,28 @@ public static class KmbGtfsParser
             .Where(item => tripIds.Contains(item.TripId))
             .ToList();
         var stopTimes = Read(zipBytes, "stop_times.txt", false)
-            .Select(row => new KmbGtfsStopTime(
+            .Select(row => new HongKongGtfsStopTime(
                 Get(row, "trip_id"),
                 ParseInt(Get(row, "stop_sequence")) ?? int.MaxValue,
                 Optional(row, "departure_time")))
             .Where(item => tripIds.Contains(item.TripId))
             .ToList();
         var calendars = Read(zipBytes, "calendar.txt", false)
-            .Select(row => new KmbGtfsCalendar(
+            .Select(row => new HongKongGtfsCalendar(
                 Get(row, "service_id"),
                 ParseDate(Get(row, "start_date")) ?? DateOnly.MinValue,
                 ParseDate(Get(row, "end_date")) ?? DateOnly.MaxValue,
                 Days(row)))
             .ToList();
         var calendarDates = Read(zipBytes, "calendar_dates.txt", false)
-            .Select(row => new KmbGtfsCalendarDate(
+            .Select(row => new HongKongGtfsCalendarDate(
                 Get(row, "service_id"),
                 ParseDate(Get(row, "date")) ?? DateOnly.MinValue,
                 ParseInt(Get(row, "exception_type")) ?? 0))
             .Where(item => item.Date != DateOnly.MinValue && item.ExceptionType is 1 or 2)
             .ToList();
 
-        return new KmbGtfsSchedule(routes, trips, frequencies, stopTimes, calendars, calendarDates);
+        return new HongKongGtfsSchedule(routes, trips, frequencies, stopTimes, calendars, calendarDates);
     }
 
     private static IReadOnlyList<IReadOnlyDictionary<string, string>> Read(
@@ -69,7 +72,7 @@ public static class KmbGtfsParser
             item.FullName.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
         if (entry is null)
         {
-            if (required) throw new InvalidOperationException($"KMB GTFS archive is missing {fileName}.");
+            if (required) throw new InvalidOperationException($"Hong Kong GTFS archive is missing {fileName}.");
             return [];
         }
 

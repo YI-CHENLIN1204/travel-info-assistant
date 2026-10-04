@@ -76,6 +76,7 @@ export interface TransitRoute {
   operators: string[]
   directions: TransitDirection[]
   stationNames: string[]
+  queryId?: string | null
 }
 
 export interface TransitStop {

@@ -20,7 +20,8 @@ public sealed record TransitRouteResponse(
     string? DestinationName,
     IReadOnlyList<string> Operators,
     IReadOnlyList<TransitDirectionResponse> Directions,
-    IReadOnlyList<string> StationNames);
+    IReadOnlyList<string> StationNames,
+    string? QueryId = null);
 
 public sealed record TransitStopResponse(
     string Id,

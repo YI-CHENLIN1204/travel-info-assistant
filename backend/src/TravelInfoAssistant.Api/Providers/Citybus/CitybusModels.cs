@@ -1,31 +1,22 @@
 using System.Text.Json.Serialization;
 
-namespace TravelInfoAssistant.Api.Providers.Kmb;
+namespace TravelInfoAssistant.Api.Providers.Citybus;
 
-public sealed record KmbHttpResult<T>(
+public sealed record CitybusHttpResult<T>(
     T Data,
     DateTimeOffset FetchedAt,
     DateTimeOffset? SourceUpdatedAt = null);
 
-public sealed class KmbResponse<T>
+public sealed class CitybusResponse<T>
 {
-    [JsonPropertyName("generated_timestamp")]
-    public DateTimeOffset? GeneratedAt { get; init; }
-
     [JsonPropertyName("data")]
     public T Data { get; init; } = default!;
 }
 
-public sealed class KmbRouteRow
+public sealed class CitybusRouteRow
 {
     [JsonPropertyName("route")]
     public string Route { get; init; } = string.Empty;
-
-    [JsonPropertyName("bound")]
-    public string Bound { get; init; } = string.Empty;
-
-    [JsonPropertyName("service_type")]
-    public string ServiceType { get; init; } = string.Empty;
 
     [JsonPropertyName("orig_tc")]
     public string OriginZh { get; init; } = string.Empty;
@@ -38,27 +29,30 @@ public sealed class KmbRouteRow
 
     [JsonPropertyName("dest_en")]
     public string DestinationEn { get; init; } = string.Empty;
+
+    [JsonPropertyName("data_timestamp")]
+    public DateTimeOffset? DataTimestamp { get; init; }
 }
 
-public sealed class KmbRouteStopRow
+public sealed class CitybusRouteStopRow
 {
     [JsonPropertyName("route")]
     public string Route { get; init; } = string.Empty;
 
-    [JsonPropertyName("bound")]
-    public string Bound { get; init; } = string.Empty;
-
-    [JsonPropertyName("service_type")]
-    public string ServiceType { get; init; } = string.Empty;
+    [JsonPropertyName("dir")]
+    public string Direction { get; init; } = string.Empty;
 
     [JsonPropertyName("seq")]
-    public string Sequence { get; init; } = string.Empty;
+    public int Sequence { get; init; }
 
     [JsonPropertyName("stop")]
     public string StopId { get; init; } = string.Empty;
+
+    [JsonPropertyName("data_timestamp")]
+    public DateTimeOffset? DataTimestamp { get; init; }
 }
 
-public sealed class KmbStopRow
+public sealed class CitybusStopRow
 {
     [JsonPropertyName("stop")]
     public string StopId { get; init; } = string.Empty;
@@ -74,21 +68,18 @@ public sealed class KmbStopRow
 
     [JsonPropertyName("long")]
     public string Longitude { get; init; } = string.Empty;
+
+    [JsonPropertyName("data_timestamp")]
+    public DateTimeOffset? DataTimestamp { get; init; }
 }
 
-public sealed class KmbEtaRow
+public sealed class CitybusEtaRow
 {
     [JsonPropertyName("route")]
     public string Route { get; init; } = string.Empty;
 
     [JsonPropertyName("dir")]
     public string Direction { get; init; } = string.Empty;
-
-    [JsonPropertyName("service_type")]
-    public int ServiceType { get; init; }
-
-    [JsonPropertyName("seq")]
-    public int Sequence { get; init; }
 
     [JsonPropertyName("eta_seq")]
     public int EtaSequence { get; init; }

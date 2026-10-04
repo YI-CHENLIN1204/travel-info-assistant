@@ -1,7 +1,5 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
-using TravelInfoAssistant.Api.Options;
 
 namespace TravelInfoAssistant.Api.Providers.Kmb;
 
@@ -14,12 +12,10 @@ public interface IKmbApiClient
         string stopId,
         string route,
         CancellationToken cancellationToken);
-    Task<KmbHttpResult<KmbGtfsSchedule>> GetScheduleAsync(CancellationToken cancellationToken);
 }
 
 public sealed class KmbApiClient(
     IHttpClientFactory httpClientFactory,
-    IOptions<KmbOptions> options,
     TimeProvider timeProvider) : IKmbApiClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -46,19 +42,6 @@ public sealed class KmbApiClient(
         GetListAsync<KmbEtaRow>(
             $"eta/{Uri.EscapeDataString(stopId)}/{Uri.EscapeDataString(route)}/1",
             cancellationToken);
-
-    public async Task<KmbHttpResult<KmbGtfsSchedule>> GetScheduleAsync(
-        CancellationToken cancellationToken)
-    {
-        var client = httpClientFactory.CreateClient("kmb-schedule");
-        using var response = await client.GetAsync(options.Value.ScheduleUrl, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        return new KmbHttpResult<KmbGtfsSchedule>(
-            KmbGtfsParser.Parse(bytes),
-            timeProvider.GetUtcNow(),
-            response.Content.Headers.LastModified);
-    }
 
     private async Task<KmbHttpResult<IReadOnlyList<T>>> GetListAsync<T>(
         string path,

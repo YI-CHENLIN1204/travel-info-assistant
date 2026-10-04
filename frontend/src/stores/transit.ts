@@ -12,6 +12,7 @@ import {
   searchMetroStations as requestMetroStations,
   searchRailStations as requestRailStations,
 } from '@/api/transit'
+import { getBusRouteQueryId } from '@/services/transitDirection'
 import type {
   ApiMeta,
   MetroServiceStatus,
@@ -254,7 +255,7 @@ export const useTransitStore = defineStore('transit', () => {
     await run(async () => {
       const response = await getBusStops(
         cityId,
-        selectedRoute.value!.nameZh,
+        getBusRouteQueryId(selectedRoute.value!),
         selectedDirection.value,
       )
       stops.value = response.data
@@ -271,7 +272,7 @@ export const useTransitStore = defineStore('transit', () => {
     await run(async () => {
       const response = await getBusArrivals(
         cityId,
-        selectedRoute.value!.nameZh,
+        getBusRouteQueryId(selectedRoute.value!),
         selectedDirection.value,
         stop.id,
       )

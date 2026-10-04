@@ -2,9 +2,9 @@ using TravelInfoAssistant.Api.Contracts;
 using TravelInfoAssistant.Api.Providers.HongKong;
 using TravelInfoAssistant.Api.Services.Transit;
 
-namespace TravelInfoAssistant.Api.Providers.Kmb;
+namespace TravelInfoAssistant.Api.Providers.Citybus;
 
-public interface IKmbTransitProvider
+public interface ICitybusTransitProvider
 {
     Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetBusRoutesAsync(
         CancellationToken cancellationToken);
@@ -19,14 +19,14 @@ public interface IKmbTransitProvider
         CancellationToken cancellationToken);
 }
 
-public sealed class KmbTransitProvider(
-    IKmbApiClient apiClient,
+public sealed class CitybusTransitProvider(
+    ICitybusApiClient apiClient,
     IHongKongBusScheduleProvider scheduleProvider,
     IProviderCache cache,
     TimeProvider timeProvider,
-    ILogger<KmbTransitProvider> logger) : IKmbTransitProvider
+    ILogger<CitybusTransitProvider> logger) : ICitybusTransitProvider
 {
-    private const string Source = "香港九巴／龍運開放數據";
+    private const string Source = "香港城巴開放數據";
     private static readonly TimeSpan NetworkFreshFor = TimeSpan.FromHours(24);
     private static readonly TimeSpan NetworkRetainFor = TimeSpan.FromDays(7);
     private static readonly TimeSpan RealtimeFreshFor = TimeSpan.FromSeconds(15);
@@ -38,7 +38,7 @@ public sealed class KmbTransitProvider(
         try
         {
             var routes = await GetRoutesAsync(cancellationToken);
-            return Copy(routes, KmbTransitMapper.MapRoutes(routes.Data), "目前查無九巴／龍運一般路線。");
+            return Copy(routes, CitybusTransitMapper.MapRoutes(routes.Data), "目前查無城巴路線。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -54,16 +54,26 @@ public sealed class KmbTransitProvider(
     {
         try
         {
-            var routeStops = await GetRouteStopsAsync(cancellationToken);
-            var stops = await GetStopsAsync(cancellationToken);
-            var mapped = KmbTransitMapper.MapStops(route, direction, routeStops.Data, stops.Data);
+            var routeStops = await GetRouteStopsAsync(route, direction, cancellationToken);
+            var stopResults = await Task.WhenAll(routeStops.Data
+                .Select(item => item.StopId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(item => GetStopAsync(item, cancellationToken)));
+            var mapped = CitybusTransitMapper.MapStops(
+                route,
+                direction,
+                routeStops.Data,
+                stopResults.Select(item => item.Data).ToList());
             return new ProviderQueryResult<IReadOnlyList<TransitStopResponse>>(
                 mapped,
-                routeStops.DataStatus == "cached" || stops.DataStatus == "cached" ? "cached" : "scheduled",
-                Latest(routeStops.SourceUpdatedAt, stops.SourceUpdatedAt),
-                Latest(routeStops.FetchedAt, stops.FetchedAt),
-                routeStops.Stale || stops.Stale,
-                routeStops.Message ?? stops.Message ?? (mapped.Count == 0 ? "目前查無此方向的站序。" : null),
+                routeStops.DataStatus == "cached" || stopResults.Any(item => item.DataStatus == "cached")
+                    ? "cached"
+                    : "scheduled",
+                Latest([routeStops.SourceUpdatedAt, .. stopResults.Select(item => item.SourceUpdatedAt)]),
+                Latest([routeStops.FetchedAt, .. stopResults.Select(item => item.FetchedAt)]),
+                routeStops.Stale || stopResults.Any(item => item.Stale),
+                routeStops.Message ?? stopResults.Select(item => item.Message).FirstOrDefault(item => item is not null) ??
+                    (mapped.Count == 0 ? "目前查無此方向的城巴站序。" : null),
                 Source);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -82,10 +92,9 @@ public sealed class KmbTransitProvider(
         try
         {
             var eta = await GetEtaAsync(stopId, route, cancellationToken);
-            var stops = await GetStopsAsync(cancellationToken);
-            var stopName = stops.Data.FirstOrDefault(item =>
-                item.StopId.Equals(stopId, StringComparison.OrdinalIgnoreCase))?.NameZh ?? stopId;
-            var mapped = KmbTransitMapper.MapArrivals(route, direction, stopId, stopName, eta.Data);
+            var stop = await GetStopAsync(stopId, cancellationToken);
+            var stopName = stop.Data.NameZh;
+            var mapped = CitybusTransitMapper.MapArrivals(route, direction, stopId, stopName, eta.Data);
             if (mapped.Count > 0)
             {
                 return Copy(eta, mapped, null, "realtime");
@@ -95,7 +104,7 @@ public sealed class KmbTransitProvider(
             {
                 var schedule = await scheduleProvider.GetScheduleAsync(cancellationToken);
                 var lastDeparture = scheduleProvider.FindLastOriginDeparture(
-                    "KMB",
+                    "CTB",
                     route,
                     direction,
                     timeProvider.GetUtcNow(),
@@ -116,7 +125,7 @@ public sealed class KmbTransitProvider(
                 }
             }
 
-            return Copy(eta, mapped, "目前查無接下來的到站預報。", "realtime");
+            return Copy(eta, mapped, "目前查無接下來的城巴到站預報。", "realtime");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -125,20 +134,29 @@ public sealed class KmbTransitProvider(
         }
     }
 
-    private Task<ProviderQueryResult<IReadOnlyList<KmbRouteRow>>> GetRoutesAsync(CancellationToken token) =>
-        Cache("transit:kmb:routes:v1", NetworkFreshFor, NetworkRetainFor, apiClient.GetRoutesAsync, token);
-    private Task<ProviderQueryResult<IReadOnlyList<KmbRouteStopRow>>> GetRouteStopsAsync(CancellationToken token) =>
-        Cache("transit:kmb:route-stops:v1", NetworkFreshFor, NetworkRetainFor, apiClient.GetRouteStopsAsync, token);
-    private Task<ProviderQueryResult<IReadOnlyList<KmbStopRow>>> GetStopsAsync(CancellationToken token) =>
-        Cache("transit:kmb:stops:v1", NetworkFreshFor, NetworkRetainFor, apiClient.GetStopsAsync, token);
-    private Task<ProviderQueryResult<IReadOnlyList<KmbEtaRow>>> GetEtaAsync(string stopId, string route, CancellationToken token) =>
-        Cache($"transit:kmb:eta:{stopId}:{route}:v1", RealtimeFreshFor, RealtimeRetainFor,
+    private Task<ProviderQueryResult<IReadOnlyList<CitybusRouteRow>>> GetRoutesAsync(CancellationToken token) =>
+        Cache("transit:citybus:routes:v1", NetworkFreshFor, NetworkRetainFor, apiClient.GetRoutesAsync, token);
+    private Task<ProviderQueryResult<IReadOnlyList<CitybusRouteStopRow>>> GetRouteStopsAsync(
+        string route,
+        int direction,
+        CancellationToken token) =>
+        Cache($"transit:citybus:route-stops:{route}:{direction}:v1", NetworkFreshFor, NetworkRetainFor,
+            ct => apiClient.GetRouteStopsAsync(route, direction, ct), token);
+    private Task<ProviderQueryResult<CitybusStopRow>> GetStopAsync(string stopId, CancellationToken token) =>
+        Cache($"transit:citybus:stop:{stopId}:v1", NetworkFreshFor, NetworkRetainFor,
+            ct => apiClient.GetStopAsync(stopId, ct), token);
+    private Task<ProviderQueryResult<IReadOnlyList<CitybusEtaRow>>> GetEtaAsync(
+        string stopId,
+        string route,
+        CancellationToken token) =>
+        Cache($"transit:citybus:eta:{stopId}:{route}:v1", RealtimeFreshFor, RealtimeRetainFor,
             ct => apiClient.GetEtaAsync(stopId, route, ct), token, "realtime");
+
     private async Task<ProviderQueryResult<T>> Cache<T>(
         string key,
         TimeSpan freshFor,
         TimeSpan retainFor,
-        Func<CancellationToken, Task<KmbHttpResult<T>>> factory,
+        Func<CancellationToken, Task<CitybusHttpResult<T>>> factory,
         CancellationToken token,
         string status = "scheduled")
     {
@@ -172,15 +190,21 @@ public sealed class KmbTransitProvider(
     private ProviderQueryResult<IReadOnlyList<T>> Unavailable<T>() =>
         ProviderQueryResult<IReadOnlyList<T>>.Unavailable(
             [],
-            "目前無法連線至香港九巴／龍運開放數據，請稍後再試。",
+            "目前無法連線至香港城巴開放數據，請稍後再試。",
             timeProvider,
             Source);
 
     private void LogFailure(string operation, Exception exception) =>
-        logger.LogWarning(exception, "KMB {Operation} query failed ({ErrorType}).", operation, exception.GetType().Name);
+        logger.LogWarning(exception, "Citybus {Operation} query failed ({ErrorType}).", operation, exception.GetType().Name);
 
     private static DateTimeOffset Latest(DateTimeOffset first, DateTimeOffset second) =>
         first >= second ? first : second;
     private static DateTimeOffset? Latest(DateTimeOffset? first, DateTimeOffset? second) =>
         first.HasValue && second.HasValue ? Latest(first.Value, second.Value) : first ?? second;
+    private static DateTimeOffset Latest(IEnumerable<DateTimeOffset> values) => values.Max();
+    private static DateTimeOffset? Latest(IEnumerable<DateTimeOffset?> values) =>
+        values.Where(item => item.HasValue).Select(item => item!.Value).DefaultIfEmpty().Max() is var value &&
+        value != default
+            ? value
+            : null;
 }

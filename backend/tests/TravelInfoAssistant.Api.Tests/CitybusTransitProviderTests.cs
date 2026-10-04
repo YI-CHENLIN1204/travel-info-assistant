@@ -1,38 +1,38 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using TravelInfoAssistant.Api.Providers.Citybus;
 using TravelInfoAssistant.Api.Providers.HongKong;
-using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Services.Transit;
 using Xunit;
 
 namespace TravelInfoAssistant.Api.Tests;
 
-public sealed class KmbTransitProviderTests
+public sealed class CitybusTransitProviderTests
 {
     private static readonly DateTimeOffset Now =
         DateTimeOffset.Parse("2026-10-05T01:00:00+08:00");
 
     [Fact]
-    public async Task ReportsEndedServiceFromGtfsOriginScheduleWhenEtaIsEmpty()
+    public async Task ReportsEndedServiceFromSharedGtfsWhenEtaIsEmpty()
     {
-        var client = new StubKmbApiClient
+        var schedule = new HongKongGtfsSchedule(
+            [new("2001", "CTB", "1")],
+            [new("trip-1", "2001", "SUNDAY", 0)],
+            [new("trip-1", "23:55:00", "25:00:00", 600)],
+            [new("trip-1", 1, "23:55:00")],
+            [new("SUNDAY", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), [DayOfWeek.Sunday])],
+            []);
+        var client = new StubCitybusApiClient
         {
-            Stops = [new KmbStopRow { StopId = "A", NameZh = "中秀茂坪" }],
-            Schedule = new HongKongGtfsSchedule(
-                [new("1053", "KMB", "1A")],
-                [new("trip-1", "1053", "SUNDAY", 0)],
-                [new("trip-1", "23:55:00", "25:00:00", 600)],
-                [new("trip-1", 1, "23:55:00")],
-                [new("SUNDAY", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), [DayOfWeek.Sunday])],
-                [])
+            Stops = [new CitybusStopRow { StopId = "A", NameZh = "跑馬地" }]
         };
-        var provider = new KmbTransitProvider(
+        var provider = new CitybusTransitProvider(
             client,
-            new StubScheduleProvider(client.Schedule),
+            new StubScheduleProvider(schedule),
             new PassThroughProviderCache(),
             new FixedTimeProvider(Now),
-            NullLogger<KmbTransitProvider>.Instance);
+            NullLogger<CitybusTransitProvider>.Instance);
 
-        var result = await provider.GetBusArrivalsAsync("1A", 0, "A", CancellationToken.None);
+        var result = await provider.GetBusArrivalsAsync("1", 0, "A", CancellationToken.None);
 
         Assert.Empty(result.Data);
         Assert.Equal("ended", result.ServiceDayStatus);
@@ -40,42 +40,40 @@ public sealed class KmbTransitProviderTests
         Assert.Equal("由起點開出", result.LastDepartureDescription);
     }
 
-    private sealed class StubKmbApiClient : IKmbApiClient
+    private sealed class StubCitybusApiClient : ICitybusApiClient
     {
-        public IReadOnlyList<KmbStopRow> Stops { get; init; } = [];
-        public HongKongGtfsSchedule Schedule { get; init; } = new([], [], [], [], [], []);
+        public IReadOnlyList<CitybusStopRow> Stops { get; init; } = [];
 
-        public Task<KmbHttpResult<IReadOnlyList<KmbRouteRow>>> GetRoutesAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new KmbHttpResult<IReadOnlyList<KmbRouteRow>>([], Now));
+        public Task<CitybusHttpResult<IReadOnlyList<CitybusRouteRow>>> GetRoutesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new CitybusHttpResult<IReadOnlyList<CitybusRouteRow>>([], Now));
 
-        public Task<KmbHttpResult<IReadOnlyList<KmbRouteStopRow>>> GetRouteStopsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new KmbHttpResult<IReadOnlyList<KmbRouteStopRow>>([], Now));
+        public Task<CitybusHttpResult<IReadOnlyList<CitybusRouteStopRow>>> GetRouteStopsAsync(
+            string route,
+            int direction,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new CitybusHttpResult<IReadOnlyList<CitybusRouteStopRow>>([], Now));
 
-        public Task<KmbHttpResult<IReadOnlyList<KmbStopRow>>> GetStopsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new KmbHttpResult<IReadOnlyList<KmbStopRow>>(Stops, Now));
+        public Task<CitybusHttpResult<CitybusStopRow>> GetStopAsync(
+            string stopId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new CitybusHttpResult<CitybusStopRow>(
+                Stops.Single(item => item.StopId == stopId),
+                Now));
 
-        public Task<KmbHttpResult<IReadOnlyList<KmbEtaRow>>> GetEtaAsync(
+        public Task<CitybusHttpResult<IReadOnlyList<CitybusEtaRow>>> GetEtaAsync(
             string stopId,
             string route,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new KmbHttpResult<IReadOnlyList<KmbEtaRow>>([], Now, Now));
-
+            Task.FromResult(new CitybusHttpResult<IReadOnlyList<CitybusEtaRow>>([], Now, Now));
     }
 
     private sealed class StubScheduleProvider(HongKongGtfsSchedule schedule) : IHongKongBusScheduleProvider
     {
         private readonly HongKongBusScheduleProvider _calculator = new(null!, null!, null!, TimeProvider.System);
 
-        public Task<ProviderQueryResult<HongKongGtfsSchedule>> GetScheduleAsync(
-            CancellationToken cancellationToken) =>
+        public Task<ProviderQueryResult<HongKongGtfsSchedule>> GetScheduleAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new ProviderQueryResult<HongKongGtfsSchedule>(
-                schedule,
-                "scheduled",
-                null,
-                Now,
-                false,
-                null,
-                "香港運輸署 GTFS"));
+                schedule, "scheduled", null, Now, false, null, "香港運輸署 GTFS"));
 
         public DateTimeOffset? FindLastOriginDeparture(
             string agencyId,
