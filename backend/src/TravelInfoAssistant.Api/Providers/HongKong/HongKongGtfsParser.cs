@@ -9,6 +9,10 @@ public static class HongKongGtfsParser
     private static readonly HashSet<string> SupportedAgencies =
         new(["KMB", "LWB", "CTB", "NLB", "TRAM", "FERRY"], StringComparer.OrdinalIgnoreCase);
 
+    public static string CacheVariant { get; } = string.Join(
+        '-',
+        SupportedAgencies.Order(StringComparer.OrdinalIgnoreCase).Select(item => item.ToLowerInvariant()));
+
     public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
         var routes = Read(zipBytes, "routes.txt")

@@ -35,7 +35,7 @@ public sealed class HongKongGtfsScheduleProvider(
         CancellationToken cancellationToken)
     {
         var result = await cache.GetOrCreateAsync(
-            "transit:hong-kong:gtfs-schedule:v3",
+            $"transit:hong-kong:gtfs-schedule:{HongKongGtfsParser.CacheVariant}:v1",
             FreshFor,
             RetainFor,
             async token =>

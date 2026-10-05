@@ -103,6 +103,7 @@ public sealed class KmbTransitMapperTests
             item.TripId == "7005-1-WEEKDAY-1200" && item.ArrivalTime == "13:00:00");
         Assert.Contains(schedule.Stops!, item =>
             item.Id == "99310" && item.Latitude == 22.281 && item.Longitude == 114.229);
+        Assert.Equal("ctb-ferry-kmb-lwb-nlb-tram", HongKongGtfsParser.CacheVariant);
     }
 
     private static KmbRouteRow Route(
