@@ -3,6 +3,9 @@ import { defineStore } from 'pinia'
 import {
   getBusArrivals,
   getBusStops,
+  getFerryJourneys,
+  getFerryRoutes,
+  getFerryStops,
   getMetroArrivals,
   getMetroStatus,
   getRailArrivals,
@@ -26,11 +29,12 @@ import type {
   TransitArrival,
   TransitDepartureSchedule,
   TransitDirection,
+  TransitJourneySchedule,
   TransitRoute,
   TransitStop,
 } from '@/types/api'
 
-export type TransitModeKey = 'bus' | 'metro' | 'rail' | 'tram'
+export type TransitModeKey = 'bus' | 'metro' | 'rail' | 'tram' | 'ferry'
 
 export const metroStatusRefreshMilliseconds = 30_000
 export const busArrivalRefreshMilliseconds = 15_000
@@ -143,6 +147,7 @@ export const useTransitStore = defineStore('transit', () => {
   const railQuery = ref('')
   const routes = ref<TransitRoute[]>([])
   const tramRoutes = ref<TransitRoute[]>([])
+  const ferryRoutes = ref<TransitRoute[]>([])
   const metroRoutes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
   const metroStatuses = ref<MetroServiceStatus[]>([])
@@ -166,6 +171,10 @@ export const useTransitStore = defineStore('transit', () => {
   const selectedTramDirection = ref(0)
   const tramStops = ref<TransitStop[]>([])
   const tramSchedule = ref<TransitDepartureSchedule | null>(null)
+  const selectedFerryRoute = ref<TransitRoute | null>(null)
+  const selectedFerryDirection = ref(0)
+  const ferryStops = ref<TransitStop[]>([])
+  const ferrySchedule = ref<TransitJourneySchedule | null>(null)
   const selectedDirection = ref(0)
   const stops = ref<TransitStop[]>([])
   const selectedStop = ref<TransitStop | null>(null)
@@ -212,6 +221,7 @@ export const useTransitStore = defineStore('transit', () => {
     stopRailArrivalRefresh()
     routes.value = []
     tramRoutes.value = []
+    ferryRoutes.value = []
     metroRoutes.value = []
     stations.value = []
     metroStatuses.value = []
@@ -225,6 +235,10 @@ export const useTransitStore = defineStore('transit', () => {
     selectedTramDirection.value = 0
     tramStops.value = []
     tramSchedule.value = null
+    selectedFerryRoute.value = null
+    selectedFerryDirection.value = 0
+    ferryStops.value = []
+    ferrySchedule.value = null
     selectedDirection.value = 0
     stops.value = []
     selectedStop.value = null
@@ -306,6 +320,68 @@ export const useTransitStore = defineStore('transit', () => {
         selectedTramDirection.value !== direction
       ) return
       tramSchedule.value = response.data
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function loadFerryRoutes(cityId: string): Promise<void> {
+    await run(async () => {
+      const response = await getFerryRoutes(cityId)
+      ferryRoutes.value = response.data
+      selectedFerryRoute.value = null
+      selectedFerryDirection.value = 0
+      ferryStops.value = []
+      ferrySchedule.value = null
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function chooseFerryRoute(cityId: string, route: TransitRoute): Promise<void> {
+    selectedFerryRoute.value = route
+    selectedFerryDirection.value = route.directions[0]?.direction ?? 0
+    await loadFerryDetails(cityId)
+  }
+
+  async function chooseFerryDirection(cityId: string, direction: number): Promise<void> {
+    selectedFerryDirection.value = direction
+    await loadFerryDetails(cityId)
+  }
+
+  async function loadFerryDetails(cityId: string): Promise<void> {
+    if (!selectedFerryRoute.value) return
+    const routeId = selectedFerryRoute.value.id
+    const direction = selectedFerryDirection.value
+    await run(async () => {
+      const [stopsResponse, journeysResponse] = await Promise.all([
+        getFerryStops(cityId, routeId, direction),
+        getFerryJourneys(cityId, routeId, direction),
+      ])
+      if (
+        selectedFerryRoute.value?.id !== routeId ||
+        selectedFerryDirection.value !== direction
+      ) return
+      ferryStops.value = stopsResponse.data
+      ferrySchedule.value = journeysResponse.data
+      resultMeta.value =
+        journeysResponse.meta.dataStatus === 'unavailable'
+          ? journeysResponse.meta
+          : stopsResponse.meta.dataStatus === 'unavailable'
+            ? stopsResponse.meta
+            : journeysResponse.meta
+    })
+  }
+
+  async function refreshFerryJourneys(cityId: string): Promise<void> {
+    if (!selectedFerryRoute.value || loading.value) return
+    const routeId = selectedFerryRoute.value.id
+    const direction = selectedFerryDirection.value
+    await run(async () => {
+      const response = await getFerryJourneys(cityId, routeId, direction)
+      if (
+        selectedFerryRoute.value?.id !== routeId ||
+        selectedFerryDirection.value !== direction
+      ) return
+      ferrySchedule.value = response.data
       resultMeta.value = response.meta
     })
   }
@@ -611,6 +687,7 @@ export const useTransitStore = defineStore('transit', () => {
     railQuery,
     routes,
     tramRoutes,
+    ferryRoutes,
     metroRoutes,
     stations,
     metroStatuses,
@@ -629,6 +706,10 @@ export const useTransitStore = defineStore('transit', () => {
     selectedTramDirection,
     tramStops,
     tramSchedule,
+    selectedFerryRoute,
+    selectedFerryDirection,
+    ferryStops,
+    ferrySchedule,
     selectedDirection,
     stops,
     selectedStop,
@@ -647,6 +728,10 @@ export const useTransitStore = defineStore('transit', () => {
     chooseTramRoute,
     chooseTramDirection,
     refreshTramDepartures,
+    loadFerryRoutes,
+    chooseFerryRoute,
+    chooseFerryDirection,
+    refreshFerryJourneys,
     chooseBusRoute,
     chooseBusDirection,
     chooseBusStop,

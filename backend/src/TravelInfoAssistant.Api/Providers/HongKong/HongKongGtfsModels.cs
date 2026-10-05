@@ -15,7 +15,8 @@ public sealed record HongKongGtfsStopTime(
     string TripId,
     int Sequence,
     string? DepartureTime,
-    string? StopId = null);
+    string? StopId = null,
+    string? ArrivalTime = null);
 public sealed record HongKongGtfsStop(
     string Id,
     string Name,

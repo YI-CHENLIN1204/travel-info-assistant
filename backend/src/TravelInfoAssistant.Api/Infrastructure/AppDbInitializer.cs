@@ -194,10 +194,18 @@ public static class AppDbInitializer
             new
             {
                 CityCode = "hong-kong",
+                Id = Guid.Parse("06b1dc30-72c1-4f1a-a060-a9e0438b11d4"),
+                ServiceKey = "ferry",
+                DisplayName = "渡輪",
+                SortOrder = 4
+            },
+            new
+            {
+                CityCode = "hong-kong",
                 Id = Guid.Parse("2856bd80-c98a-4a68-b881-2f4d4f1375fe"),
                 ServiceKey = "weather",
                 DisplayName = "天氣",
-                SortOrder = 4
+                SortOrder = 5
             },
             new
             {
@@ -205,7 +213,7 @@ public static class AppDbInitializer
                 Id = Guid.Parse("5f99d5c8-f259-45c5-a611-30f4dd02d1c3"),
                 ServiceKey = "alerts",
                 DisplayName = "旅遊警示",
-                SortOrder = 5
+                SortOrder = 6
             },
             new
             {

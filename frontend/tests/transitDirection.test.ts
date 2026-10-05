@@ -175,6 +175,102 @@ describe('Hong Kong tram controls', () => {
   })
 })
 
+describe('Hong Kong ferry controls', () => {
+  const ferryRoute: TransitRoute = {
+    id: '7005',
+    nameZh: '中環 - 長洲',
+    nameEn: null,
+    originName: '中環五號碼頭',
+    destinationName: '長洲碼頭',
+    operators: ['香港渡輪及街渡'],
+    stationNames: ['中環五號碼頭', '長洲碼頭'],
+    directions: [
+      {
+        direction: 0,
+        headsign: '長洲碼頭',
+        originName: '中環五號碼頭',
+        destinationName: '長洲碼頭',
+      },
+      {
+        direction: 1,
+        headsign: '中環五號碼頭',
+        originName: '長洲碼頭',
+        destinationName: '中環五號碼頭',
+      },
+    ],
+  }
+
+  it('loads published directions, pier order, and scheduled arrival times', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const outboundStops = [
+      { id: 'central', nameZh: '中環五號碼頭', sequence: 1, direction: 0 },
+      { id: 'cheung-chau', nameZh: '長洲碼頭', sequence: 2, direction: 0 },
+    ] as TransitStop[]
+    const inboundStops = [...outboundStops]
+      .reverse()
+      .map((stop, index) => ({ ...stop, sequence: index + 1, direction: 1 }))
+    const routesRequest = vi.spyOn(transitApi, 'getFerryRoutes').mockResolvedValue({
+      data: [ferryRoute],
+      meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+    })
+    const stopsRequest = vi.spyOn(transitApi, 'getFerryStops')
+      .mockResolvedValueOnce({
+        data: outboundStops,
+        meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+      })
+      .mockResolvedValueOnce({
+        data: inboundStops,
+        meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+      })
+    const journeysRequest = vi.spyOn(transitApi, 'getFerryJourneys').mockResolvedValue({
+      data: {
+        routeId: '7005',
+        direction: 0,
+        originStopId: 'central',
+        originName: '中環五號碼頭',
+        destinationName: '長洲碼頭',
+        firstDepartureAt: '2026-10-06T04:15:00+08:00',
+        lastDepartureAt: '2026-10-07T01:30:00+08:00',
+        nextJourneys: [
+          {
+            departureAt: '2026-10-06T12:00:00+08:00',
+            arrivalAt: '2026-10-06T13:00:00+08:00',
+          },
+        ],
+      },
+      meta: {
+        ...odptMeta,
+        source: '香港運輸署 GTFS',
+        serviceDayStatus: 'active',
+      },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.loadFerryRoutes('hong-kong-id')
+    await store.chooseFerryRoute('hong-kong-id', ferryRoute)
+
+    expect(routesRequest).toHaveBeenCalledWith('hong-kong-id')
+    expect(stopsRequest).toHaveBeenLastCalledWith('hong-kong-id', '7005', 0)
+    expect(journeysRequest).toHaveBeenLastCalledWith('hong-kong-id', '7005', 0)
+    expect(store.ferryStops.map((stop) => stop.nameZh)).toEqual([
+      '中環五號碼頭',
+      '長洲碼頭',
+    ])
+    expect(store.ferrySchedule?.nextJourneys[0]?.arrivalAt).toBe(
+      '2026-10-06T13:00:00+08:00',
+    )
+
+    await store.chooseFerryDirection('hong-kong-id', 1)
+
+    expect(stopsRequest).toHaveBeenLastCalledWith('hong-kong-id', '7005', 1)
+    expect(store.ferryStops.map((stop) => stop.nameZh)).toEqual([
+      '長洲碼頭',
+      '中環五號碼頭',
+    ])
+  })
+})
+
 describe('filterMetroRouteStations', () => {
   const stations: MetroStation[] = [
     {

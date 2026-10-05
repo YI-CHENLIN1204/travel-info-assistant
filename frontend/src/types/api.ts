@@ -54,7 +54,7 @@ export interface SystemHealth {
 }
 
 export interface TransitMode {
-  key: 'bus' | 'metro' | 'rail' | 'tram'
+  key: 'bus' | 'metro' | 'rail' | 'tram' | 'ferry'
   displayName: string
   availabilityStatus: 'available' | 'temporarilyUnavailable'
   message: string | null
@@ -98,6 +98,22 @@ export interface TransitDepartureSchedule {
   firstDepartureAt: string | null
   lastDepartureAt: string | null
   nextDepartures: string[]
+}
+
+export interface TransitScheduledJourney {
+  departureAt: string
+  arrivalAt: string | null
+}
+
+export interface TransitJourneySchedule {
+  routeId: string
+  direction: number
+  originStopId: string
+  originName: string
+  destinationName: string
+  firstDepartureAt: string | null
+  lastDepartureAt: string | null
+  nextJourneys: TransitScheduledJourney[]
 }
 
 export interface MetroStation {

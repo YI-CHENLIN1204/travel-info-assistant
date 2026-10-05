@@ -288,6 +288,7 @@ builder.Services.AddSingleton<INlbTransitProvider, NlbTransitProvider>();
 builder.Services.AddSingleton<IHongKongGtfsScheduleProvider, HongKongGtfsScheduleProvider>();
 builder.Services.AddSingleton<IHongKongBusTransitProvider, HongKongBusTransitProvider>();
 builder.Services.AddSingleton<IHongKongTramTransitProvider, HongKongTramTransitProvider>();
+builder.Services.AddSingleton<IHongKongFerryTransitProvider, HongKongFerryTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

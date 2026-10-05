@@ -42,6 +42,22 @@ public interface ITransitService
         int direction,
         CancellationToken cancellationToken);
 
+    Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetFerryRoutesAsync(
+        Guid cityId,
+        CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<IReadOnlyList<TransitStopResponse>>> GetFerryStopsAsync(
+        Guid cityId,
+        string routeId,
+        int direction,
+        CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<TransitJourneyScheduleResponse?>> GetFerryJourneysAsync(
+        Guid cityId,
+        string routeId,
+        int direction,
+        CancellationToken cancellationToken);
+
     Task<ProviderQueryResult<IReadOnlyList<MetroStationResponse>>> SearchMetroStationsAsync(
         Guid cityId,
         string? query,

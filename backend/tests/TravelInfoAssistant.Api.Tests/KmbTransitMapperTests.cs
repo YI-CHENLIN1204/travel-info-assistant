@@ -92,11 +92,15 @@ public sealed class KmbTransitMapperTests
             schedule);
 
         Assert.Equal(DateTimeOffset.Parse("2026-10-05T00:55:00+08:00"), lastDeparture);
-        Assert.Equal(4, schedule.Routes.Count);
+        Assert.Equal(5, schedule.Routes.Count);
         Assert.Contains(schedule.Routes, item => item.AgencyId == "CTB");
         Assert.Contains(schedule.Routes, item => item.AgencyId == "NLB");
         Assert.Contains(schedule.Routes, item =>
             item.AgencyId == "TRAM" && item.LongName == "筲箕灣 - 上環(西港城)");
+        Assert.Contains(schedule.Routes, item =>
+            item.AgencyId == "FERRY" && item.LongName == "中環 - 長洲");
+        Assert.Contains(schedule.StopTimes, item =>
+            item.TripId == "7005-1-WEEKDAY-1200" && item.ArrivalTime == "13:00:00");
         Assert.Contains(schedule.Stops!, item =>
             item.Id == "99310" && item.Latitude == 22.281 && item.Longitude == 114.229);
     }
@@ -153,11 +157,11 @@ public sealed class KmbTransitMapperTests
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            Add(archive, "routes.txt", "route_id,agency_id,route_short_name,route_long_name\n1053,KMB,1A,\n9999,CTB,1A,\n1723,NLB,1,\n4001,TRAM,,筲箕灣 - 上環(西港城)\n");
-            Add(archive, "trips.txt", "route_id,service_id,trip_id,direction_id\n1053,WEEKDAY,trip-1,0\n4001,WEEKDAY,4001-1-WEEKDAY-0542,\n");
+            Add(archive, "routes.txt", "route_id,agency_id,route_short_name,route_long_name\n1053,KMB,1A,\n9999,CTB,1A,\n1723,NLB,1,\n4001,TRAM,,筲箕灣 - 上環(西港城)\n7005,FERRY,,中環 - 長洲\n");
+            Add(archive, "trips.txt", "route_id,service_id,trip_id,direction_id\n1053,WEEKDAY,trip-1,0\n4001,WEEKDAY,4001-1-WEEKDAY-0542,\n7005,WEEKDAY,7005-1-WEEKDAY-1200,\n");
             Add(archive, "frequencies.txt", "trip_id,start_time,end_time,headway_secs\ntrip-1,23:55:00,25:00:00,600\n4001-1-WEEKDAY-0542,05:42:00,06:00:00,600\n");
-            Add(archive, "stop_times.txt", "trip_id,departure_time,stop_id,stop_sequence\ntrip-1,23:55:00,A,1\n4001-1-WEEKDAY-0542,05:42:00,99310,1\n");
-            Add(archive, "stops.txt", "stop_id,stop_name,stop_lat,stop_lon\nA,巴士站,22.300,114.200\n99310,筲箕灣總站,22.281,114.229\n");
+            Add(archive, "stop_times.txt", "trip_id,arrival_time,departure_time,stop_id,stop_sequence\ntrip-1,23:55:00,23:55:00,A,1\n4001-1-WEEKDAY-0542,05:42:00,05:42:00,99310,1\n7005-1-WEEKDAY-1200,12:00:00,12:00:00,101102,1\n7005-1-WEEKDAY-1200,13:00:00,13:00:00,101101,2\n");
+            Add(archive, "stops.txt", "stop_id,stop_name,stop_lat,stop_lon\nA,巴士站,22.300,114.200\n99310,筲箕灣總站,22.281,114.229\n101102,中環五號碼頭,22.288,114.159\n101101,長洲碼頭,22.209,114.028\n");
             Add(archive, "calendar.txt", "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nWEEKDAY,0,0,0,0,0,0,1,20261001,20261031\n");
             Add(archive, "calendar_dates.txt", "service_id,date,exception_type\n");
         }

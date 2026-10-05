@@ -7,7 +7,7 @@ namespace TravelInfoAssistant.Api.Providers.HongKong;
 public static class HongKongGtfsParser
 {
     private static readonly HashSet<string> SupportedAgencies =
-        new(["KMB", "LWB", "CTB", "NLB", "TRAM"], StringComparer.OrdinalIgnoreCase);
+        new(["KMB", "LWB", "CTB", "NLB", "TRAM", "FERRY"], StringComparer.OrdinalIgnoreCase);
 
     public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
@@ -42,7 +42,8 @@ public static class HongKongGtfsParser
                 Get(row, "trip_id"),
                 ParseInt(Get(row, "stop_sequence")) ?? int.MaxValue,
                 Optional(row, "departure_time"),
-                Optional(row, "stop_id")))
+                Optional(row, "stop_id"),
+                Optional(row, "arrival_time")))
             .Where(item => tripIds.Contains(item.TripId))
             .ToList();
         var stopIds = stopTimes

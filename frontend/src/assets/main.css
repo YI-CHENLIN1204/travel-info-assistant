@@ -1440,6 +1440,49 @@ p {
   line-height: 1.7;
 }
 
+.ferry-journey-list {
+  display: grid;
+  max-height: 360px;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.ferry-journey-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  padding: 10px 12px;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #dce7e5;
+  border-radius: 10px;
+}
+
+.ferry-journey-card > div {
+  display: grid;
+  gap: 3px;
+}
+
+.ferry-journey-card > div:last-child {
+  text-align: right;
+}
+
+.ferry-journey-card span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ferry-journey-card strong {
+  color: var(--teal-dark);
+  font-size: 14px;
+}
+
+.ferry-journey-arrow {
+  color: var(--teal) !important;
+  font-size: 14px !important;
+  font-weight: 800;
+}
+
 .stop-selector {
   display: grid;
   margin-bottom: 16px;

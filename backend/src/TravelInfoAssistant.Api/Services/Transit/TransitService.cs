@@ -16,6 +16,7 @@ public sealed class TransitService(
     ILtaDataMallTransitProvider ltaDataMallProvider,
     IHongKongBusTransitProvider hongKongBusProvider,
     IHongKongTramTransitProvider hongKongTramProvider,
+    IHongKongFerryTransitProvider hongKongFerryProvider,
     ITdxUsageMeter usageMeter,
     TimeProvider timeProvider) : ITransitService
 {
@@ -26,7 +27,7 @@ public sealed class TransitService(
         var city = await cityService.GetCityAsync(cityId, cancellationToken);
         return city?.Services
             .Where(item => item.IntegrationStatus == "integrated")
-            .Where(item => item.ServiceKey is "bus" or "metro" or "rail" or "tram")
+            .Where(item => item.ServiceKey is "bus" or "metro" or "rail" or "tram" or "ferry")
             .Select(item => new TransitModeResponse(
                 item.ServiceKey,
                 item.DisplayName,
@@ -144,6 +145,44 @@ public sealed class TransitService(
             : ProviderQueryResult<TransitDepartureScheduleResponse?>.Unavailable(
                 null,
                 "這個城市目前沒有已整合的電車資料。",
+                timeProvider,
+                "香港運輸署 GTFS");
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitRouteResponse>>> GetFerryRoutesAsync(
+        Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "ferry", cancellationToken);
+        return cityCode == "hong-kong"
+            ? await hongKongFerryProvider.GetRoutesAsync(cancellationToken)
+            : Unavailable<TransitRouteResponse>("這個城市目前沒有已整合的渡輪資料。", "香港運輸署 GTFS");
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitStopResponse>>> GetFerryStopsAsync(
+        Guid cityId,
+        string routeId,
+        int direction,
+        CancellationToken cancellationToken)
+    {
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "ferry", cancellationToken);
+        return cityCode == "hong-kong"
+            ? await hongKongFerryProvider.GetStopsAsync(routeId.Trim(), direction, cancellationToken)
+            : Unavailable<TransitStopResponse>("這個城市目前沒有已整合的渡輪資料。", "香港運輸署 GTFS");
+    }
+
+    public async Task<ProviderQueryResult<TransitJourneyScheduleResponse?>> GetFerryJourneysAsync(
+        Guid cityId,
+        string routeId,
+        int direction,
+        CancellationToken cancellationToken)
+    {
+        var cityCode = await GetIntegratedCityCodeAsync(cityId, "ferry", cancellationToken);
+        return cityCode == "hong-kong"
+            ? await hongKongFerryProvider.GetJourneysAsync(routeId.Trim(), direction, cancellationToken)
+            : ProviderQueryResult<TransitJourneyScheduleResponse?>.Unavailable(
+                null,
+                "這個城市目前沒有已整合的渡輪資料。",
                 timeProvider,
                 "香港運輸署 GTFS");
     }

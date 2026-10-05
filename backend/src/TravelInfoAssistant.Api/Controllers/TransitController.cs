@@ -171,6 +171,68 @@ public sealed class TransitController(ITransitService transitService) : Controll
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("ferry/routes")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitRouteResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitRouteResponse>>>> GetFerryRoutes(
+        [FromQuery] Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        var result = await transitService.GetFerryRoutesAsync(cityId, cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
+    [HttpGet("ferry/stops")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitStopResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitStopResponse>>>> GetFerryStops(
+        [FromQuery] Guid cityId,
+        [FromQuery] string routeId,
+        [FromQuery] int direction,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(routeId) || routeId.Length > 50)
+        {
+            ModelState.AddModelError(nameof(routeId), "請提供有效的渡輪路線代碼。");
+        }
+        if (direction is not (0 or 1))
+        {
+            ModelState.AddModelError(nameof(direction), "方向只能是 0 或 1。");
+        }
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+        var result = await transitService.GetFerryStopsAsync(
+            cityId,
+            routeId,
+            direction,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
+    [HttpGet("ferry/journeys")]
+    [ProducesResponseType<ApiResponse<TransitJourneyScheduleResponse>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<TransitJourneyScheduleResponse?>>> GetFerryJourneys(
+        [FromQuery] Guid cityId,
+        [FromQuery] string routeId,
+        [FromQuery] int direction,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(routeId) || routeId.Length > 50)
+        {
+            ModelState.AddModelError(nameof(routeId), "請提供有效的渡輪路線代碼。");
+        }
+        if (direction is not (0 or 1))
+        {
+            ModelState.AddModelError(nameof(direction), "方向只能是 0 或 1。");
+        }
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+        var result = await transitService.GetFerryJourneysAsync(
+            cityId,
+            routeId,
+            direction,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
     [HttpGet("metro/stations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<MetroStationResponse>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MetroStationResponse>>>> SearchMetroStations(

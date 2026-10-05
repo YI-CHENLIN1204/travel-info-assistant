@@ -42,6 +42,20 @@ public sealed record TransitDepartureScheduleResponse(
     DateTimeOffset? LastDepartureAt,
     IReadOnlyList<DateTimeOffset> NextDepartures);
 
+public sealed record TransitScheduledJourneyResponse(
+    DateTimeOffset DepartureAt,
+    DateTimeOffset? ArrivalAt);
+
+public sealed record TransitJourneyScheduleResponse(
+    string RouteId,
+    int Direction,
+    string OriginStopId,
+    string OriginName,
+    string DestinationName,
+    DateTimeOffset? FirstDepartureAt,
+    DateTimeOffset? LastDepartureAt,
+    IReadOnlyList<TransitScheduledJourneyResponse> NextJourneys);
+
 public sealed record MetroStationResponse(
     string Id,
     string NameZh,

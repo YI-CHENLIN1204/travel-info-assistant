@@ -7,6 +7,7 @@ import type {
   TdxProviderStatus,
   TransitArrival,
   TransitDepartureSchedule,
+  TransitJourneySchedule,
   TransitMode,
   TransitRoute,
   TransitStop,
@@ -70,6 +71,30 @@ export function getTramDepartures(
 ): Promise<ApiResponse<TransitDepartureSchedule | null>> {
   return apiRequest(
     `/v1/transit/tram/departures?${params({ cityId, routeId, direction: String(direction) })}`,
+  )
+}
+
+export function getFerryRoutes(cityId: string): Promise<ApiResponse<TransitRoute[]>> {
+  return apiRequest(`/v1/transit/ferry/routes?${params({ cityId })}`)
+}
+
+export function getFerryStops(
+  cityId: string,
+  routeId: string,
+  direction: number,
+): Promise<ApiResponse<TransitStop[]>> {
+  return apiRequest(
+    `/v1/transit/ferry/stops?${params({ cityId, routeId, direction: String(direction) })}`,
+  )
+}
+
+export function getFerryJourneys(
+  cityId: string,
+  routeId: string,
+  direction: number,
+): Promise<ApiResponse<TransitJourneySchedule | null>> {
+  return apiRequest(
+    `/v1/transit/ferry/journeys?${params({ cityId, routeId, direction: String(direction) })}`,
   )
 }
 
