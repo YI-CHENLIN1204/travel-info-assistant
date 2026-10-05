@@ -5,7 +5,7 @@ using TravelInfoAssistant.Api.Services.Transit;
 
 namespace TravelInfoAssistant.Api.Providers.HongKong;
 
-public interface IHongKongBusScheduleProvider
+public interface IHongKongGtfsScheduleProvider
 {
     Task<ProviderQueryResult<HongKongGtfsSchedule>> GetScheduleAsync(
         CancellationToken cancellationToken);
@@ -19,11 +19,11 @@ public interface IHongKongBusScheduleProvider
         string? originName = null);
 }
 
-public sealed class HongKongBusScheduleProvider(
+public sealed class HongKongGtfsScheduleProvider(
     IHttpClientFactory httpClientFactory,
     IOptions<HongKongTransitOptions> options,
     IProviderCache cache,
-    TimeProvider timeProvider) : IHongKongBusScheduleProvider
+    TimeProvider timeProvider) : IHongKongGtfsScheduleProvider
 {
     private static readonly TimeZoneInfo HongKongTimeZone =
         TimeZoneInfo.FindSystemTimeZoneById("Asia/Hong_Kong");
@@ -35,7 +35,7 @@ public sealed class HongKongBusScheduleProvider(
         CancellationToken cancellationToken)
     {
         var result = await cache.GetOrCreateAsync(
-            "transit:hong-kong:bus-schedule:v2",
+            "transit:hong-kong:gtfs-schedule:v3",
             FreshFor,
             RetainFor,
             async token =>

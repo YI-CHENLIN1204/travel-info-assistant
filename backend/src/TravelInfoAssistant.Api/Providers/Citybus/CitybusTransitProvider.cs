@@ -21,7 +21,7 @@ public interface ICitybusTransitProvider
 
 public sealed class CitybusTransitProvider(
     ICitybusApiClient apiClient,
-    IHongKongBusScheduleProvider scheduleProvider,
+    IHongKongGtfsScheduleProvider scheduleProvider,
     IProviderCache cache,
     TimeProvider timeProvider,
     ILogger<CitybusTransitProvider> logger) : ICitybusTransitProvider

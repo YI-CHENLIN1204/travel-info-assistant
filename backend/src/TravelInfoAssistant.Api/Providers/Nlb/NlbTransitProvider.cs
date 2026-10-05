@@ -21,7 +21,7 @@ public interface INlbTransitProvider
 
 public sealed class NlbTransitProvider(
     INlbApiClient apiClient,
-    IHongKongBusScheduleProvider scheduleProvider,
+    IHongKongGtfsScheduleProvider scheduleProvider,
     IProviderCache cache,
     TimeProvider timeProvider,
     ILogger<NlbTransitProvider> logger) : INlbTransitProvider

@@ -32,6 +32,16 @@ public sealed record TransitStopResponse(
     double? Latitude,
     double? Longitude);
 
+public sealed record TransitDepartureScheduleResponse(
+    string RouteId,
+    int Direction,
+    string OriginStopId,
+    string OriginName,
+    string DestinationName,
+    DateTimeOffset? FirstDepartureAt,
+    DateTimeOffset? LastDepartureAt,
+    IReadOnlyList<DateTimeOffset> NextDepartures);
+
 public sealed record MetroStationResponse(
     string Id,
     string NameZh,

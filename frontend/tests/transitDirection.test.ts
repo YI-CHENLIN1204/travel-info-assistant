@@ -83,6 +83,98 @@ describe('getBusRouteQueryId', () => {
   })
 })
 
+describe('Hong Kong tram controls', () => {
+  const tramRoute: TransitRoute = {
+    id: '4001',
+    nameZh: '筲箕灣 - 上環(西港城)',
+    nameEn: null,
+    originName: '筲箕灣總站',
+    destinationName: '上環街市(西港城)總站',
+    operators: ['香港電車'],
+    stationNames: ['筲箕灣總站', '中環街市', '上環街市(西港城)總站'],
+    directions: [
+      {
+        direction: 0,
+        headsign: '上環街市(西港城)總站',
+        originName: '筲箕灣總站',
+        destinationName: '上環街市(西港城)總站',
+      },
+      {
+        direction: 1,
+        headsign: '筲箕灣總站',
+        originName: '上環街市(西港城)總站',
+        destinationName: '筲箕灣總站',
+      },
+    ],
+  }
+
+  it('loads route buttons, real stop order, and origin departures by direction', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const directionZeroStops = [
+      { id: 'east', nameZh: '筲箕灣總站', sequence: 1, direction: 0 },
+      { id: 'central', nameZh: '中環街市', sequence: 2, direction: 0 },
+      { id: 'west', nameZh: '上環街市(西港城)總站', sequence: 3, direction: 0 },
+    ] as TransitStop[]
+    const directionOneStops = [...directionZeroStops]
+      .reverse()
+      .map((stop, index) => ({ ...stop, sequence: index + 1, direction: 1 }))
+    const routesRequest = vi.spyOn(transitApi, 'getTramRoutes').mockResolvedValue({
+      data: [tramRoute],
+      meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+    })
+    const stopsRequest = vi.spyOn(transitApi, 'getTramStops')
+      .mockResolvedValueOnce({
+        data: directionZeroStops,
+        meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+      })
+      .mockResolvedValueOnce({
+        data: directionOneStops,
+        meta: { ...odptMeta, source: '香港運輸署 GTFS' },
+      })
+    const departuresRequest = vi.spyOn(transitApi, 'getTramDepartures').mockResolvedValue({
+      data: {
+        routeId: '4001',
+        direction: 0,
+        originStopId: 'east',
+        originName: '筲箕灣總站',
+        destinationName: '上環街市(西港城)總站',
+        firstDepartureAt: '2026-10-05T05:42:00+08:00',
+        lastDepartureAt: '2026-10-06T00:06:00+08:00',
+        nextDepartures: ['2026-10-05T12:02:00+08:00'],
+      },
+      meta: {
+        ...odptMeta,
+        source: '香港運輸署 GTFS',
+        serviceDayStatus: 'active',
+      },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.loadTramRoutes('hong-kong-id')
+    await store.chooseTramRoute('hong-kong-id', tramRoute)
+
+    expect(routesRequest).toHaveBeenCalledWith('hong-kong-id')
+    expect(stopsRequest).toHaveBeenLastCalledWith('hong-kong-id', '4001', 0)
+    expect(departuresRequest).toHaveBeenLastCalledWith('hong-kong-id', '4001', 0)
+    expect(store.tramStops.map((stop) => stop.nameZh)).toEqual([
+      '筲箕灣總站',
+      '中環街市',
+      '上環街市(西港城)總站',
+    ])
+    expect(store.tramSchedule?.nextDepartures).toHaveLength(1)
+
+    await store.chooseTramDirection('hong-kong-id', 1)
+
+    expect(stopsRequest).toHaveBeenLastCalledWith('hong-kong-id', '4001', 1)
+    expect(store.tramStops.map((stop) => stop.nameZh)).toEqual([
+      '上環街市(西港城)總站',
+      '中環街市',
+      '筲箕灣總站',
+    ])
+  })
+})
+
 describe('filterMetroRouteStations', () => {
   const stations: MetroStation[] = [
     {

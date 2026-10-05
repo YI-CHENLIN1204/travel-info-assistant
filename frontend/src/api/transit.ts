@@ -6,6 +6,7 @@ import type {
   RailStation,
   TdxProviderStatus,
   TransitArrival,
+  TransitDepartureSchedule,
   TransitMode,
   TransitRoute,
   TransitStop,
@@ -45,6 +46,30 @@ export function getBusArrivals(
       direction: String(direction),
       stopId,
     })}`,
+  )
+}
+
+export function getTramRoutes(cityId: string): Promise<ApiResponse<TransitRoute[]>> {
+  return apiRequest(`/v1/transit/tram/routes?${params({ cityId })}`)
+}
+
+export function getTramStops(
+  cityId: string,
+  routeId: string,
+  direction: number,
+): Promise<ApiResponse<TransitStop[]>> {
+  return apiRequest(
+    `/v1/transit/tram/stops?${params({ cityId, routeId, direction: String(direction) })}`,
+  )
+}
+
+export function getTramDepartures(
+  cityId: string,
+  routeId: string,
+  direction: number,
+): Promise<ApiResponse<TransitDepartureSchedule | null>> {
+  return apiRequest(
+    `/v1/transit/tram/departures?${params({ cityId, routeId, direction: String(direction) })}`,
   )
 }
 

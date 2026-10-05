@@ -230,18 +230,25 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 2,
                 IntegrationStatus.Integrated),
             Capability(
+                "a2f6ee4e-1c76-4930-bbc9-68e4bcfa82df",
+                hongKongId,
+                "tram",
+                "電車",
+                3,
+                IntegrationStatus.Integrated),
+            Capability(
                 "2856bd80-c98a-4a68-b881-2f4d4f1375fe",
                 hongKongId,
                 "weather",
                 "天氣",
-                2,
+                4,
                 IntegrationStatus.Integrated),
             Capability(
                 "5f99d5c8-f259-45c5-a611-30f4dd02d1c3",
                 hongKongId,
                 "alerts",
                 "旅遊警示",
-                3,
+                5,
                 IntegrationStatus.Integrated),
             Capability(
                 "d85f5a65-eeba-42fb-9c23-c5728c05a607",

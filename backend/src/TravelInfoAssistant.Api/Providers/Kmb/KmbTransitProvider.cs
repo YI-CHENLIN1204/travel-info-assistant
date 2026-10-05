@@ -21,7 +21,7 @@ public interface IKmbTransitProvider
 
 public sealed class KmbTransitProvider(
     IKmbApiClient apiClient,
-    IHongKongBusScheduleProvider scheduleProvider,
+    IHongKongGtfsScheduleProvider scheduleProvider,
     IProviderCache cache,
     TimeProvider timeProvider,
     ILogger<KmbTransitProvider> logger) : IKmbTransitProvider

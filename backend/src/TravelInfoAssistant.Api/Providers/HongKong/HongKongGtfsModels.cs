@@ -1,6 +1,10 @@
 namespace TravelInfoAssistant.Api.Providers.HongKong;
 
-public sealed record HongKongGtfsRoute(string Id, string AgencyId, string ShortName);
+public sealed record HongKongGtfsRoute(
+    string Id,
+    string AgencyId,
+    string ShortName,
+    string? LongName = null);
 public sealed record HongKongGtfsTrip(string Id, string RouteId, string ServiceId, int Direction);
 public sealed record HongKongGtfsFrequency(
     string TripId,
@@ -12,7 +16,11 @@ public sealed record HongKongGtfsStopTime(
     int Sequence,
     string? DepartureTime,
     string? StopId = null);
-public sealed record HongKongGtfsStop(string Id, string Name);
+public sealed record HongKongGtfsStop(
+    string Id,
+    string Name,
+    double? Latitude = null,
+    double? Longitude = null);
 public sealed record HongKongGtfsCalendar(
     string ServiceId,
     DateOnly StartDate,

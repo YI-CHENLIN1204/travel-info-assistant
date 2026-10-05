@@ -285,8 +285,9 @@ builder.Services.AddSingleton<ICitybusApiClient, CitybusApiClient>();
 builder.Services.AddSingleton<ICitybusTransitProvider, CitybusTransitProvider>();
 builder.Services.AddSingleton<INlbApiClient, NlbApiClient>();
 builder.Services.AddSingleton<INlbTransitProvider, NlbTransitProvider>();
-builder.Services.AddSingleton<IHongKongBusScheduleProvider, HongKongBusScheduleProvider>();
+builder.Services.AddSingleton<IHongKongGtfsScheduleProvider, HongKongGtfsScheduleProvider>();
 builder.Services.AddSingleton<IHongKongBusTransitProvider, HongKongBusTransitProvider>();
+builder.Services.AddSingleton<IHongKongTramTransitProvider, HongKongTramTransitProvider>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:Origins")

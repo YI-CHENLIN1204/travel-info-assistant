@@ -109,6 +109,68 @@ public sealed class TransitController(ITransitService transitService) : Controll
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("tram/routes")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitRouteResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitRouteResponse>>>> GetTramRoutes(
+        [FromQuery] Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        var result = await transitService.GetTramRoutesAsync(cityId, cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
+    [HttpGet("tram/stops")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitStopResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitStopResponse>>>> GetTramStops(
+        [FromQuery] Guid cityId,
+        [FromQuery] string routeId,
+        [FromQuery] int direction,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(routeId) || routeId.Length > 50)
+        {
+            ModelState.AddModelError(nameof(routeId), "請提供有效的電車路線代碼。");
+        }
+        if (direction is not (0 or 1))
+        {
+            ModelState.AddModelError(nameof(direction), "方向只能是 0 或 1。");
+        }
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+        var result = await transitService.GetTramStopsAsync(
+            cityId,
+            routeId,
+            direction,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
+    [HttpGet("tram/departures")]
+    [ProducesResponseType<ApiResponse<TransitDepartureScheduleResponse>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<TransitDepartureScheduleResponse?>>> GetTramDepartures(
+        [FromQuery] Guid cityId,
+        [FromQuery] string routeId,
+        [FromQuery] int direction,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(routeId) || routeId.Length > 50)
+        {
+            ModelState.AddModelError(nameof(routeId), "請提供有效的電車路線代碼。");
+        }
+        if (direction is not (0 or 1))
+        {
+            ModelState.AddModelError(nameof(direction), "方向只能是 0 或 1。");
+        }
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+        var result = await transitService.GetTramDeparturesAsync(
+            cityId,
+            routeId,
+            direction,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
     [HttpGet("metro/stations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<MetroStationResponse>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MetroStationResponse>>>> SearchMetroStations(

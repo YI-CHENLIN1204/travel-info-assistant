@@ -7,7 +7,7 @@ namespace TravelInfoAssistant.Api.Providers.HongKong;
 public static class HongKongGtfsParser
 {
     private static readonly HashSet<string> SupportedAgencies =
-        new(["KMB", "LWB", "CTB", "NLB"], StringComparer.OrdinalIgnoreCase);
+        new(["KMB", "LWB", "CTB", "NLB", "TRAM"], StringComparer.OrdinalIgnoreCase);
 
     public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
@@ -15,7 +15,8 @@ public static class HongKongGtfsParser
             .Select(row => new HongKongGtfsRoute(
                 Get(row, "route_id"),
                 Get(row, "agency_id"),
-                Get(row, "route_short_name")))
+                Get(row, "route_short_name"),
+                Optional(row, "route_long_name")))
             .Where(item => SupportedAgencies.Contains(item.AgencyId))
             .ToList();
         var routeIds = routes.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -49,7 +50,11 @@ public static class HongKongGtfsParser
             .Select(item => item.StopId!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var stops = Read(zipBytes, "stops.txt", false)
-            .Select(row => new HongKongGtfsStop(Get(row, "stop_id"), Get(row, "stop_name")))
+            .Select(row => new HongKongGtfsStop(
+                Get(row, "stop_id"),
+                Get(row, "stop_name"),
+                ParseDouble(Optional(row, "stop_lat")),
+                ParseDouble(Optional(row, "stop_lon"))))
             .Where(item => stopIds.Contains(item.Id))
             .ToList();
         var calendars = Read(zipBytes, "calendar.txt", false)
@@ -150,6 +155,11 @@ public static class HongKongGtfsParser
 
     private static int? ParseInt(string value) =>
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : null;
+
+    private static double? ParseDouble(string? value) =>
+        double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)
             ? result
             : null;
 

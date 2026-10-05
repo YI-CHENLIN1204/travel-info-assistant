@@ -5,7 +5,7 @@ export interface ApiMeta {
   fetchedAt: string
   stale: boolean
   message: string | null
-  serviceDayStatus?: 'ended' | null
+  serviceDayStatus?: 'active' | 'not-started' | 'no-service' | 'ended' | null
   lastDepartureAt?: string | null
   lastDepartureDescription?: string | null
 }
@@ -54,7 +54,7 @@ export interface SystemHealth {
 }
 
 export interface TransitMode {
-  key: 'bus' | 'metro' | 'rail'
+  key: 'bus' | 'metro' | 'rail' | 'tram'
   displayName: string
   availabilityStatus: 'available' | 'temporarilyUnavailable'
   message: string | null
@@ -87,6 +87,17 @@ export interface TransitStop {
   direction: number
   latitude: number | null
   longitude: number | null
+}
+
+export interface TransitDepartureSchedule {
+  routeId: string
+  direction: number
+  originStopId: string
+  originName: string
+  destinationName: string
+  firstDepartureAt: string | null
+  lastDepartureAt: string | null
+  nextDepartures: string[]
 }
 
 export interface MetroStation {

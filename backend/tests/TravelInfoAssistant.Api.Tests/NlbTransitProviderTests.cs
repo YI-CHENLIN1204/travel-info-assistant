@@ -66,9 +66,9 @@ public sealed class NlbTransitProviderTests
                 new NlbHttpResult<IReadOnlyList<NlbEtaRow>>([], Now));
     }
 
-    private sealed class StubScheduleProvider(HongKongGtfsSchedule schedule) : IHongKongBusScheduleProvider
+    private sealed class StubScheduleProvider(HongKongGtfsSchedule schedule) : IHongKongGtfsScheduleProvider
     {
-        private readonly HongKongBusScheduleProvider _calculator = new(null!, null!, null!, TimeProvider.System);
+        private readonly HongKongGtfsScheduleProvider _calculator = new(null!, null!, null!, TimeProvider.System);
 
         public Task<ProviderQueryResult<HongKongGtfsSchedule>> GetScheduleAsync(
             CancellationToken cancellationToken) => Task.FromResult(

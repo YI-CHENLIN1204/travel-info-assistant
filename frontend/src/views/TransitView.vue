@@ -46,7 +46,9 @@ const integratedServices = computed(() =>
   cityStore.currentCity.services.filter(
     (service) =>
       service.integrationStatus === 'integrated' &&
-      (service.serviceKey === 'bus' || service.serviceKey === 'metro'),
+      (service.serviceKey === 'bus' ||
+        service.serviceKey === 'metro' ||
+        service.serviceKey === 'tram'),
   ),
 )
 
@@ -62,6 +64,9 @@ const busModeLabel = computed(
 )
 const metroModeLabel = computed(
   () => integratedServices.value.find((service) => service.serviceKey === 'metro')?.displayName ?? '捷運',
+)
+const tramModeLabel = computed(
+  () => integratedServices.value.find((service) => service.serviceKey === 'tram')?.displayName ?? '電車',
 )
 
 const isTokyo = computed(() => cityStore.currentCity.code === 'tokyo')
@@ -113,7 +118,12 @@ const statusLabel = computed(() => {
       : 'ODPT 官方資料已啟用'
   }
   if (isHongKong.value) {
-    const label = transitStore.activeMode === 'bus' ? '巴士' : '港鐵'
+    const label =
+      transitStore.activeMode === 'bus'
+        ? '巴士'
+        : transitStore.activeMode === 'tram'
+          ? '電車'
+          : '港鐵'
     if (!transitStore.resultMeta) return `${label}資料連線確認中`
     return transitStore.resultMeta.dataStatus === 'unavailable'
       ? `${label}官方資料暫時無法使用`
@@ -246,6 +256,9 @@ async function activateMode(mode: TransitModeKey): Promise<void> {
   transitStore.arrivals = []
   transitStore.resultMeta = null
   transitStore.selectedRoute = null
+  transitStore.selectedTramRoute = null
+  transitStore.tramStops = []
+  transitStore.tramSchedule = null
   transitStore.selectedStop = null
   transitStore.stops = []
   transitStore.selectedStation = null
@@ -267,6 +280,9 @@ async function loadModeIndex(mode: TransitModeKey): Promise<void> {
       await transitStore.searchMetroStations(cityId)
     }
   }
+  if (mode === 'tram' && transitStore.tramRoutes.length === 0) {
+    await transitStore.loadTramRoutes(cityId)
+  }
 }
 
 function submitBusSearch(): void {
@@ -279,6 +295,18 @@ function selectRoute(route: TransitRoute): void {
 
 function selectDirection(direction: number): void {
   void transitStore.chooseBusDirection(cityStore.currentCity.id, direction)
+}
+
+function selectTramRoute(route: TransitRoute): void {
+  void transitStore.chooseTramRoute(cityStore.currentCity.id, route)
+}
+
+function selectTramDirection(direction: number): void {
+  void transitStore.chooseTramDirection(cityStore.currentCity.id, direction)
+}
+
+function refreshTramDepartures(): void {
+  void transitStore.refreshTramDepartures(cityStore.currentCity.id)
 }
 
 function onStopChange(event: Event): void {
@@ -422,6 +450,16 @@ function formatTimestamp(value: string | null | undefined): string {
     timeZone: cityStore.currentCity.timeZone,
   }).format(new Date(value))
 }
+
+function formatClock(value: string | null | undefined): string {
+  if (!value) return '--:--'
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: cityStore.currentCity.timeZone,
+  }).format(new Date(value))
+}
 </script>
 
 <template>
@@ -435,7 +473,7 @@ function formatTimestamp(value: string | null | undefined): string {
             查詢 Tokyo Metro 與都營地下鐵路線、車站、方向及官方運行狀態；都營班次會在官方資料有效時以延誤秒數修正預估時間，其餘班次明確顯示表定時間。
           </template>
           <template v-else-if="isHongKong">
-            查詢港鐵與巴士路線、車站／站牌及即時到站資訊；資料由後端統一向香港官方開放數據取得並共用快取。
+            查詢港鐵、巴士與香港電車；電車提供官方路線、雙向沿途站序及起點表定班次，不將起點時間誤標為中途站即時到站。
           </template>
           <template v-else-if="isSingapore">
             查詢新加坡 MRT 路線、車站、即時預估、表定班次與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
@@ -473,6 +511,18 @@ function formatTimestamp(value: string | null | undefined): string {
         >
           <TrainFront :size="20" />
           <span>{{ metroModeLabel }}</span>
+        </button>
+        <button
+          v-if="availableModes.includes('tram')"
+          class="transit-mode-tab"
+          :class="{ active: transitStore.activeMode === 'tram' }"
+          type="button"
+          role="tab"
+          :aria-selected="transitStore.activeMode === 'tram'"
+          @click="activateMode('tram')"
+        >
+          <TrainFront :size="20" />
+          <span>{{ tramModeLabel }}</span>
         </button>
       </div>
 
@@ -610,6 +660,136 @@ function formatTimestamp(value: string | null | undefined): string {
 
         <div v-else-if="!transitStore.loading" class="inline-empty standalone">
           {{ transitStore.resultMeta?.message ?? `沒有符合條件的${busModeLabel}路線。` }}
+        </div>
+      </template>
+
+      <template v-else-if="transitStore.activeMode === 'tram'">
+        <div v-if="transitStore.tramRoutes.length" class="transit-results-layout tram-results-layout">
+          <section class="selection-panel">
+            <div class="panel-heading-row">
+              <div>
+                <span class="eyebrow">TRAM ROUTES</span>
+                <h3>選擇電車路線</h3>
+              </div>
+              <span>{{ transitStore.tramRoutes.length }} 條</span>
+            </div>
+            <div class="route-result-list">
+              <button
+                v-for="route in transitStore.tramRoutes"
+                :key="route.id"
+                class="route-result"
+                :class="{ selected: transitStore.selectedTramRoute?.id === route.id }"
+                type="button"
+                @click="selectTramRoute(route)"
+              >
+                <strong>{{ localize(route.nameZh) }}</strong>
+                <span>{{ localize(route.originName) }} → {{ localize(route.destinationName) }}</span>
+                <small>香港電車</small>
+              </button>
+            </div>
+          </section>
+
+          <section class="arrival-panel tram-detail-panel">
+            <template v-if="transitStore.selectedTramRoute">
+              <div class="panel-heading-row arrival-heading">
+                <div>
+                  <span class="eyebrow">{{ transitStore.selectedTramRoute.id }}</span>
+                  <h3>{{ localize(transitStore.selectedTramRoute.nameZh) }}</h3>
+                </div>
+                <button
+                  class="icon-button refresh-button"
+                  type="button"
+                  aria-label="更新電車起點班表"
+                  :disabled="transitStore.loading"
+                  @click="refreshTramDepartures"
+                >
+                  <RefreshCw :size="18" />
+                </button>
+              </div>
+
+              <div class="direction-switch" aria-label="電車方向">
+                <button
+                  v-for="direction in transitStore.selectedTramRoute.directions"
+                  :key="direction.direction"
+                  type="button"
+                  :class="{ active: transitStore.selectedTramDirection === direction.direction }"
+                  @click="selectTramDirection(direction.direction)"
+                >
+                  {{ metroDirectionLabel(direction) }}
+                </button>
+              </div>
+
+              <div class="tram-detail-grid">
+                <section class="tram-stop-section">
+                  <div class="tram-section-heading">
+                    <h4>沿途各站</h4>
+                    <span>{{ transitStore.tramStops.length }} 站</span>
+                  </div>
+                  <ol class="tram-stop-list">
+                    <li v-for="stop in transitStore.tramStops" :key="stop.id">
+                      <span class="tram-stop-sequence">{{ stop.sequence }}</span>
+                      <strong>{{ localize(stop.nameZh) }}</strong>
+                    </li>
+                  </ol>
+                </section>
+
+                <section class="tram-schedule-section">
+                  <div class="tram-section-heading">
+                    <div>
+                      <h4>起點表定班次</h4>
+                      <p v-if="transitStore.tramSchedule">
+                        {{ localize(transitStore.tramSchedule.originName) }} →
+                        {{ localize(transitStore.tramSchedule.destinationName) }}
+                      </p>
+                    </div>
+                    <span>非本站 ETA</span>
+                  </div>
+
+                  <div
+                    v-if="transitStore.resultMeta?.serviceDayStatus === 'ended'"
+                    class="inline-empty tram-service-message"
+                  >
+                    本日已無車次，末班車已於
+                    {{ formatClock(transitStore.tramSchedule?.lastDepartureAt) }} 駛離起點站。
+                  </div>
+                  <div
+                    v-else-if="transitStore.resultMeta?.serviceDayStatus === 'no-service'"
+                    class="inline-empty tram-service-message"
+                  >
+                    本日沒有表定電車班次。
+                  </div>
+                  <template v-else-if="transitStore.tramSchedule">
+                    <div class="tram-service-window">
+                      <span>首班 {{ formatClock(transitStore.tramSchedule.firstDepartureAt) }}</span>
+                      <span>末班 {{ formatClock(transitStore.tramSchedule.lastDepartureAt) }}</span>
+                    </div>
+                    <div v-if="transitStore.tramSchedule.nextDepartures.length" class="tram-departure-grid">
+                      <span
+                        v-for="departure in transitStore.tramSchedule.nextDepartures"
+                        :key="departure"
+                      >
+                        {{ formatClock(departure) }}
+                      </span>
+                    </div>
+                    <div v-else class="inline-empty tram-service-message">
+                      {{ transitStore.resultMeta?.message ?? '目前沒有可顯示的起點班次。' }}
+                    </div>
+                  </template>
+                  <div v-else-if="!transitStore.loading" class="inline-empty tram-service-message">
+                    目前無法取得這個方向的官方班表。
+                  </div>
+                  <p class="tram-schedule-note">
+                    顯示起點站每日班表，沿途站沒有官方表定到站時間；實際班次可能受路況影響。
+                  </p>
+                </section>
+              </div>
+            </template>
+            <div v-else class="inline-empty large">請先從左側選擇一條電車路線。</div>
+          </section>
+        </div>
+
+        <div v-else-if="!transitStore.loading" class="inline-empty standalone">
+          {{ transitStore.resultMeta?.message ?? '目前沒有可顯示的香港電車路線。' }}
         </div>
       </template>
 
@@ -952,6 +1132,12 @@ function formatTimestamp(value: string | null | undefined): string {
         <span v-if="transitStore.resultMeta.message">{{ transitStore.resultMeta.message }}</span>
         <span v-if="isTokyo">
           都營地下鐵資料：東京都交通局・公共交通オープンデータ協議会
+        </span>
+        <span v-else-if="isHongKong && transitStore.activeMode === 'tram'">
+          電車資料：香港運輸署 GTFS・DATA.GOV.HK
+        </span>
+        <span v-else-if="isHongKong && transitStore.activeMode === 'bus'">
+          巴士資料：香港各營辦商・香港運輸署 GTFS・DATA.GOV.HK
         </span>
         <span v-else-if="isHongKong">港鐵資料：香港鐵路有限公司・DATA.GOV.HK</span>
         <span v-else-if="isSingapore">MRT 資料：新加坡陸路交通管理局・LTA DataMall</span>

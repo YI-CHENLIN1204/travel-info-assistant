@@ -7,6 +7,9 @@ import {
   getMetroStatus,
   getRailArrivals,
   getTdxStatus,
+  getTramDepartures,
+  getTramRoutes,
+  getTramStops,
   searchBusRoutes as requestBusRoutes,
   searchMetroRoutes as requestMetroRoutes,
   searchMetroStations as requestMetroStations,
@@ -21,12 +24,13 @@ import type {
   RailStation,
   TdxProviderStatus,
   TransitArrival,
+  TransitDepartureSchedule,
   TransitDirection,
   TransitRoute,
   TransitStop,
 } from '@/types/api'
 
-export type TransitModeKey = 'bus' | 'metro' | 'rail'
+export type TransitModeKey = 'bus' | 'metro' | 'rail' | 'tram'
 
 export const metroStatusRefreshMilliseconds = 30_000
 export const busArrivalRefreshMilliseconds = 15_000
@@ -138,6 +142,7 @@ export const useTransitStore = defineStore('transit', () => {
   const metroQuery = ref('')
   const railQuery = ref('')
   const routes = ref<TransitRoute[]>([])
+  const tramRoutes = ref<TransitRoute[]>([])
   const metroRoutes = ref<TransitRoute[]>([])
   const stations = ref<MetroStation[]>([])
   const metroStatuses = ref<MetroServiceStatus[]>([])
@@ -157,6 +162,10 @@ export const useTransitStore = defineStore('transit', () => {
     findMetroRouteStatus(metroStatuses.value, selectedMetroRoute.value),
   )
   const selectedRoute = ref<TransitRoute | null>(null)
+  const selectedTramRoute = ref<TransitRoute | null>(null)
+  const selectedTramDirection = ref(0)
+  const tramStops = ref<TransitStop[]>([])
+  const tramSchedule = ref<TransitDepartureSchedule | null>(null)
   const selectedDirection = ref(0)
   const stops = ref<TransitStop[]>([])
   const selectedStop = ref<TransitStop | null>(null)
@@ -202,6 +211,7 @@ export const useTransitStore = defineStore('transit', () => {
     stopMetroArrivalRefresh()
     stopRailArrivalRefresh()
     routes.value = []
+    tramRoutes.value = []
     metroRoutes.value = []
     stations.value = []
     metroStatuses.value = []
@@ -211,6 +221,10 @@ export const useTransitStore = defineStore('transit', () => {
     selectedMetroDirection.value = null
     selectedMetroRouteStations.value = []
     selectedRoute.value = null
+    selectedTramRoute.value = null
+    selectedTramDirection.value = 0
+    tramStops.value = []
+    tramSchedule.value = null
     selectedDirection.value = 0
     stops.value = []
     selectedStop.value = null
@@ -230,6 +244,68 @@ export const useTransitStore = defineStore('transit', () => {
       stops.value = []
       selectedStop.value = null
       arrivals.value = []
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function loadTramRoutes(cityId: string): Promise<void> {
+    await run(async () => {
+      const response = await getTramRoutes(cityId)
+      tramRoutes.value = response.data
+      selectedTramRoute.value = null
+      selectedTramDirection.value = 0
+      tramStops.value = []
+      tramSchedule.value = null
+      resultMeta.value = response.meta
+    })
+  }
+
+  async function chooseTramRoute(cityId: string, route: TransitRoute): Promise<void> {
+    selectedTramRoute.value = route
+    selectedTramDirection.value = route.directions[0]?.direction ?? 0
+    await loadTramDetails(cityId)
+  }
+
+  async function chooseTramDirection(cityId: string, direction: number): Promise<void> {
+    selectedTramDirection.value = direction
+    await loadTramDetails(cityId)
+  }
+
+  async function loadTramDetails(cityId: string): Promise<void> {
+    if (!selectedTramRoute.value) return
+    const routeId = selectedTramRoute.value.id
+    const direction = selectedTramDirection.value
+    await run(async () => {
+      const [stopsResponse, departuresResponse] = await Promise.all([
+        getTramStops(cityId, routeId, direction),
+        getTramDepartures(cityId, routeId, direction),
+      ])
+      if (
+        selectedTramRoute.value?.id !== routeId ||
+        selectedTramDirection.value !== direction
+      ) return
+      tramStops.value = stopsResponse.data
+      tramSchedule.value = departuresResponse.data
+      resultMeta.value =
+        departuresResponse.meta.dataStatus === 'unavailable'
+          ? departuresResponse.meta
+          : stopsResponse.meta.dataStatus === 'unavailable'
+            ? stopsResponse.meta
+            : departuresResponse.meta
+    })
+  }
+
+  async function refreshTramDepartures(cityId: string): Promise<void> {
+    if (!selectedTramRoute.value || loading.value) return
+    const routeId = selectedTramRoute.value.id
+    const direction = selectedTramDirection.value
+    await run(async () => {
+      const response = await getTramDepartures(cityId, routeId, direction)
+      if (
+        selectedTramRoute.value?.id !== routeId ||
+        selectedTramDirection.value !== direction
+      ) return
+      tramSchedule.value = response.data
       resultMeta.value = response.meta
     })
   }
@@ -534,6 +610,7 @@ export const useTransitStore = defineStore('transit', () => {
     metroQuery,
     railQuery,
     routes,
+    tramRoutes,
     metroRoutes,
     stations,
     metroStatuses,
@@ -548,6 +625,10 @@ export const useTransitStore = defineStore('transit', () => {
     railHeadingOptions,
     visibleRailArrivals,
     selectedRoute,
+    selectedTramRoute,
+    selectedTramDirection,
+    tramStops,
+    tramSchedule,
     selectedDirection,
     stops,
     selectedStop,
@@ -562,6 +643,10 @@ export const useTransitStore = defineStore('transit', () => {
     error,
     resetResults,
     searchBusRoutes,
+    loadTramRoutes,
+    chooseTramRoute,
+    chooseTramDirection,
+    refreshTramDepartures,
     chooseBusRoute,
     chooseBusDirection,
     chooseBusStop,

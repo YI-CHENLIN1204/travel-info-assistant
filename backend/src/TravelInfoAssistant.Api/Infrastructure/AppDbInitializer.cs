@@ -186,10 +186,18 @@ public static class AppDbInitializer
             new
             {
                 CityCode = "hong-kong",
+                Id = Guid.Parse("a2f6ee4e-1c76-4930-bbc9-68e4bcfa82df"),
+                ServiceKey = "tram",
+                DisplayName = "電車",
+                SortOrder = 3
+            },
+            new
+            {
+                CityCode = "hong-kong",
                 Id = Guid.Parse("2856bd80-c98a-4a68-b881-2f4d4f1375fe"),
                 ServiceKey = "weather",
                 DisplayName = "天氣",
-                SortOrder = 2
+                SortOrder = 4
             },
             new
             {
@@ -197,7 +205,7 @@ public static class AppDbInitializer
                 Id = Guid.Parse("5f99d5c8-f259-45c5-a611-30f4dd02d1c3"),
                 ServiceKey = "alerts",
                 DisplayName = "旅遊警示",
-                SortOrder = 3
+                SortOrder = 5
             },
             new
             {
@@ -253,10 +261,14 @@ public static class AppDbInitializer
             }
 
             if (capability.IntegrationStatus != IntegrationStatus.Integrated ||
-                capability.AvailabilityStatus != AvailabilityStatus.Available)
+                capability.AvailabilityStatus != AvailabilityStatus.Available ||
+                capability.DisplayName != definition.DisplayName ||
+                capability.SortOrder != definition.SortOrder)
             {
                 capability.IntegrationStatus = IntegrationStatus.Integrated;
                 capability.AvailabilityStatus = AvailabilityStatus.Available;
+                capability.DisplayName = definition.DisplayName;
+                capability.SortOrder = definition.SortOrder;
                 changed = true;
             }
         }
