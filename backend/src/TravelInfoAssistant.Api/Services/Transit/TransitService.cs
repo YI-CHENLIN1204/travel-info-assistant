@@ -383,6 +383,7 @@ public sealed class TransitService(
     public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
         Guid cityId,
         string stationId,
+        bool includeRealtime,
         CancellationToken cancellationToken)
     {
         if (!await IsTaipeiAsync(cityId, "rail", cancellationToken))
@@ -390,7 +391,10 @@ public sealed class TransitService(
             return Unavailable<TransitArrivalResponse>("這個城市目前尚未整合台鐵查詢。");
         }
 
-        return await tdxProvider.GetRailArrivalsAsync(stationId.Trim(), cancellationToken);
+        return await tdxProvider.GetRailArrivalsAsync(
+            stationId.Trim(),
+            includeRealtime,
+            cancellationToken);
     }
 
     public async Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>>

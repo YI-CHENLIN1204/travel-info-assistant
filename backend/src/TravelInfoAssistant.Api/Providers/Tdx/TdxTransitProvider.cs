@@ -356,15 +356,14 @@ public sealed class TdxTransitProvider(
 
     public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
         string stationId,
+        bool includeRealtime,
         CancellationToken cancellationToken)
     {
         var stationsTask = GetRailStationsAsync(cancellationToken);
         var timetableTask = GetRailTimetableAsync(stationId, cancellationToken);
-        var liveBoardTask = GetRailLiveBoardAsync(stationId, cancellationToken);
-        await Task.WhenAll(stationsTask, timetableTask, liveBoardTask);
+        await Task.WhenAll(stationsTask, timetableTask);
         var stations = await stationsTask;
         var timetable = await timetableTask;
-        var liveBoard = await liveBoardTask;
         var stationsById = stations.Data
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -378,6 +377,13 @@ public sealed class TdxTransitProvider(
             timetable.SourceUpdatedAt,
             now,
             stationsById);
+
+        if (!includeRealtime)
+        {
+            return BuildScheduledRailResult(timetable, scheduled, now);
+        }
+
+        var liveBoard = await GetRailLiveBoardAsync(stationId, cancellationToken);
 
         if (liveBoard.Data.StationLiveBoards.Count == 0)
         {
@@ -443,6 +449,45 @@ public sealed class TdxTransitProvider(
             liveBoard.Message ?? timetable.Message,
             ServiceDayStatus: endedAt.HasValue ? "ended" : null,
             LastDepartureAt: endedAt);
+    }
+
+    private ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>> BuildScheduledRailResult(
+        ProviderQueryResult<TdxTraDailyStationTimetableResponse> timetable,
+        IReadOnlyList<TransitArrivalResponse> scheduled,
+        DateTimeOffset now)
+    {
+        var nextScheduled = SelectNextRailArrivals(scheduled, [], now);
+        var lastDepartureAt = nextScheduled.Count == 0
+            ? GetEndedServiceDayLastDeparture(timetable.Data.StationTimetables, now)
+            : null;
+        if (lastDepartureAt.HasValue)
+        {
+            return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+                [],
+                timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
+                timetable.SourceUpdatedAt,
+                timetable.FetchedAt,
+                timetable.Stale,
+                null,
+                ServiceDayStatus: "ended",
+                LastDepartureAt: lastDepartureAt);
+        }
+
+        if (nextScheduled.Count > 0)
+        {
+            return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+                nextScheduled,
+                timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
+                timetable.SourceUpdatedAt,
+                timetable.FetchedAt,
+                timetable.Stale,
+                timetable.Message);
+        }
+
+        return ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>.Unavailable(
+            Array.Empty<TransitArrivalResponse>(),
+            timetable.Message ?? "目前查無可顯示的台鐵班次。",
+            timeProvider);
     }
 
     public Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>>

@@ -10,7 +10,6 @@ import {
   isMetroStatusCurrent,
   metroArrivalRefreshMilliseconds,
   metroStatusRefreshMilliseconds,
-  railArrivalRefreshMilliseconds,
   useTransitStore,
 } from '@/stores/transit'
 import type {
@@ -553,7 +552,7 @@ describe('arrival direction controls', () => {
       destinationName: '高雄',
       heading: 'south',
     } as TransitArrival
-    vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
+    const request = vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
       data: [southbound, northbound],
       meta: { ...odptMeta, source: 'TDX', dataStatus: 'realtime' },
     })
@@ -561,6 +560,7 @@ describe('arrival direction controls', () => {
 
     await store.chooseRailStation('taipei-id', station)
 
+    expect(request).toHaveBeenCalledWith('taipei-id', '1000', 'rail', false)
     expect(store.railHeadingOptions).toEqual(['north', 'south'])
     expect(store.selectedRailHeading).toBe('south')
     expect(store.visibleRailArrivals).toEqual([southbound])
@@ -612,12 +612,12 @@ describe('arrival direction controls', () => {
 
     await store.chooseRailStation('taipei-id', station, 'high-speed-rail')
 
-    expect(request).toHaveBeenCalledWith('taipei-id', '1040', 'high-speed-rail')
+    expect(request).toHaveBeenCalledWith('taipei-id', '1040', 'high-speed-rail', false)
     expect(store.selectedRailHeading).toBe('south')
     expect(store.visibleRailArrivals).toEqual([southbound])
   })
 
-  it('refreshes selected bus and rail arrivals on their intervals', async () => {
+  it('refreshes bus arrivals on an interval and Taiwan Rail realtime only on demand', async () => {
     vi.useFakeTimers()
     setActivePinia(createPinia())
     const store = useTransitStore()
@@ -641,10 +641,9 @@ describe('arrival direction controls', () => {
     store.stopBusArrivalRefresh()
 
     store.selectedRailStation = railStation
-    store.startRailArrivalRefresh('taipei-id')
-    await vi.advanceTimersByTimeAsync(railArrivalRefreshMilliseconds)
-    expect(railRequest).toHaveBeenCalledWith('taipei-id', railStation.id, 'rail')
-    store.stopRailArrivalRefresh()
+    expect(railRequest).not.toHaveBeenCalled()
+    await store.refreshRailArrivals('taipei-id', 'rail', true)
+    expect(railRequest).toHaveBeenCalledWith('taipei-id', railStation.id, 'rail', true)
   })
 })
 

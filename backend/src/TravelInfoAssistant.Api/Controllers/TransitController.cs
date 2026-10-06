@@ -326,6 +326,7 @@ public sealed class TransitController(ITransitService transitService) : Controll
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitArrivalResponse>>>> GetRailArrivals(
         [FromQuery] Guid cityId,
         [FromQuery] string stationId,
+        [FromQuery] bool includeRealtime,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(stationId) || stationId.Length > 80)
@@ -337,6 +338,7 @@ public sealed class TransitController(ITransitService transitService) : Controll
         var result = await transitService.GetRailArrivalsAsync(
             cityId,
             stationId,
+            includeRealtime,
             cancellationToken);
         return Ok(ToResponse(result));
     }

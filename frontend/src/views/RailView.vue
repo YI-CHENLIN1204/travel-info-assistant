@@ -93,21 +93,6 @@ watch(
   { immediate: true },
 )
 
-watch(
-  [
-    () => transitStore.selectedRailStation?.id,
-    () => cityStore.currentCity.id,
-    () => railServiceKey.value,
-  ],
-  ([stationId, cityId, serviceKey]) => {
-    transitStore.stopRailArrivalRefresh()
-    if (stationId && serviceKey === 'rail') {
-      transitStore.startRailArrivalRefresh(cityId, serviceKey)
-    }
-  },
-  { immediate: true },
-)
-
 onMounted(() => {
   clockTimer = window.setInterval(() => {
     now.value = new Date()
@@ -116,7 +101,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (clockTimer !== undefined) window.clearInterval(clockTimer)
-  transitStore.stopRailArrivalRefresh()
 })
 
 function chooseRegion(regionId: string): void {
@@ -145,7 +129,6 @@ function chooseHeading(heading: RailHeading): void {
 }
 
 function clearRailResults(): void {
-  transitStore.stopRailArrivalRefresh()
   transitStore.railQuery = ''
   transitStore.railStations = []
   transitStore.selectedRailStation = null
@@ -156,7 +139,11 @@ function clearRailResults(): void {
 }
 
 function refreshArrivals(): void {
-  void transitStore.refreshRailArrivals(cityStore.currentCity.id, railServiceKey.value)
+  void transitStore.refreshRailArrivals(
+    cityStore.currentCity.id,
+    railServiceKey.value,
+    !isHighSpeedRail.value,
+  )
 }
 
 function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
@@ -264,7 +251,7 @@ function formatTimestamp(value: string | null | undefined): string {
             高鐵只採用官方當日班表，不會把表定倒數標示為即時到站。
           </template>
           <template v-else>
-            班次資料由後端統一向 TDX 取得並共用快取。
+            預設顯示官方當日班表；需要誤點與月台時，再手動更新一次即時資訊。
           </template>
         </p>
         <p v-else>
@@ -360,13 +347,13 @@ function formatTimestamp(value: string | null | undefined): string {
                 <h3>{{ transitStore.selectedRailStation.nameZh }}列車資訊</h3>
               </div>
               <button
-                class="icon-button refresh-button"
+                class="button button-ghost rail-refresh-button"
                 type="button"
-                :aria-label="`更新${railService.displayName}列車資訊`"
                 :disabled="transitStore.loading"
                 @click="refreshArrivals"
               >
                 <RefreshCw :size="18" />
+                {{ isHighSpeedRail ? '更新班表' : '更新即時資訊' }}
               </button>
             </div>
 

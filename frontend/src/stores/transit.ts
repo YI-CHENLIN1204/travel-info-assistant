@@ -40,7 +40,6 @@ export type TransitModeKey = 'bus' | 'metro' | 'rail' | 'tram' | 'ferry'
 export const metroStatusRefreshMilliseconds = 30_000
 export const busArrivalRefreshMilliseconds = 15_000
 export const metroArrivalRefreshMilliseconds = 15_000
-export const railArrivalRefreshMilliseconds = 15_000
 
 export function buildArrivalDirectionOptions(
   arrivals: TransitArrival[],
@@ -213,13 +212,11 @@ export const useTransitStore = defineStore('transit', () => {
   let busArrivalRefreshTimer: number | undefined
   let metroStatusRefreshTimer: number | undefined
   let metroArrivalRefreshTimer: number | undefined
-  let railArrivalRefreshTimer: number | undefined
 
   function resetResults(): void {
     stopMetroStatusRefresh()
     stopBusArrivalRefresh()
     stopMetroArrivalRefresh()
-    stopRailArrivalRefresh()
     routes.value = []
     tramRoutes.value = []
     ferryRoutes.value = []
@@ -626,12 +623,18 @@ export const useTransitStore = defineStore('transit', () => {
     cityId: string,
     station: RailStation,
     serviceKey: RailServiceKey = 'rail',
+    includeRealtime = false,
   ): Promise<void> {
     const stationChanged = selectedRailStation.value?.id !== station.id
     selectedRailStation.value = station
     if (stationChanged) selectedRailHeading.value = null
     await run(async () => {
-      const response = await getRailArrivals(cityId, station.id, serviceKey)
+      const response = await getRailArrivals(
+        cityId,
+        station.id,
+        serviceKey,
+        includeRealtime,
+      )
       arrivals.value = response.data
       syncRailHeading()
       resultMeta.value = response.meta
@@ -650,27 +653,16 @@ export const useTransitStore = defineStore('transit', () => {
   async function refreshRailArrivals(
     cityId: string,
     serviceKey: RailServiceKey = 'rail',
+    includeRealtime = false,
   ): Promise<void> {
     if (!loading.value && selectedRailStation.value) {
-      await chooseRailStation(cityId, selectedRailStation.value, serviceKey)
+      await chooseRailStation(
+        cityId,
+        selectedRailStation.value,
+        serviceKey,
+        includeRealtime,
+      )
     }
-  }
-
-  function startRailArrivalRefresh(
-    cityId: string,
-    serviceKey: RailServiceKey = 'rail',
-  ): void {
-    stopRailArrivalRefresh()
-    railArrivalRefreshTimer = window.setInterval(() => {
-      void refreshRailArrivals(cityId, serviceKey)
-    }, railArrivalRefreshMilliseconds)
-  }
-
-  function stopRailArrivalRefresh(): void {
-    if (railArrivalRefreshTimer === undefined) return
-
-    window.clearInterval(railArrivalRefreshTimer)
-    railArrivalRefreshTimer = undefined
   }
 
   async function loadProviderStatus(): Promise<void> {
@@ -767,8 +759,6 @@ export const useTransitStore = defineStore('transit', () => {
     chooseRailStation,
     chooseRailHeading,
     refreshRailArrivals,
-    startRailArrivalRefresh,
-    stopRailArrivalRefresh,
     loadProviderStatus,
   }
 })

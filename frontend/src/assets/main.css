@@ -1281,6 +1281,16 @@ p {
   color: var(--teal);
 }
 
+.rail-refresh-button {
+  color: var(--teal);
+  white-space: nowrap;
+}
+
+.rail-refresh-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .direction-switch {
   display: flex;
   flex-wrap: wrap;

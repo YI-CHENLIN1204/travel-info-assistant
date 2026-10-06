@@ -38,6 +38,7 @@ public interface ITdxTransitProvider
 
     Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetRailArrivalsAsync(
         string stationId,
+        bool includeRealtime,
         CancellationToken cancellationToken);
 
     Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> GetHighSpeedRailStationsAsync(

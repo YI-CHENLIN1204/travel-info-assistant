@@ -522,7 +522,7 @@ public sealed class TdxTransitProviderTests
             },
             new FixedTimeProvider(now));
 
-        var result = await provider.GetRailArrivalsAsync("1000", CancellationToken.None);
+        var result = await provider.GetRailArrivalsAsync("1000", true, CancellationToken.None);
 
         var arrival = Assert.Single(result.Data);
         Assert.Equal("rail", arrival.Mode);
@@ -536,6 +536,63 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("誤點 5 分", arrival.ServiceStatus);
         Assert.Equal("2B", arrival.Platform);
         Assert.Equal("realtime", result.DataStatus);
+    }
+
+    [Fact]
+    public async Task GetRailArrivalsAsync_DefaultsToScheduleAndFallsBackWhenManualRealtimeFails()
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T02:00:00Z");
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v3/Rail/TRA/Station"] = new TdxTraStationResponse(),
+                ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
+                ["v3/Rail/TRA/DailyStationTimetable/Today/Station/1000"] =
+                    new TdxTraDailyStationTimetableResponse
+                    {
+                        StationTimetables =
+                        [
+                            new TdxTraStationTimetable
+                            {
+                                StationID = "1000",
+                                StationName = Name("臺北"),
+                                Direction = 1,
+                                TimeTables =
+                                [
+                                    new TdxTraTimetableEntry
+                                    {
+                                        Sequence = 1,
+                                        TrainNo = "123",
+                                        DestinationStationID = "4400",
+                                        DestinationStationName = Name("高雄"),
+                                        ArrivalTime = "10:10"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+            },
+            new FixedTimeProvider(now));
+
+        var scheduled = await provider.GetRailArrivalsAsync(
+            "1000",
+            false,
+            CancellationToken.None);
+
+        var scheduledArrival = Assert.Single(scheduled.Data);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-23T02:10:00Z"), scheduledArrival.ScheduledAt);
+        Assert.Null(scheduledArrival.EstimatedAt);
+        Assert.Equal("scheduled", scheduled.DataStatus);
+        Assert.Null(scheduled.Message);
+
+        var fallback = await provider.GetRailArrivalsAsync(
+            "1000",
+            true,
+            CancellationToken.None);
+
+        Assert.Single(fallback.Data);
+        Assert.Equal("scheduled", fallback.DataStatus);
+        Assert.Equal("台鐵即時資料暫時無法更新，目前顯示表定時刻。", fallback.Message);
     }
 
     [Fact]
@@ -633,7 +690,7 @@ public sealed class TdxTransitProviderTests
             },
             new FixedTimeProvider(now));
 
-        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+        var result = await provider.GetRailArrivalsAsync("3470", true, CancellationToken.None);
 
         Assert.Equal(20, result.Data.Count);
         Assert.Equal(10, result.Data.Count(item => item.Direction == 0));
@@ -688,12 +745,10 @@ public sealed class TdxTransitProviderTests
                             }
                         ]
                     },
-                ["v3/Rail/TRA/StationLiveBoard/Station/3470"] =
-                    new TdxTraStationLiveBoardResponse()
             },
             new FixedTimeProvider(now));
 
-        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+        var result = await provider.GetRailArrivalsAsync("3470", false, CancellationToken.None);
 
         Assert.Empty(result.Data);
         Assert.Equal("ended", result.ServiceDayStatus);
@@ -710,13 +765,11 @@ public sealed class TdxTransitProviderTests
                 ["v3/Rail/TRA/Station"] = new TdxTraStationResponse(),
                 ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
                 ["v3/Rail/TRA/DailyStationTimetable/Today/Station/3470"] =
-                    new TdxTraDailyStationTimetableResponse(),
-                ["v3/Rail/TRA/StationLiveBoard/Station/3470"] =
-                    new TdxTraStationLiveBoardResponse()
+                    new TdxTraDailyStationTimetableResponse()
             },
             new FixedTimeProvider(DateTimeOffset.Parse("2026-09-23T15:00:00Z")));
 
-        var result = await provider.GetRailArrivalsAsync("3470", CancellationToken.None);
+        var result = await provider.GetRailArrivalsAsync("3470", false, CancellationToken.None);
 
         Assert.Empty(result.Data);
         Assert.Null(result.ServiceDayStatus);

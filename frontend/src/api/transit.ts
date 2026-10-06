@@ -142,11 +142,14 @@ export function getRailArrivals(
   cityId: string,
   stationId: string,
   serviceKey: RailServiceKey = 'rail',
+  includeRealtime = false,
 ): Promise<ApiResponse<TransitArrival[]>> {
   const path = serviceKey === 'high-speed-rail'
     ? '/v1/transit/rail/high-speed/arrivals'
     : '/v1/transit/rail/arrivals'
-  return apiRequest(`${path}?${params({ cityId, stationId })}`)
+  const query: Record<string, string> = { cityId, stationId }
+  if (serviceKey === 'rail') query.includeRealtime = String(includeRealtime)
+  return apiRequest(`${path}?${params(query)}`)
 }
 
 export function getTdxStatus(): Promise<ApiResponse<TdxProviderStatus>> {
