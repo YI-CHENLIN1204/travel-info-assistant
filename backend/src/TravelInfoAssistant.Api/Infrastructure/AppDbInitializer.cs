@@ -226,10 +226,18 @@ public static class AppDbInitializer
             new
             {
                 CityCode = "singapore",
+                Id = Guid.Parse("7a11e47e-a9a1-4d7b-94d9-bb65016d8670"),
+                ServiceKey = "bus",
+                DisplayName = "巴士",
+                SortOrder = 2
+            },
+            new
+            {
+                CityCode = "singapore",
                 Id = Guid.Parse("96fde83b-840b-4472-9c76-589a545d3db4"),
                 ServiceKey = "weather",
                 DisplayName = "天氣",
-                SortOrder = 2
+                SortOrder = 3
             },
             new
             {
@@ -237,7 +245,7 @@ public static class AppDbInitializer
                 Id = Guid.Parse("d0398dbe-8ebc-46f8-aad8-c0131a9269ec"),
                 ServiceKey = "alerts",
                 DisplayName = "旅遊警示",
-                SortOrder = 3
+                SortOrder = 4
             }
         };
         foreach (var definition in integratedDefinitions)

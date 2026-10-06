@@ -7,6 +7,12 @@ public sealed record LtaHttpResult<T>(
     DateTimeOffset FetchedAt,
     DateTimeOffset? SourceUpdatedAt = null);
 
+public sealed class LtaODataResponse<T>
+{
+    [JsonPropertyName("value")]
+    public IReadOnlyList<T> Value { get; init; } = [];
+}
+
 public sealed class LtaDownloadResponse
 {
     [JsonPropertyName("value")]
@@ -85,6 +91,73 @@ public sealed record LtaGtfsNetwork(
     IReadOnlyList<LtaGtfsStopTime>? StopTimes = null,
     IReadOnlyList<LtaGtfsCalendar>? Calendars = null,
     IReadOnlyList<LtaGtfsCalendarDate>? CalendarDates = null);
+
+public sealed record LtaBusNetwork(
+    IReadOnlyList<LtaBusServiceRow> Services,
+    IReadOnlyList<LtaBusRouteRow> Routes,
+    IReadOnlyList<LtaBusStopRow> Stops);
+
+public sealed class LtaBusServiceRow
+{
+    public string ServiceNo { get; init; } = string.Empty;
+    public string Operator { get; init; } = string.Empty;
+    public int Direction { get; init; }
+    public string Category { get; init; } = string.Empty;
+    public string OriginCode { get; init; } = string.Empty;
+    public string DestinationCode { get; init; } = string.Empty;
+    public string LoopDesc { get; init; } = string.Empty;
+}
+
+public sealed class LtaBusRouteRow
+{
+    public string ServiceNo { get; init; } = string.Empty;
+    public string Operator { get; init; } = string.Empty;
+    public int Direction { get; init; }
+    public int StopSequence { get; init; }
+    public string BusStopCode { get; init; } = string.Empty;
+    public double Distance { get; init; }
+    public string WD_FirstBus { get; init; } = string.Empty;
+    public string WD_LastBus { get; init; } = string.Empty;
+    public string SAT_FirstBus { get; init; } = string.Empty;
+    public string SAT_LastBus { get; init; } = string.Empty;
+    public string SUN_FirstBus { get; init; } = string.Empty;
+    public string SUN_LastBus { get; init; } = string.Empty;
+}
+
+public sealed class LtaBusStopRow
+{
+    public string BusStopCode { get; init; } = string.Empty;
+    public string RoadName { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public double Latitude { get; init; }
+    public double Longitude { get; init; }
+}
+
+public sealed class LtaBusArrivalResponse
+{
+    public string BusStopCode { get; init; } = string.Empty;
+    public IReadOnlyList<LtaBusArrivalService> Services { get; init; } = [];
+}
+
+public sealed class LtaBusArrivalService
+{
+    public string ServiceNo { get; init; } = string.Empty;
+    public string Operator { get; init; } = string.Empty;
+    public LtaBusArrivalEstimate NextBus { get; init; } = new();
+    public LtaBusArrivalEstimate NextBus2 { get; init; } = new();
+    public LtaBusArrivalEstimate NextBus3 { get; init; } = new();
+}
+
+public sealed class LtaBusArrivalEstimate
+{
+    public string OriginCode { get; init; } = string.Empty;
+    public string DestinationCode { get; init; } = string.Empty;
+    public string EstimatedArrival { get; init; } = string.Empty;
+    public int Monitored { get; init; }
+    public string Load { get; init; } = string.Empty;
+    public string Feature { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
+}
 
 public sealed record LtaRealtimeFeed(
     DateTimeOffset? Timestamp,

@@ -14,6 +14,7 @@ public sealed class TransitService(
     IOdptTransitProvider odptProvider,
     IMtrTransitProvider mtrProvider,
     ILtaDataMallTransitProvider ltaDataMallProvider,
+    ILtaDataMallBusTransitProvider ltaDataMallBusProvider,
     IHongKongBusTransitProvider hongKongBusProvider,
     IHongKongTramTransitProvider hongKongTramProvider,
     IHongKongFerryTransitProvider hongKongFerryProvider,
@@ -51,6 +52,10 @@ public sealed class TransitService(
         {
             result = await hongKongBusProvider.GetBusRoutesAsync(cancellationToken);
         }
+        else if (cityCode == "singapore")
+        {
+            result = await ltaDataMallBusProvider.GetBusRoutesAsync(cancellationToken);
+        }
         else
         {
             return Unavailable<TransitRouteResponse>("這個城市目前尚未整合公車查詢。");
@@ -75,6 +80,11 @@ public sealed class TransitService(
         {
             return await hongKongBusProvider.GetBusStopsAsync(routeName.Trim(), direction, cancellationToken);
         }
+        if (cityCode == "singapore")
+        {
+            return await ltaDataMallBusProvider.GetBusStopsAsync(
+                routeName.Trim(), direction, cancellationToken);
+        }
         if (cityCode != "taipei")
         {
             return Unavailable<TransitStopResponse>("這個城市目前尚未整合公車查詢。");
@@ -97,6 +107,11 @@ public sealed class TransitService(
         if (cityCode == "hong-kong")
         {
             return await hongKongBusProvider.GetBusArrivalsAsync(
+                routeName.Trim(), direction, stopId.Trim(), cancellationToken);
+        }
+        if (cityCode == "singapore")
+        {
+            return await ltaDataMallBusProvider.GetBusArrivalsAsync(
                 routeName.Trim(), direction, stopId.Trim(), cancellationToken);
         }
         if (cityCode != "taipei")

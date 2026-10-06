@@ -16,12 +16,30 @@ public interface ILtaDataMallApiClient
         CancellationToken cancellationToken);
 }
 
+public interface ILtaDataMallBusApiClient
+{
+    Task<LtaHttpResult<IReadOnlyList<LtaBusServiceRow>>> GetBusServicesAsync(
+        CancellationToken cancellationToken);
+
+    Task<LtaHttpResult<IReadOnlyList<LtaBusRouteRow>>> GetBusRoutesAsync(
+        CancellationToken cancellationToken);
+
+    Task<LtaHttpResult<IReadOnlyList<LtaBusStopRow>>> GetBusStopsAsync(
+        CancellationToken cancellationToken);
+
+    Task<LtaHttpResult<LtaBusArrivalResponse>> GetBusArrivalsAsync(
+        string busStopCode,
+        string serviceNo,
+        CancellationToken cancellationToken);
+}
+
 public sealed class LtaDataMallApiClient(
     IHttpClientFactory httpClientFactory,
     IOptions<LtaDataMallOptions> options,
     TimeProvider timeProvider,
-    ILogger<LtaDataMallApiClient> logger) : ILtaDataMallApiClient
+    ILogger<LtaDataMallApiClient> logger) : ILtaDataMallApiClient, ILtaDataMallBusApiClient
 {
+    private const int ODataPageSize = 500;
     private const string ScheduleEndpoint = "GTFSScheduleTrain";
     private const string TripUpdatesEndpoint = "GTFSRealtimeTrainTripUpdates";
     private const string ServiceAlertsEndpoint = "GTFSRealTimeTrainServiceAlerts";
@@ -70,33 +88,62 @@ public sealed class LtaDataMallApiClient(
             feed.Timestamp ?? payload.SourceUpdatedAt);
     }
 
+    public Task<LtaHttpResult<IReadOnlyList<LtaBusServiceRow>>> GetBusServicesAsync(
+        CancellationToken cancellationToken) =>
+        GetPagedAsync<LtaBusServiceRow>("BusServices", cancellationToken);
+
+    public Task<LtaHttpResult<IReadOnlyList<LtaBusRouteRow>>> GetBusRoutesAsync(
+        CancellationToken cancellationToken) =>
+        GetPagedAsync<LtaBusRouteRow>("BusRoutes", cancellationToken);
+
+    public Task<LtaHttpResult<IReadOnlyList<LtaBusStopRow>>> GetBusStopsAsync(
+        CancellationToken cancellationToken) =>
+        GetPagedAsync<LtaBusStopRow>("BusStops", cancellationToken);
+
+    public async Task<LtaHttpResult<LtaBusArrivalResponse>> GetBusArrivalsAsync(
+        string busStopCode,
+        string serviceNo,
+        CancellationToken cancellationToken)
+    {
+        var endpoint = $"v3/BusArrival?BusStopCode={Uri.EscapeDataString(busStopCode)}" +
+                       $"&ServiceNo={Uri.EscapeDataString(serviceNo)}";
+        var body = await GetAuthorizedBytesAsync(endpoint, cancellationToken);
+        var response = body.Length == 0
+            ? new LtaBusArrivalResponse()
+            : JsonSerializer.Deserialize<LtaBusArrivalResponse>(body, JsonOptions) ?? new();
+        return new LtaHttpResult<LtaBusArrivalResponse>(
+            response,
+            timeProvider.GetUtcNow());
+    }
+
+    private async Task<LtaHttpResult<IReadOnlyList<T>>> GetPagedAsync<T>(
+        string endpoint,
+        CancellationToken cancellationToken)
+    {
+        var values = new List<T>();
+        for (var skip = 0; ; skip += ODataPageSize)
+        {
+            var body = await GetAuthorizedBytesAsync(
+                $"{endpoint}?$skip={skip}",
+                cancellationToken);
+            var page = JsonSerializer.Deserialize<LtaODataResponse<T>>(body, JsonOptions)?.Value ?? [];
+            values.AddRange(page);
+            if (page.Count < ODataPageSize)
+            {
+                break;
+            }
+        }
+
+        return new LtaHttpResult<IReadOnlyList<T>>(
+            values,
+            timeProvider.GetUtcNow());
+    }
+
     private async Task<LtaHttpResult<byte[]>> DownloadSignedPayloadAsync(
         string endpoint,
         CancellationToken cancellationToken)
     {
-        var accountKey = options.Value.AccountKey.Trim();
-        if (string.IsNullOrWhiteSpace(accountKey))
-        {
-            throw new LtaDataMallNotConfiguredException();
-        }
-
-        var apiClient = httpClientFactory.CreateClient("lta-datamall");
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            new Uri($"./{endpoint}", UriKind.Relative));
-        request.Headers.TryAddWithoutValidation("AccountKey", accountKey);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        using var response = await apiClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new LtaDataMallProviderException(
-                $"LTA DataMall returned HTTP {(int)response.StatusCode} for {endpoint}.");
-        }
-
-        var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        var body = await GetAuthorizedBytesAsync(endpoint, cancellationToken);
         var envelope = JsonSerializer.Deserialize<LtaDownloadResponse>(body, JsonOptions);
         var item = envelope?.Value.FirstOrDefault(value =>
             !string.IsNullOrWhiteSpace(value.Link));
@@ -125,6 +172,35 @@ public sealed class LtaDataMallApiClient(
             await downloadResponse.Content.ReadAsByteArrayAsync(cancellationToken),
             timeProvider.GetUtcNow(),
             item.Timestamp);
+    }
+
+    private async Task<byte[]> GetAuthorizedBytesAsync(
+        string endpoint,
+        CancellationToken cancellationToken)
+    {
+        var accountKey = options.Value.AccountKey.Trim();
+        if (string.IsNullOrWhiteSpace(accountKey))
+        {
+            throw new LtaDataMallNotConfiguredException();
+        }
+
+        var apiClient = httpClientFactory.CreateClient("lta-datamall");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            new Uri($"./{endpoint}", UriKind.Relative));
+        request.Headers.TryAddWithoutValidation("AccountKey", accountKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        using var response = await apiClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new LtaDataMallProviderException(
+                $"LTA DataMall returned HTTP {(int)response.StatusCode} for {endpoint}.");
+        }
+
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
     private async Task<byte[]> DownloadChineseNamesAsync(CancellationToken cancellationToken)

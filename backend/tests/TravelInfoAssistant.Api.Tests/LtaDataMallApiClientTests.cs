@@ -86,6 +86,75 @@ public sealed class LtaDataMallApiClientTests
         Assert.Empty(apiHandler.Requests);
     }
 
+    [Fact]
+    public async Task DownloadsPagedBusCatalogAndV3ArrivalsWithAccountKeyOnlyOnDataMall()
+    {
+        var firstServicesPage = string.Join(
+            ',',
+            Enumerable.Range(1, 500).Select(index =>
+                $$"""{"ServiceNo":"{{index}}","Operator":"SBST","Direction":1}"""));
+        var apiHandler = new RecordingHandler(request =>
+        {
+            var uri = Assert.IsType<Uri>(request.RequestUri);
+            if (uri.AbsolutePath.EndsWith("/BusServices", StringComparison.Ordinal))
+            {
+                return JsonResponse(uri.Query.Contains("$skip=500", StringComparison.Ordinal)
+                    ? "{\"value\":[{\"ServiceNo\":\"501\",\"Operator\":\"SMRT\",\"Direction\":1}]}"
+                    : $$"""{"value":[{{firstServicesPage}}]}""");
+            }
+            if (uri.AbsolutePath.EndsWith("/BusRoutes", StringComparison.Ordinal))
+            {
+                return JsonResponse("""
+                    {"value":[{"ServiceNo":"36","Operator":"GAS","Direction":1,"StopSequence":1,"BusStopCode":"01012","WD_FirstBus":"0600","WD_LastBus":"2330"}]}
+                    """);
+            }
+            if (uri.AbsolutePath.EndsWith("/BusStops", StringComparison.Ordinal))
+            {
+                return JsonResponse("""
+                    {"value":[{"BusStopCode":"01012","RoadName":"Victoria St","Description":"Hotel Grand Pacific","Latitude":1.29685,"Longitude":103.853}]}
+                    """);
+            }
+            if (uri.AbsolutePath.EndsWith("/v3/BusArrival", StringComparison.Ordinal))
+            {
+                return JsonResponse("""
+                    {"BusStopCode":"01012","Services":[{"ServiceNo":"36","Operator":"GAS","NextBus":{"DestinationCode":"77009","EstimatedArrival":"2026-10-01T12:03:00+08:00","Monitored":1}}]}
+                    """);
+            }
+            throw new InvalidOperationException($"Unexpected endpoint: {uri}");
+        });
+        using var apiClient = new HttpClient(apiHandler)
+        {
+            BaseAddress = new Uri("https://datamall2.mytransport.sg/ltaodataservice/")
+        };
+        using var downloadClient = new HttpClient(new RecordingHandler(_ =>
+            throw new InvalidOperationException()));
+        var client = new LtaDataMallApiClient(
+            new StubHttpClientFactory(apiClient, downloadClient),
+            Microsoft.Extensions.Options.Options.Create(new LtaDataMallOptions
+            {
+                AccountKey = "test-account-key"
+            }),
+            TimeProvider.System,
+            NullLogger<LtaDataMallApiClient>.Instance);
+
+        var services = await client.GetBusServicesAsync(CancellationToken.None);
+        var routes = await client.GetBusRoutesAsync(CancellationToken.None);
+        var stops = await client.GetBusStopsAsync(CancellationToken.None);
+        var arrivals = await client.GetBusArrivalsAsync("01012", "36", CancellationToken.None);
+
+        Assert.Equal(501, services.Data.Count);
+        Assert.Single(routes.Data);
+        Assert.Equal("Hotel Grand Pacific", Assert.Single(stops.Data).Description);
+        Assert.Equal("36", Assert.Single(arrivals.Data.Services).ServiceNo);
+        Assert.Contains(apiHandler.Requests, request =>
+            request.PathAndQuery.Contains("BusServices?$skip=500", StringComparison.Ordinal));
+        Assert.Contains(apiHandler.Requests, request =>
+            request.PathAndQuery.Contains("v3/BusArrival", StringComparison.Ordinal) &&
+            request.PathAndQuery.Contains("BusStopCode=01012", StringComparison.Ordinal) &&
+            request.PathAndQuery.Contains("ServiceNo=36", StringComparison.Ordinal));
+        Assert.All(apiHandler.Requests, request => Assert.True(request.HasAccountKey));
+    }
+
     private static byte[] CreateScheduleZip() => CreateZip(
     [
         ("routes.txt", "route_id,agency_id,route_short_name,route_long_name\nNS,SMRT,NS,North South Line\n"),
@@ -135,7 +204,7 @@ public sealed class LtaDataMallApiClientTests
         };
     }
 
-    private sealed record RecordedRequest(string Host, bool HasAccountKey);
+    private sealed record RecordedRequest(string Host, string PathAndQuery, bool HasAccountKey);
 
     private sealed class RecordingHandler(
         Func<HttpRequestMessage, HttpResponseMessage> responseFactory) : HttpMessageHandler
@@ -149,6 +218,7 @@ public sealed class LtaDataMallApiClientTests
             var uri = Assert.IsType<Uri>(request.RequestUri);
             Requests.Add(new RecordedRequest(
                 uri.Host,
+                uri.PathAndQuery,
                 request.Headers.Contains("AccountKey")));
             return Task.FromResult(responseFactory(request));
         }

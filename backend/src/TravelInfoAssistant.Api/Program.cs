@@ -277,8 +277,13 @@ builder.Services.AddSingleton<IOdptApiClient, OdptApiClient>();
 builder.Services.AddSingleton<IOdptTransitProvider, OdptTransitProvider>();
 builder.Services.AddSingleton<IMtrApiClient, MtrApiClient>();
 builder.Services.AddSingleton<IMtrTransitProvider, MtrTransitProvider>();
-builder.Services.AddSingleton<ILtaDataMallApiClient, LtaDataMallApiClient>();
+builder.Services.AddSingleton<LtaDataMallApiClient>();
+builder.Services.AddSingleton<ILtaDataMallApiClient>(services =>
+    services.GetRequiredService<LtaDataMallApiClient>());
+builder.Services.AddSingleton<ILtaDataMallBusApiClient>(services =>
+    services.GetRequiredService<LtaDataMallApiClient>());
 builder.Services.AddSingleton<ILtaDataMallTransitProvider, LtaDataMallTransitProvider>();
+builder.Services.AddSingleton<ILtaDataMallBusTransitProvider, LtaDataMallBusTransitProvider>();
 builder.Services.AddSingleton<IKmbApiClient, KmbApiClient>();
 builder.Services.AddSingleton<IKmbTransitProvider, KmbTransitProvider>();
 builder.Services.AddSingleton<ICitybusApiClient, CitybusApiClient>();

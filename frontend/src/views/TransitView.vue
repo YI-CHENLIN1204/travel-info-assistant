@@ -73,6 +73,11 @@ const tramModeLabel = computed(
 const ferryModeLabel = computed(
   () => integratedServices.value.find((service) => service.serviceKey === 'ferry')?.displayName ?? '渡輪',
 )
+const busSearchPlaceholder = computed(() =>
+  cityStore.currentCity.code === 'singapore'
+    ? '例如：36、Orchard、SMRT'
+    : '例如：307、台北車站',
+)
 
 const isTokyo = computed(() => cityStore.currentCity.code === 'tokyo')
 const isHongKong = computed(() => cityStore.currentCity.code === 'hong-kong')
@@ -501,7 +506,7 @@ function formatClock(value: string | null | undefined): string {
             查詢港鐵、巴士、香港電車與渡輪；電車及渡輪採官方每日班表，不將表定時間誤標為即時到站。
           </template>
           <template v-else-if="isSingapore">
-            查詢新加坡 MRT 路線、車站、即時預估、表定班次與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
+            查詢新加坡巴士與 MRT 路線、沿途車站、即時預估、表定班次與官方服務警示；資料由後端統一向 LTA DataMall 取得並共用快取。
           </template>
           <template v-else>
             查詢公車與捷運班次；跨城市鐵路已移至獨立查詢工具，資料仍由後端統一取得並共用快取。
@@ -586,7 +591,7 @@ function formatClock(value: string | null | undefined): string {
                 v-model="transitStore.busQuery"
                 maxlength="50"
                 autocomplete="off"
-                placeholder="例如：307、台北車站"
+                :placeholder="busSearchPlaceholder"
               />
             </span>
           </label>
