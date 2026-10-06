@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   MetroServiceStatus,
   MetroStation,
+  RailServiceKey,
   RailStation,
   TdxProviderStatus,
   TransitArrival,
@@ -129,15 +130,23 @@ export function getMetroStatus(
 export function searchRailStations(
   cityId: string,
   query: string,
+  serviceKey: RailServiceKey = 'rail',
 ): Promise<ApiResponse<RailStation[]>> {
-  return apiRequest(`/v1/transit/rail/stations?${params({ cityId, q: query })}`)
+  const path = serviceKey === 'high-speed-rail'
+    ? '/v1/transit/rail/high-speed/stations'
+    : '/v1/transit/rail/stations'
+  return apiRequest(`${path}?${params({ cityId, q: query })}`)
 }
 
 export function getRailArrivals(
   cityId: string,
   stationId: string,
+  serviceKey: RailServiceKey = 'rail',
 ): Promise<ApiResponse<TransitArrival[]>> {
-  return apiRequest(`/v1/transit/rail/arrivals?${params({ cityId, stationId })}`)
+  const path = serviceKey === 'high-speed-rail'
+    ? '/v1/transit/rail/high-speed/arrivals'
+    : '/v1/transit/rail/arrivals'
+  return apiRequest(`${path}?${params({ cityId, stationId })}`)
 }
 
 export function getTdxStatus(): Promise<ApiResponse<TdxProviderStatus>> {

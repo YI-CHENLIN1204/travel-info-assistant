@@ -18,6 +18,8 @@ public sealed class TdxTransitProvider(
     private static readonly TimeSpan MetroStationRetainFor = TimeSpan.FromDays(30);
     private static readonly TimeSpan RailTimetableFreshFor = TimeSpan.FromHours(4);
     private static readonly TimeSpan RailTimetableRetainFor = TimeSpan.FromDays(1);
+    private static readonly TimeSpan HighSpeedRailTimetableFreshFor = TimeSpan.FromHours(12);
+    private static readonly TimeSpan HighSpeedRailTimetableRetainFor = TimeSpan.FromDays(2);
     private static readonly TimeSpan RealtimeFreshFor = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan RealtimeRetainFor = TimeSpan.FromMinutes(15);
 
@@ -441,6 +443,122 @@ public sealed class TdxTransitProvider(
             liveBoard.Message ?? timetable.Message,
             ServiceDayStatus: endedAt.HasValue ? "ended" : null,
             LastDepartureAt: endedAt);
+    }
+
+    public Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>>
+        GetHighSpeedRailStationsAsync(CancellationToken cancellationToken) =>
+        GetCachedSafelyAsync(
+            "transit:tdx:rail:stations:thsr:v1",
+            MetroStationFreshFor,
+            MetroStationRetainFor,
+            Array.Empty<RailStationResponse>(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<IReadOnlyList<TdxThsrStation>>(
+                    "v2/Rail/THSR/Station",
+                    new Dictionary<string, string?>
+                    {
+                        ["$select"] = "StationUID,StationID,StationName,StationAddress," +
+                                      "StationPosition,UpdateTime",
+                        ["$top"] = "100",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                var stations = response.Data
+                    .Select(MapHighSpeedRailStation)
+                    .Where(item => item is not null)
+                    .Cast<RailStationResponse>()
+                    .OrderBy(item => item.LinePositions[0].Sequence)
+                    .ToList();
+
+                return new ProviderPayload<IReadOnlyList<RailStationResponse>>(
+                    stations,
+                    "scheduled",
+                    Latest(response.Data.Select(item => item.UpdateTime)) ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>>
+        GetHighSpeedRailArrivalsAsync(
+            string stationId,
+            CancellationToken cancellationToken)
+    {
+        var timetable = await GetHighSpeedRailTimetableAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var stationTimetables = timetable.Data
+            .Where(item => item.StopTimes.Any(stop => string.Equals(
+                stop.StationID,
+                stationId,
+                StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var scheduled = stationTimetables
+            .Select(item => MapHighSpeedRailArrival(item, stationId, timetable.SourceUpdatedAt, now))
+            .Where(item => item is not null)
+            .Cast<TransitArrivalResponse>()
+            .Where(item => item.ScheduledAt >= now.AddMinutes(-2))
+            .GroupBy(item => item.Heading ?? "unknown", StringComparer.OrdinalIgnoreCase)
+            .SelectMany(group => group.OrderBy(item => item.ScheduledAt).Take(10))
+            .OrderBy(item => item.ScheduledAt)
+            .ToList();
+        var lastDepartureAt = scheduled.Count == 0
+            ? GetHighSpeedRailLastDeparture(stationTimetables, stationId, now)
+            : null;
+
+        if (stationTimetables.Count == 0)
+        {
+            return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+                [],
+                timetable.DataStatus == "unavailable" ? "unavailable" : "scheduled",
+                timetable.SourceUpdatedAt,
+                timetable.FetchedAt,
+                timetable.Stale,
+                timetable.Message ?? "今日高鐵班表沒有這個車站的資料。",
+                "TDX 高鐵每日班表");
+        }
+
+        return new ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>(
+            scheduled,
+            timetable.DataStatus == "unavailable" ? "scheduled" : timetable.DataStatus,
+            timetable.SourceUpdatedAt,
+            timetable.FetchedAt,
+            timetable.Stale,
+            timetable.Message,
+            "TDX 高鐵每日班表",
+            ServiceDayStatus: lastDepartureAt.HasValue ? "ended" : null,
+            LastDepartureAt: lastDepartureAt);
+    }
+
+    private Task<ProviderQueryResult<IReadOnlyList<TdxThsrDailyTimetable>>>
+        GetHighSpeedRailTimetableAsync(CancellationToken cancellationToken)
+    {
+        var localDate = TdxTimeParser.ToTaipei(timeProvider.GetUtcNow())
+            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return GetCachedSafelyAsync(
+            $"transit:tdx:rail:timetable:thsr:{localDate}:v1",
+            HighSpeedRailTimetableFreshFor,
+            HighSpeedRailTimetableRetainFor,
+            Array.Empty<TdxThsrDailyTimetable>(),
+            async token =>
+            {
+                var response = await apiClient.GetAsync<IReadOnlyList<TdxThsrDailyTimetable>>(
+                    $"v2/Rail/THSR/DailyTimetable/TrainDate/{localDate}",
+                    new Dictionary<string, string?>
+                    {
+                        ["$select"] = "TrainDate,DailyTrainInfo,StopTimes,UpdateTime",
+                        ["$top"] = "500",
+                        ["$format"] = "JSON"
+                    },
+                    token);
+
+                return new ProviderPayload<IReadOnlyList<TdxThsrDailyTimetable>>(
+                    response.Data,
+                    "scheduled",
+                    Latest(response.Data.Select(item => item.UpdateTime)) ?? response.LastModified,
+                    response.FetchedAt);
+            },
+            cancellationToken);
     }
 
     private Task<ProviderQueryResult<TdxTraDailyStationTimetableResponse>> GetRailTimetableAsync(
@@ -1171,6 +1289,113 @@ public sealed class TdxTransitProvider(
                 station.StationPosition?.PositionLat,
                 station.StationPosition?.PositionLon,
                 positionsByStation.GetValueOrDefault(id) ?? []);
+    }
+
+    private static RailStationResponse? MapHighSpeedRailStation(TdxThsrStation station)
+    {
+        var id = FirstText(station.StationID, station.StationUID);
+        var nameZh = PreferredName(station.StationName);
+        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(nameZh))
+        {
+            return null;
+        }
+
+        var sequence = int.TryParse(station.StationID, NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out var stationNumber)
+            ? stationNumber
+            : int.MaxValue;
+        return new RailStationResponse(
+            id,
+            nameZh,
+            station.StationName?.En,
+            station.StationAddress,
+            station.StationPosition?.PositionLat,
+            station.StationPosition?.PositionLon,
+            [new RailStationLinePositionResponse("THSR", sequence, null)]);
+    }
+
+    private static TransitArrivalResponse? MapHighSpeedRailArrival(
+        TdxThsrDailyTimetable timetable,
+        string stationId,
+        DateTimeOffset? sourceUpdatedAt,
+        DateTimeOffset now)
+    {
+        var stop = timetable.StopTimes.FirstOrDefault(item => string.Equals(
+            item.StationID,
+            stationId,
+            StringComparison.OrdinalIgnoreCase));
+        var train = timetable.DailyTrainInfo;
+        if (stop is null || train is null)
+        {
+            return null;
+        }
+
+        var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
+            stop.DepartureTime ?? stop.ArrivalTime,
+            now);
+        if (scheduledAt is null)
+        {
+            return null;
+        }
+
+        var trainNo = FirstText(train.TrainNo, stop.StopSequence.ToString(CultureInfo.InvariantCulture));
+        var heading = train.Direction switch
+        {
+            0 => "south",
+            1 => "north",
+            _ => GetHighSpeedRailHeading(stationId, train.EndingStationID)
+        };
+        return new TransitArrivalResponse(
+            $"high-speed-rail:{stationId}:{trainNo}:{train.Direction}:{stop.StopSequence}",
+            "high-speed-rail",
+            stationId,
+            FirstText(PreferredName(stop.StationName), stationId)!,
+            trainNo,
+            trainNo,
+            "THSR",
+            "高鐵",
+            PreferredName(train.EndingStationName),
+            train.Direction,
+            scheduledAt,
+            null,
+            sourceUpdatedAt ?? timetable.UpdateTime,
+            "表定班次",
+            false,
+            Heading: heading);
+    }
+
+    private static DateTimeOffset? GetHighSpeedRailLastDeparture(
+        IReadOnlyList<TdxThsrDailyTimetable> timetables,
+        string stationId,
+        DateTimeOffset now)
+    {
+        var lastDepartureAt = timetables
+            .SelectMany(item => item.StopTimes)
+            .Where(item => string.Equals(item.StationID, stationId, StringComparison.OrdinalIgnoreCase))
+            .Select(item => TdxTimeParser.ParseOccurrenceOnReferenceDate(
+                item.DepartureTime ?? item.ArrivalTime,
+                now))
+            .Where(item => item.HasValue)
+            .Select(item => item!.Value)
+            .DefaultIfEmpty()
+            .Max();
+        return lastDepartureAt != default && lastDepartureAt < now
+            ? lastDepartureAt
+            : null;
+    }
+
+    private static string? GetHighSpeedRailHeading(string stationId, string? destinationStationId)
+    {
+        if (!int.TryParse(stationId, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                out var stationNumber) ||
+            !int.TryParse(destinationStationId, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                out var destinationNumber) ||
+            stationNumber == destinationNumber)
+        {
+            return null;
+        }
+
+        return destinationNumber < stationNumber ? "north" : "south";
     }
 
     private static IReadOnlyList<TransitArrivalResponse> BuildScheduledRailArrivals(

@@ -122,10 +122,18 @@ public static class AppDbInitializer
             new
             {
                 CityCode = "taipei",
+                Id = Guid.Parse("46a76690-81bf-451e-83b7-4af992c74f6f"),
+                ServiceKey = "high-speed-rail",
+                DisplayName = "高鐵",
+                SortOrder = 4
+            },
+            new
+            {
+                CityCode = "taipei",
                 Id = Guid.Parse("2ad9a7d4-b49b-4da5-a554-f046f00689b8"),
                 ServiceKey = "weather",
                 DisplayName = "天氣",
-                SortOrder = 4
+                SortOrder = 5
             },
             new
             {
@@ -141,7 +149,7 @@ public static class AppDbInitializer
                 Id = Guid.Parse("a93d797c-d305-4a82-a082-f2bc5279d1fb"),
                 ServiceKey = "alerts",
                 DisplayName = "旅遊警示",
-                SortOrder = 5
+                SortOrder = 6
             },
             new
             {
@@ -157,7 +165,7 @@ public static class AppDbInitializer
                 Id = Guid.Parse("f3166896-c438-4db1-840e-84b881685899"),
                 ServiceKey = "emergency",
                 DisplayName = "應急資訊",
-                SortOrder = 6
+                SortOrder = 7
             },
             new
             {

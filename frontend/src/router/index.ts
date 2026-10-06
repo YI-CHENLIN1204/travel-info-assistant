@@ -13,6 +13,12 @@ const router = createRouter({
     { path: '/', name: 'home', component: HomeView, meta: { title: '首頁' } },
     { path: '/transit', name: 'transit', component: TransitView, meta: { title: '大眾運輸' } },
     { path: '/rail', name: 'rail', component: RailView, meta: { title: '鐵路查詢' } },
+    {
+      path: '/high-speed-rail',
+      name: 'high-speed-rail',
+      component: RailView,
+      meta: { title: '高鐵查詢', railServiceKey: 'high-speed-rail' },
+    },
     { path: '/flights', name: 'flights', component: FlightsView, meta: { title: '航班查詢' } },
     {
       path: '/weather',

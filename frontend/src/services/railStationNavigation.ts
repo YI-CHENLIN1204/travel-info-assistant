@@ -1,4 +1,9 @@
-import type { RailHeading, RailStation, ServiceCapability } from '@/types/api'
+import type {
+  RailHeading,
+  RailServiceKey,
+  RailStation,
+  ServiceCapability,
+} from '@/types/api'
 
 export interface RailLocality {
   name: string
@@ -42,12 +47,31 @@ const taiwanRailRegions: RailRegion[] = [
   },
 ]
 
+const taiwanHighSpeedRailRegions: RailRegion[] = [
+  {
+    id: 'north',
+    name: '北台灣',
+    localities: ['臺北市', '新北市', '桃園市', '新竹縣'].map(toLocality),
+  },
+  {
+    id: 'central',
+    name: '中台灣',
+    localities: ['苗栗縣', '臺中市', '彰化縣', '雲林縣'].map(toLocality),
+  },
+  {
+    id: 'south',
+    name: '南台灣',
+    localities: ['嘉義縣', '臺南市', '高雄市'].map(toLocality),
+  },
+]
+
 export function findIntegratedRailService(
   services: readonly ServiceCapability[],
+  serviceKey: RailServiceKey = 'rail',
 ): ServiceCapability | null {
   return (
     services.find(
-      (service) => service.serviceKey === 'rail' && service.integrationStatus === 'integrated',
+      (service) => service.serviceKey === serviceKey && service.integrationStatus === 'integrated',
     ) ?? null
   )
 }
@@ -55,15 +79,23 @@ export function findIntegratedRailService(
 export function getRailNavigationLabel(
   countryCode: string,
   displayName: string | null | undefined,
+  serviceKey: RailServiceKey = 'rail',
 ): string {
+  if (serviceKey === 'high-speed-rail') return '高鐵查詢'
   if (countryCode.toUpperCase() === 'TW') return '台鐵查詢'
 
   const serviceName = displayName?.trim() || '鐵路'
   return serviceName.endsWith('查詢') ? serviceName : `${serviceName}查詢`
 }
 
-export function getRailRegions(countryCode: string): readonly RailRegion[] {
-  return countryCode.toUpperCase() === 'TW' ? taiwanRailRegions : []
+export function getRailRegions(
+  countryCode: string,
+  serviceKey: RailServiceKey = 'rail',
+): readonly RailRegion[] {
+  if (countryCode.toUpperCase() !== 'TW') return []
+  return serviceKey === 'high-speed-rail'
+    ? taiwanHighSpeedRailRegions
+    : taiwanRailRegions
 }
 
 export function getRailHeadingLabel(heading: RailHeading): string {

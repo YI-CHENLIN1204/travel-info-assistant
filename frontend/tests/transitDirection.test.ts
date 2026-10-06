@@ -593,6 +593,30 @@ describe('arrival direction controls', () => {
     expect(store.visibleRailArrivals).toEqual([])
   })
 
+  it('loads high-speed rail through the scheduled service path', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const station = { id: '1040', nameZh: '台中' } as RailStation
+    const southbound = {
+      id: 'high-speed-rail-0615',
+      mode: 'high-speed-rail',
+      heading: 'south',
+      estimatedAt: null,
+      scheduledAt: '2026-10-07T04:00:00Z',
+    } as TransitArrival
+    const request = vi.spyOn(transitApi, 'getRailArrivals').mockResolvedValue({
+      data: [southbound],
+      meta: { ...odptMeta, source: 'TDX 高鐵每日班表', dataStatus: 'scheduled' },
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    await store.chooseRailStation('taipei-id', station, 'high-speed-rail')
+
+    expect(request).toHaveBeenCalledWith('taipei-id', '1040', 'high-speed-rail')
+    expect(store.selectedRailHeading).toBe('south')
+    expect(store.visibleRailArrivals).toEqual([southbound])
+  })
+
   it('refreshes selected bus and rail arrivals on their intervals', async () => {
     vi.useFakeTimers()
     setActivePinia(createPinia())
@@ -619,7 +643,7 @@ describe('arrival direction controls', () => {
     store.selectedRailStation = railStation
     store.startRailArrivalRefresh('taipei-id')
     await vi.advanceTimersByTimeAsync(railArrivalRefreshMilliseconds)
-    expect(railRequest).toHaveBeenCalledWith('taipei-id', railStation.id)
+    expect(railRequest).toHaveBeenCalledWith('taipei-id', railStation.id, 'rail')
     store.stopRailArrivalRefresh()
   })
 })

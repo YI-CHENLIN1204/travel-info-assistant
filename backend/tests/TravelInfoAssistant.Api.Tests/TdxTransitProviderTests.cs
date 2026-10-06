@@ -724,6 +724,120 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("unavailable", result.DataStatus);
     }
 
+    [Fact]
+    public async Task GetHighSpeedRailStationsAsync_MapsStationsInOfficialNorthToSouthOrder()
+    {
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v2/Rail/THSR/Station"] = new TdxThsrStation[]
+            {
+                new()
+                {
+                    StationID = "1040",
+                    StationName = Name("台中"),
+                    StationAddress = "臺中市烏日區站區二路8號",
+                    StationPosition = new TdxPosition
+                    {
+                        PositionLat = 24.1125,
+                        PositionLon = 120.6160
+                    }
+                },
+                new()
+                {
+                    StationID = "1000",
+                    StationName = Name("台北"),
+                    StationAddress = "臺北市北平西路3號"
+                },
+                new()
+                {
+                    StationID = "1070",
+                    StationName = Name("左營"),
+                    StationAddress = "高雄市左營區高鐵路105號"
+                }
+            }
+        });
+
+        var result = await provider.GetHighSpeedRailStationsAsync(CancellationToken.None);
+
+        Assert.Equal(["1000", "1040", "1070"], result.Data.Select(item => item.Id));
+        var taichung = result.Data[1];
+        Assert.Equal("台中", taichung.NameZh);
+        Assert.Equal(24.1125, taichung.Latitude);
+        var position = Assert.Single(taichung.LinePositions);
+        Assert.Equal("THSR", position.LineId);
+        Assert.Equal(1040, position.Sequence);
+    }
+
+    [Fact]
+    public async Task GetHighSpeedRailArrivalsAsync_ReturnsNextTenScheduledTripsPerDirection()
+    {
+        var now = DateTimeOffset.Parse("2026-10-07T02:00:00Z");
+        var northbound = Enumerable.Range(0, 12)
+            .Select(index => HighSpeedRailTimetable(
+                $"N{index:00}",
+                1,
+                "0990",
+                "南港",
+                $"10:{10 + index:00}"));
+        var southbound = Enumerable.Range(0, 12)
+            .Select(index => HighSpeedRailTimetable(
+                $"S{index:00}",
+                0,
+                "1070",
+                "左營",
+                $"11:{10 + index:00}"));
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v2/Rail/THSR/DailyTimetable/TrainDate/2026-10-07"] =
+                    northbound.Concat(southbound).ToArray()
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetHighSpeedRailArrivalsAsync(
+            "1000",
+            CancellationToken.None);
+
+        Assert.Equal(20, result.Data.Count);
+        Assert.Equal(10, result.Data.Count(item => item.Heading == "north"));
+        Assert.Equal(10, result.Data.Count(item => item.Heading == "south"));
+        Assert.All(result.Data, item =>
+        {
+            Assert.Equal("high-speed-rail", item.Mode);
+            Assert.Equal("高鐵", item.LineName);
+            Assert.Equal("表定班次", item.ServiceStatus);
+            Assert.Null(item.EstimatedAt);
+        });
+        Assert.DoesNotContain(result.Data, item => item.RouteName is "N10" or "N11" or "S10" or "S11");
+        Assert.Equal("scheduled", result.DataStatus);
+        Assert.Equal("TDX 高鐵每日班表", result.Source);
+    }
+
+    [Fact]
+    public async Task GetHighSpeedRailArrivalsAsync_ReportsScheduledLastDepartureAfterServiceEnds()
+    {
+        var now = DateTimeOffset.Parse("2026-10-07T15:00:00Z");
+        var provider = CreateProviderWithResponses(
+            new Dictionary<string, object>
+            {
+                ["v2/Rail/THSR/DailyTimetable/TrainDate/2026-10-07"] =
+                    new[]
+                    {
+                        HighSpeedRailTimetable("150", 1, "0990", "南港", "22:12"),
+                        HighSpeedRailTimetable("152", 0, "1070", "左營", "22:43")
+                    }
+            },
+            new FixedTimeProvider(now));
+
+        var result = await provider.GetHighSpeedRailArrivalsAsync(
+            "1000",
+            CancellationToken.None);
+
+        Assert.Empty(result.Data);
+        Assert.Equal("ended", result.ServiceDayStatus);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-07T14:43:00Z"), result.LastDepartureAt);
+    }
+
     private static TdxTransitProvider CreateProvider(
         IReadOnlyList<TdxBusStopOfRoute> stops,
         IReadOnlyList<TdxBusArrival> arrivals,
@@ -783,6 +897,34 @@ public sealed class TdxTransitProviderTests
         };
 
     private static TdxLocalizedName Name(string value) => new() { ZhTw = value };
+
+    private static TdxThsrDailyTimetable HighSpeedRailTimetable(
+        string trainNo,
+        int direction,
+        string destinationStationId,
+        string destinationName,
+        string departureTime) =>
+        new()
+        {
+            TrainDate = "2026-10-07",
+            DailyTrainInfo = new TdxThsrDailyTrainInfo
+            {
+                TrainNo = trainNo,
+                Direction = direction,
+                EndingStationID = destinationStationId,
+                EndingStationName = Name(destinationName)
+            },
+            StopTimes =
+            [
+                new TdxThsrStopTime
+                {
+                    StopSequence = 2,
+                    StationID = "1000",
+                    StationName = Name("台北"),
+                    DepartureTime = departureTime
+                }
+            ]
+        };
 
     private static TdxMetroStationOfRoute MetroRoute(
         string lineId,

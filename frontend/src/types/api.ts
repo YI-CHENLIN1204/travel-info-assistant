@@ -145,10 +145,11 @@ export interface RailStationLinePosition {
 }
 
 export type RailHeading = 'north' | 'south'
+export type RailServiceKey = 'rail' | 'high-speed-rail'
 
 export interface TransitArrival {
   id: string
-  mode: 'bus' | 'metro' | 'rail'
+  mode: 'bus' | 'metro' | 'rail' | 'high-speed-rail'
   stopId: string
   stopName: string
   routeId: string | null

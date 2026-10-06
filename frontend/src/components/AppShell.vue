@@ -31,6 +31,9 @@ const collapsed = ref(false)
 const mobileOpen = ref(false)
 
 const railService = computed(() => findIntegratedRailService(cityStore.currentCity.services))
+const highSpeedRailService = computed(() =>
+  findIntegratedRailService(cityStore.currentCity.services, 'high-speed-rail'),
+)
 const navigation = computed(() => [
   { to: '/', label: '首頁', icon: Home },
   { to: '/transit', label: '大眾運輸', icon: BusFront },
@@ -41,6 +44,19 @@ const navigation = computed(() => [
           label: getRailNavigationLabel(
             cityStore.currentCity.countryCode,
             railService.value.displayName,
+          ),
+          icon: TrainFront,
+        },
+      ]
+    : []),
+  ...(highSpeedRailService.value
+    ? [
+        {
+          to: '/high-speed-rail',
+          label: getRailNavigationLabel(
+            cityStore.currentCity.countryCode,
+            highSpeedRailService.value.displayName,
+            'high-speed-rail',
           ),
           icon: TrainFront,
         },

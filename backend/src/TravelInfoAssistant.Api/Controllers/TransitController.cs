@@ -341,6 +341,48 @@ public sealed class TransitController(ITransitService transitService) : Controll
         return Ok(ToResponse(result));
     }
 
+    [HttpGet("rail/high-speed/stations")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<RailStationResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<RailStationResponse>>>>
+        SearchHighSpeedRailStations(
+            [FromQuery] Guid cityId,
+            [FromQuery] string? q,
+            CancellationToken cancellationToken)
+    {
+        if (q?.Length > 50)
+        {
+            ModelState.AddModelError(nameof(q), "搜尋文字不可超過 50 個字元。");
+            return ValidationProblem(ModelState);
+        }
+
+        var result = await transitService.SearchHighSpeedRailStationsAsync(
+            cityId,
+            q,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
+    [HttpGet("rail/high-speed/arrivals")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TransitArrivalResponse>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TransitArrivalResponse>>>>
+        GetHighSpeedRailArrivals(
+            [FromQuery] Guid cityId,
+            [FromQuery] string stationId,
+            CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(stationId) || stationId.Length > 80)
+        {
+            ModelState.AddModelError(nameof(stationId), "車站代碼不可為空或超過 80 個字元。");
+            return ValidationProblem(ModelState);
+        }
+
+        var result = await transitService.GetHighSpeedRailArrivalsAsync(
+            cityId,
+            stationId,
+            cancellationToken);
+        return Ok(ToResponse(result));
+    }
+
     [HttpGet("tdx/status")]
     [ProducesResponseType<ApiResponse<TdxProviderStatusResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<TdxProviderStatusResponse>>> GetTdxStatus(

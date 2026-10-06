@@ -320,6 +320,43 @@ public sealed class TdxTraStationLiveBoard
     public DateTimeOffset? UpdateTime { get; init; }
 }
 
+public sealed class TdxThsrStation
+{
+    public string? StationUID { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public string? StationAddress { get; init; }
+    public TdxPosition? StationPosition { get; init; }
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
+public sealed class TdxThsrDailyTimetable
+{
+    public string? TrainDate { get; init; }
+    public TdxThsrDailyTrainInfo? DailyTrainInfo { get; init; }
+    public IReadOnlyList<TdxThsrStopTime> StopTimes { get; init; } = [];
+    public DateTimeOffset? UpdateTime { get; init; }
+}
+
+public sealed class TdxThsrDailyTrainInfo
+{
+    public string? TrainNo { get; init; }
+    public int? Direction { get; init; }
+    public string? StartingStationID { get; init; }
+    public TdxLocalizedName? StartingStationName { get; init; }
+    public string? EndingStationID { get; init; }
+    public TdxLocalizedName? EndingStationName { get; init; }
+}
+
+public sealed class TdxThsrStopTime
+{
+    public int StopSequence { get; init; }
+    public string? StationID { get; init; }
+    public TdxLocalizedName? StationName { get; init; }
+    public string? ArrivalTime { get; init; }
+    public string? DepartureTime { get; init; }
+}
+
 public sealed class TdxTokenResponse
 {
     [JsonPropertyName("access_token")]

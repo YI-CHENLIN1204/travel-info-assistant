@@ -393,6 +393,42 @@ public sealed class TransitService(
         return await tdxProvider.GetRailArrivalsAsync(stationId.Trim(), cancellationToken);
     }
 
+    public async Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>>
+        SearchHighSpeedRailStationsAsync(
+            Guid cityId,
+            string? query,
+            CancellationToken cancellationToken)
+    {
+        if (!await IsTaiwanAsync(cityId, "high-speed-rail", cancellationToken))
+        {
+            return Unavailable<RailStationResponse>("目前城市尚未整合高鐵資料。");
+        }
+
+        var result = await tdxProvider.GetHighSpeedRailStationsAsync(cancellationToken);
+        var search = query?.Trim();
+        var filtered = result.Data
+            .Where(item => string.IsNullOrWhiteSpace(search) || MatchesStation(item, search))
+            .Take(50)
+            .ToList();
+        return CopyMetadata(result, filtered);
+    }
+
+    public async Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>>
+        GetHighSpeedRailArrivalsAsync(
+            Guid cityId,
+            string stationId,
+            CancellationToken cancellationToken)
+    {
+        if (!await IsTaiwanAsync(cityId, "high-speed-rail", cancellationToken))
+        {
+            return Unavailable<TransitArrivalResponse>("目前城市尚未整合高鐵資料。");
+        }
+
+        return await tdxProvider.GetHighSpeedRailArrivalsAsync(
+            stationId.Trim(),
+            cancellationToken);
+    }
+
     public Task<TdxProviderStatusResponse> GetTdxStatusAsync(CancellationToken cancellationToken) =>
         usageMeter.GetStatusAsync(cancellationToken);
 
@@ -403,6 +439,16 @@ public sealed class TransitService(
     {
         var city = await cityService.GetCityAsync(cityId, cancellationToken);
         return city?.Code == "taipei" && city.Services.Any(item =>
+            item.ServiceKey == serviceKey && item.IntegrationStatus == "integrated");
+    }
+
+    private async Task<bool> IsTaiwanAsync(
+        Guid cityId,
+        string serviceKey,
+        CancellationToken cancellationToken)
+    {
+        var city = await cityService.GetCityAsync(cityId, cancellationToken);
+        return city?.CountryCode == "TW" && city.Services.Any(item =>
             item.ServiceKey == serviceKey && item.IntegrationStatus == "integrated");
     }
 

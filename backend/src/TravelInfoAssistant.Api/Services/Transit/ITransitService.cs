@@ -88,5 +88,15 @@ public interface ITransitService
         string stationId,
         CancellationToken cancellationToken);
 
+    Task<ProviderQueryResult<IReadOnlyList<RailStationResponse>>> SearchHighSpeedRailStationsAsync(
+        Guid cityId,
+        string? query,
+        CancellationToken cancellationToken);
+
+    Task<ProviderQueryResult<IReadOnlyList<TransitArrivalResponse>>> GetHighSpeedRailArrivalsAsync(
+        Guid cityId,
+        string stationId,
+        CancellationToken cancellationToken);
+
     Task<TdxProviderStatusResponse> GetTdxStatusAsync(CancellationToken cancellationToken);
 }

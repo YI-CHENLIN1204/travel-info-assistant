@@ -23,6 +23,9 @@ const cityStore = useCityStore()
 const appStore = useAppStore()
 
 const railService = computed(() => findIntegratedRailService(cityStore.currentCity.services))
+const highSpeedRailService = computed(() =>
+  findIntegratedRailService(cityStore.currentCity.services, 'high-speed-rail'),
+)
 const modules = computed(() => [
   {
     title: '大眾運輸',
@@ -44,6 +47,22 @@ const modules = computed(() => [
           icon: TrainFront,
           accent: 'teal',
           detail: `${cityStore.currentCity.nameZh} · ${railService.value.displayName}`,
+        },
+      ]
+    : []),
+  ...(highSpeedRailService.value
+    ? [
+        {
+          title: getRailNavigationLabel(
+            cityStore.currentCity.countryCode,
+            highSpeedRailService.value.displayName,
+            'high-speed-rail',
+          ),
+          description: '依區域與城市選擇車站，查看官方當日表定班次。',
+          to: '/high-speed-rail',
+          icon: TrainFront,
+          accent: 'teal',
+          detail: `${cityStore.currentCity.nameZh} · 純班表`,
         },
       ]
     : []),

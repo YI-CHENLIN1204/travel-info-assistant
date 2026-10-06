@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Database, MapPinned, RefreshCw, TrainFront } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
 import {
@@ -17,8 +18,14 @@ import {
 } from '@/services/railStationNavigation'
 import { useCityStore } from '@/stores/city'
 import { useTransitStore } from '@/stores/transit'
-import type { RailHeading, RailStation, TransitArrival } from '@/types/api'
+import type {
+  RailHeading,
+  RailServiceKey,
+  RailStation,
+  TransitArrival,
+} from '@/types/api'
 
+const route = useRoute()
 const cityStore = useCityStore()
 const transitStore = useTransitStore()
 const now = ref(new Date())
@@ -26,18 +33,30 @@ const selectedRegionId = ref<string | null>(null)
 const selectedLocality = ref<RailLocality | null>(null)
 let clockTimer: number | undefined
 
-const railService = computed(() => findIntegratedRailService(cityStore.currentCity.services))
-const railRegions = computed(() => getRailRegions(cityStore.currentCity.countryCode))
+const railServiceKey = computed<RailServiceKey>(() =>
+  route.meta.railServiceKey === 'high-speed-rail' ? 'high-speed-rail' : 'rail',
+)
+const railService = computed(() =>
+  findIntegratedRailService(cityStore.currentCity.services, railServiceKey.value),
+)
+const railRegions = computed(() =>
+  getRailRegions(cityStore.currentCity.countryCode, railServiceKey.value),
+)
 const selectedRegion = computed(
   () => railRegions.value.find((region) => region.id === selectedRegionId.value) ?? null,
 )
 const pageLabel = computed(() =>
-  getRailNavigationLabel(cityStore.currentCity.countryCode, railService.value?.displayName),
+  getRailNavigationLabel(
+    cityStore.currentCity.countryCode,
+    railService.value?.displayName,
+    railServiceKey.value,
+  ),
 )
 const orderedRailStations = computed(() =>
   orderRailStations(transitStore.railStations, transitStore.selectedRailHeading),
 )
 const isTaiwanRail = computed(() => cityStore.currentCity.countryCode === 'TW')
+const isHighSpeedRail = computed(() => railServiceKey.value === 'high-speed-rail')
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
   const providerStatus = transitStore.providerStatus
   if (!railService.value) return 'neutral'
@@ -56,13 +75,15 @@ const statusLabel = computed(() => {
   }
   if (isTaiwanRail.value) {
     if (!providerStatus) return 'TDX 連線確認中'
-    return providerStatus.configured ? '台鐵資料已啟用' : 'TDX 金鑰待設定'
+    return providerStatus.configured
+      ? `${railService.value.displayName}班表已啟用`
+      : 'TDX 金鑰待設定'
   }
   return `${railService.value.displayName}資料已啟用`
 })
 
 watch(
-  () => cityStore.currentCity.id,
+  [() => cityStore.currentCity.id, () => railServiceKey.value],
   () => {
     selectedRegionId.value = null
     selectedLocality.value = null
@@ -73,10 +94,16 @@ watch(
 )
 
 watch(
-  [() => transitStore.selectedRailStation?.id, () => cityStore.currentCity.id],
-  ([stationId, cityId]) => {
+  [
+    () => transitStore.selectedRailStation?.id,
+    () => cityStore.currentCity.id,
+    () => railServiceKey.value,
+  ],
+  ([stationId, cityId, serviceKey]) => {
     transitStore.stopRailArrivalRefresh()
-    if (stationId) transitStore.startRailArrivalRefresh(cityId)
+    if (stationId && serviceKey === 'rail') {
+      transitStore.startRailArrivalRefresh(cityId, serviceKey)
+    }
   },
   { immediate: true },
 )
@@ -102,11 +129,15 @@ async function chooseLocality(locality: RailLocality): Promise<void> {
   selectedLocality.value = locality
   clearRailResults()
   transitStore.railQuery = locality.query
-  await transitStore.searchRailStations(cityStore.currentCity.id)
+  await transitStore.searchRailStations(cityStore.currentCity.id, railServiceKey.value)
 }
 
 function chooseStation(station: RailStation): void {
-  void transitStore.chooseRailStation(cityStore.currentCity.id, station)
+  void transitStore.chooseRailStation(
+    cityStore.currentCity.id,
+    station,
+    railServiceKey.value,
+  )
 }
 
 function chooseHeading(heading: RailHeading): void {
@@ -125,7 +156,7 @@ function clearRailResults(): void {
 }
 
 function refreshArrivals(): void {
-  void transitStore.refreshRailArrivals(cityStore.currentCity.id)
+  void transitStore.refreshRailArrivals(cityStore.currentCity.id, railServiceKey.value)
 }
 
 function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
@@ -139,6 +170,16 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
     }
   }
 
+  if (isHighSpeedRail.value) {
+    const scheduledLabel = formatTime(new Date(scheduledAt))
+    return {
+      label: scheduledLabel,
+      mode: 'scheduled',
+      stale: false,
+      scheduledLabel,
+    }
+  }
+
   return getArrivalDisplay({
     now: now.value,
     scheduledAt: new Date(scheduledAt),
@@ -146,6 +187,15 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
     sourceUpdatedAt: arrival.sourceUpdatedAt ? new Date(arrival.sourceUpdatedAt) : null,
     timeZone: cityStore.currentCity.timeZone,
   })
+}
+
+function formatTime(value: Date): string {
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: cityStore.currentCity.timeZone,
+  }).format(value)
 }
 
 function arrivalTimingCaption(arrival: TransitArrival): string {
@@ -209,7 +259,13 @@ function formatTimestamp(value: string | null | undefined): string {
         <StatusPill :tone="statusTone" :label="statusLabel" />
         <h2>{{ pageLabel }}</h2>
         <p v-if="isTaiwanRail">
-          先選擇台灣區域與縣市，再以按鈕選擇車站；班次資料由後端統一向 TDX 取得並共用快取。
+          先選擇台灣區域與縣市，再以按鈕選擇車站；
+          <template v-if="isHighSpeedRail">
+            高鐵只採用官方當日班表，不會把表定倒數標示為即時到站。
+          </template>
+          <template v-else>
+            班次資料由後端統一向 TDX 取得並共用快取。
+          </template>
         </p>
         <p v-else>
           依目前城市已整合的鐵路服務瀏覽區域、城市與車站，不會顯示尚未串接的鐵路入口。
@@ -306,7 +362,7 @@ function formatTimestamp(value: string | null | undefined): string {
               <button
                 class="icon-button refresh-button"
                 type="button"
-                aria-label="更新鐵路列車資訊"
+                :aria-label="`更新${railService.displayName}列車資訊`"
                 :disabled="transitStore.loading"
                 @click="refreshArrivals"
               >
@@ -336,7 +392,7 @@ function formatTimestamp(value: string | null | undefined): string {
                 <div class="arrival-main">
                   <strong>
                     {{ arrival.routeName ? `${arrival.routeName} 次` : '車次待確認' }}
-                    · {{ arrival.lineName ?? '鐵路列車' }}
+                    · {{ arrival.lineName ?? railService.displayName }}
                   </strong>
                   <span>
                     {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}

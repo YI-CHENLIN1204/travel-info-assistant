@@ -24,6 +24,7 @@ import type {
   MetroServiceStatus,
   MetroStation,
   RailHeading,
+  RailServiceKey,
   RailStation,
   TdxProviderStatus,
   TransitArrival,
@@ -607,9 +608,12 @@ export const useTransitStore = defineStore('transit', () => {
     metroArrivalRefreshTimer = undefined
   }
 
-  async function searchRailStations(cityId: string): Promise<void> {
+  async function searchRailStations(
+    cityId: string,
+    serviceKey: RailServiceKey = 'rail',
+  ): Promise<void> {
     await run(async () => {
-      const response = await requestRailStations(cityId, railQuery.value.trim())
+      const response = await requestRailStations(cityId, railQuery.value.trim(), serviceKey)
       railStations.value = response.data
       selectedRailStation.value = null
       selectedRailHeading.value = null
@@ -618,12 +622,16 @@ export const useTransitStore = defineStore('transit', () => {
     })
   }
 
-  async function chooseRailStation(cityId: string, station: RailStation): Promise<void> {
+  async function chooseRailStation(
+    cityId: string,
+    station: RailStation,
+    serviceKey: RailServiceKey = 'rail',
+  ): Promise<void> {
     const stationChanged = selectedRailStation.value?.id !== station.id
     selectedRailStation.value = station
     if (stationChanged) selectedRailHeading.value = null
     await run(async () => {
-      const response = await getRailArrivals(cityId, station.id)
+      const response = await getRailArrivals(cityId, station.id, serviceKey)
       arrivals.value = response.data
       syncRailHeading()
       resultMeta.value = response.meta
@@ -639,16 +647,22 @@ export const useTransitStore = defineStore('transit', () => {
     selectedRailHeading.value = arrivals.value.find((item) => item.heading)?.heading ?? 'north'
   }
 
-  async function refreshRailArrivals(cityId: string): Promise<void> {
+  async function refreshRailArrivals(
+    cityId: string,
+    serviceKey: RailServiceKey = 'rail',
+  ): Promise<void> {
     if (!loading.value && selectedRailStation.value) {
-      await chooseRailStation(cityId, selectedRailStation.value)
+      await chooseRailStation(cityId, selectedRailStation.value, serviceKey)
     }
   }
 
-  function startRailArrivalRefresh(cityId: string): void {
+  function startRailArrivalRefresh(
+    cityId: string,
+    serviceKey: RailServiceKey = 'rail',
+  ): void {
     stopRailArrivalRefresh()
     railArrivalRefreshTimer = window.setInterval(() => {
-      void refreshRailArrivals(cityId)
+      void refreshRailArrivals(cityId, serviceKey)
     }, railArrivalRefreshMilliseconds)
   }
 
