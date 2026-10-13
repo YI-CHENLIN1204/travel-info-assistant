@@ -1,5 +1,23 @@
 # Travel Info Assistant
 
+<!-- PORTFOLIO_SUMMARY_START -->
+## Portfolio Summary
+
+A cross-city transportation information service that integrates multiple official transport data sources and normalizes them behind a single Web/API architecture.
+
+**Highlights**
+- Multi-source integration across Taiwan, Tokyo, Hong Kong, and Singapore.
+- Backend data normalization so the frontend does not depend on each provider's raw format.
+- Shared caching, single-flight protection, rate limiting, and quota-aware fallback to reduce unnecessary external API usage.
+- Graceful degradation: when a provider is unavailable or quota is exhausted, the system keeps the feature visible and falls back only to valid cached or scheduled data.
+
+**Stack:** Vue 3 / TypeScript · ASP.NET Core Web API · PostgreSQL · Redis · REST API · Docker · GitHub Actions
+
+> This repository is one of my selected graduate-school portfolio projects. The detailed implementation notes below are intentionally kept for reproducibility and project handoff.
+
+<!-- PORTFOLIO_SUMMARY_END -->
+
+
 以台灣旅客為主要使用者、可從 LINE 快速開啟的旅遊資訊助手。系統將整合台灣與海外大眾運輸、全球直飛航班、天氣、旅遊警示及當地應急資訊。
 
 > 目前進度：Phase 1～5 已完成，Phase 6 已完成東京地下鐵、香港港鐵、香港巴士、香港電車與香港渡輪，以及新加坡 MRT／巴士的城市交通 MVP；另包含台北公車、台北捷運、台鐵、高鐵、全球直飛航班、單一航班編號、全球天氣、BOCA 旅遊警示與台北／東京應急資訊。尚未整合的服務仍會明確標示，不使用假資料冒充即時資訊。
