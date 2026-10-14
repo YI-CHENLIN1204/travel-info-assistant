@@ -106,6 +106,21 @@ flowchart LR
 - 東京提供駐日本代表處館址、總機及急難救助聯絡方式。
 - 護照遺失、財物遭竊及重大事故處理步驟存於 PostgreSQL，每筆資料均附官方來源與人工確認日期。
 
+## 直接看程式碼
+
+如果想直接確認實作內容，可以從這些地方開始：
+
+- [Frontend / Vue 3 + TypeScript](./frontend/src)
+- [ASP.NET Core Backend](./backend/src/TravelInfoAssistant.Api)
+- [Backend Tests](./backend/tests)
+- [Integration / Architecture Docs](./docs)
+- [Docker Compose](./compose.yaml)
+- [GitHub Actions](./.github/workflows)
+
+這些連結直接指向實際 source code、測試與部署設定。
+
+---
+
 ## 專案結構
 
 ```text
