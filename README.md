@@ -60,7 +60,7 @@ flowchart LR
 | Runtime | Docker Compose、Nginx |
 | CI | GitHub Actions |
 
-## 已完成的交通功能
+## 主要已完成交通功能
 
 - 台北公車：路線搜尋、方向、站牌順序與即時到站預估。
 - 台北捷運：先選路線與方向，再選車站；提供即時列車、表定時刻降級與路線官方營運狀態。
@@ -128,7 +128,7 @@ flowchart LR
 
 ```text
 travel-info-assistant/
-├── frontend/                 Vue LIFF 前端
+├── frontend/                 Vue 3 Web 前端
 ├── backend/
 │   ├── src/                  ASP.NET Core Web API
 │   └── tests/                後端單元測試
