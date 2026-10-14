@@ -43,6 +43,7 @@ describe('getArrivalDisplay', () => {
       scheduledAt: new Date('2026-09-21T10:20:00+08:00'),
       estimatedAt: new Date('2026-09-21T10:18:00+08:00'),
       sourceUpdatedAt: new Date('2026-09-21T09:57:00+08:00'),
+      timeZone: 'Asia/Taipei',
     })
 
     expect(result).toMatchObject({
