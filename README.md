@@ -1,5 +1,7 @@
 # Travel Info Assistant
 
+[![CI](https://github.com/YI-CHENLIN1204/travel-info-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/YI-CHENLIN1204/travel-info-assistant/actions/workflows/ci.yml)
+
 <!-- PORTFOLIO_SUMMARY_START -->
 ## 跨國公共運輸資訊整合服務
 
