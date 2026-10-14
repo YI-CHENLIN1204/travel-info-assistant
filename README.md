@@ -1,19 +1,33 @@
 # Travel Info Assistant
 
 <!-- PORTFOLIO_SUMMARY_START -->
-## Portfolio Summary
+## 跨國公共運輸資訊整合服務
 
-A cross-city transportation information service that integrates multiple official transport data sources and normalizes them behind a single Web/API architecture.
+> 把不同城市、不同官方資料格式、不同 API 限制，整理成同一套可使用的旅遊資訊服務。
 
-**Highlights**
-- Multi-source integration across Taiwan, Tokyo, Hong Kong, and Singapore.
-- Backend data normalization so the frontend does not depend on each provider's raw format.
-- Shared caching, single-flight protection, rate limiting, and quota-aware fallback to reduce unnecessary external API usage.
-- Graceful degradation: when a provider is unavailable or quota is exhausted, the system keeps the feature visible and falls back only to valid cached or scheduled data.
+這個專案的核心不是單純「呼叫很多 API」，而是處理跨資料源整合時真正會遇到的問題：
 
-**Stack:** Vue 3 / TypeScript · ASP.NET Core Web API · PostgreSQL · Redis · REST API · Docker · GitHub Actions
+- 不同 Provider 的資料格式如何正規化
+- 即時資料與表定資料怎麼區分
+- API 額度不足或 Provider 中斷時如何安全降級
+- 如何避免前端直接綁死每一個外部服務
+- 如何透過 Redis / Memory Cache / single-flight 降低重複請求
 
-> This repository is one of my selected graduate-school portfolio projects. The detailed implementation notes below are intentionally kept for reproducibility and project handoff.
+**目前整合範圍：** 台灣 · 東京 · 香港 · 新加坡 · 全球航班 · 全球天氣 · 旅遊警示
+
+**主要技術：** Vue 3 · TypeScript · ASP.NET Core Web API · PostgreSQL · Redis · REST API · Docker
+
+```mermaid
+flowchart LR
+    A[Vue Frontend] --> B[ASP.NET Core API]
+    B --> C[Provider Adapters]
+    C --> D[TDX / ODPT / LTA / HK Open Data]
+    C --> E[Flights / Weather / Alerts]
+    B --> F[Redis + Memory Cache]
+    B --> G[PostgreSQL]
+```
+
+[查看 MVP 規格](docs/MVP_SPEC.md) · [TDX 整合](docs/TDX_INTEGRATION.md) · [航班整合](docs/FLIGHTS_INTEGRATION.md)
 
 <!-- PORTFOLIO_SUMMARY_END -->
 
