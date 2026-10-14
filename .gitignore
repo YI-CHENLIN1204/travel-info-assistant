@@ -26,3 +26,13 @@ Thumbs.db
 # Runtime data
 .data/
 *.log
+
+# Credential files
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+service_account*.json
+secrets*.json
