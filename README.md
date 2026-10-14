@@ -29,7 +29,7 @@ flowchart LR
     B --> G[PostgreSQL]
 ```
 
-[查看 MVP 規格](docs/MVP_SPEC.md) · [TDX 整合](docs/TDX_INTEGRATION.md) · [航班整合](docs/FLIGHTS_INTEGRATION.md) · [Security Policy](./SECURITY.md)
+[文件導覽](docs/README.md) · [MVP 規格](docs/MVP_SPEC.md) · [TDX 整合](docs/TDX_INTEGRATION.md) · [航班整合](docs/FLIGHTS_INTEGRATION.md) · [Security Policy](./SECURITY.md)
 
 <!-- PORTFOLIO_SUMMARY_END -->
 
