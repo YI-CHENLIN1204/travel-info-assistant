@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TD
-    U["Vue / LIFF"] --> A["ASP.NET Core API"]
+    U["Vue Web App"] --> A["ASP.NET Core API"]
     A --> C{"Redis 有新鮮快取？"}
     C -- 是 --> R["標準化回應"]
     C -- 否 --> Q{"額度與速率允許？"}
