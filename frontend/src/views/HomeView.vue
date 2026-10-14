@@ -175,7 +175,7 @@ const systemTone = computed(() => (appStore.apiStatus === 'online' ? 'ready' : '
         </div>
         <p>前端只呼叫自有 API；第三方資料由後端統一取得、標準化並透過 Redis 共用。</p>
         <div class="architecture-flow" aria-label="前端到資料來源的流程">
-          <span>LIFF</span><i /> <span>Web API</span><i /> <span>Cache</span><i /> <span>Provider</span>
+          <span>Web App</span><i /> <span>Web API</span><i /> <span>Cache</span><i /> <span>Provider</span>
         </div>
       </article>
     </section>
