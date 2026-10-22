@@ -237,18 +237,31 @@ builder.Services
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
     });
 
-var postgresConnection = builder.Configuration.GetConnectionString("Postgres")
-    ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required.");
+var rawPostgresConnection = builder.Configuration["DATABASE_URL"]
+    ?? builder.Configuration.GetConnectionString("Postgres")
+    ?? throw new InvalidOperationException(
+        "DATABASE_URL or ConnectionStrings:Postgres is required.");
+
+var postgresConnection =
+    DeploymentConnectionStrings.NormalizePostgres(rawPostgresConnection);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnection));
 
-builder.Services.AddStackExchangeRedisCache(options =>
+var redisConnection = builder.Configuration["Redis:ConnectionString"];
+
+if (string.IsNullOrWhiteSpace(redisConnection))
 {
-    options.Configuration = builder.Configuration["Redis:ConnectionString"]
-        ?? throw new InvalidOperationException("Redis:ConnectionString is required.");
-    options.InstanceName = "travel-info:";
-});
+    builder.Services.AddDistributedMemoryCache();
+}
+else
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnection;
+        options.InstanceName = "travel-info:";
+    });
+}
 
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<ISystemHealthService, SystemHealthService>();
@@ -311,6 +324,16 @@ var app = builder.Build();
 
 app.UseMiddleware<ApiExceptionMiddleware>();
 
+var webIndexPath = Path.Combine(
+    app.Environment.WebRootPath ?? string.Empty,
+    "index.html");
+
+if (File.Exists(webIndexPath))
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -319,6 +342,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("Frontend");
 app.MapControllers();
+
+if (File.Exists(webIndexPath))
+{
+    app.MapFallback(async context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(webIndexPath);
+    });
+}
 
 await AppDbInitializer.InitializeAsync(app.Services);
 

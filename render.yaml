@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: travel-info-assistant
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:10000
+      - key: DATABASE_URL
+        sync: false
+      - key: Tdx__ClientId
+        sync: false
+      - key: Tdx__ClientSecret
+        sync: false
+      - key: AeroDataBox__ApiKey
+        sync: false
+      - key: Odpt__ConsumerKey
+        sync: false
+      - key: LtaDataMall__AccountKey
+        sync: false
