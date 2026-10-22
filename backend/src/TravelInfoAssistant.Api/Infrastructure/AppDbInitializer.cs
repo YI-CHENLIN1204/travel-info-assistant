@@ -6,6 +6,43 @@ namespace TravelInfoAssistant.Api.Infrastructure;
 
 public static class AppDbInitializer
 {
+    internal const string CoreSchemaSql = """
+        CREATE TABLE IF NOT EXISTS cities (
+            "Id" uuid NOT NULL,
+            "Code" character varying(50) NOT NULL,
+            "NameZh" character varying(100) NOT NULL,
+            "NameEn" character varying(100) NOT NULL,
+            "CountryCode" character varying(2) NOT NULL,
+            "TimeZone" character varying(100) NOT NULL,
+            "CenterLatitude" double precision NOT NULL,
+            "CenterLongitude" double precision NOT NULL,
+            "CoverageRadiusKilometers" double precision NOT NULL,
+            "IsActive" boolean NOT NULL,
+            "SortOrder" integer NOT NULL,
+            CONSTRAINT "PK_cities" PRIMARY KEY ("Id")
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_cities_Code"
+            ON cities ("Code");
+
+        CREATE TABLE IF NOT EXISTS city_service_capabilities (
+            "Id" uuid NOT NULL,
+            "CityId" uuid NOT NULL,
+            "ServiceKey" character varying(50) NOT NULL,
+            "DisplayName" character varying(100) NOT NULL,
+            "IntegrationStatus" character varying(40) NOT NULL,
+            "AvailabilityStatus" character varying(40) NOT NULL,
+            "Message" character varying(300),
+            "SortOrder" integer NOT NULL,
+            CONSTRAINT "PK_city_service_capabilities" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_city_service_capabilities_cities_CityId"
+                FOREIGN KEY ("CityId") REFERENCES cities ("Id") ON DELETE CASCADE
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_city_service_capabilities_CityId_ServiceKey"
+            ON city_service_capabilities ("CityId", "ServiceKey");
+        """;
+
     public static async Task InitializeAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
@@ -19,9 +56,10 @@ public static class AppDbInitializer
             try
             {
                 await dbContext.Database.EnsureCreatedAsync();
-                await EnsureEmergencySchemaAsync(dbContext);
+                await EnsureCoreSchemaAsync(dbContext);
                 await EnsureCurrentCitiesAsync(dbContext);
                 await ApplyCurrentCapabilityStateAsync(dbContext);
+                await EnsureEmergencySchemaAsync(dbContext);
                 await SeedEmergencyDataAsync(dbContext);
                 return;
             }
@@ -37,16 +75,45 @@ public static class AppDbInitializer
         }
     }
 
+    private static Task EnsureCoreSchemaAsync(AppDbContext dbContext) =>
+        dbContext.Database.ExecuteSqlRawAsync(CoreSchemaSql);
+
     private static async Task EnsureCurrentCitiesAsync(AppDbContext dbContext)
     {
         var cityCodes = await dbContext.Cities
             .Select(item => item.Code)
             .ToHashSetAsync(StringComparer.OrdinalIgnoreCase);
-        var cities = new List<City>();
-
-        if (!cityCodes.Contains("hong-kong"))
-        {
-            cities.Add(new City
+        City[] currentCities =
+        [
+            new()
+            {
+                Id = Guid.Parse("ffb8f976-2fd5-46c7-b543-ebdcd3283973"),
+                Code = "taipei",
+                NameZh = "台北",
+                NameEn = "Taipei",
+                CountryCode = "TW",
+                TimeZone = "Asia/Taipei",
+                CenterLatitude = 25.0375,
+                CenterLongitude = 121.5637,
+                CoverageRadiusKilometers = 70,
+                IsActive = true,
+                SortOrder = 1
+            },
+            new()
+            {
+                Id = Guid.Parse("9f9e554f-a968-4986-8d78-766f31cc8ae2"),
+                Code = "tokyo",
+                NameZh = "東京",
+                NameEn = "Tokyo",
+                CountryCode = "JP",
+                TimeZone = "Asia/Tokyo",
+                CenterLatitude = 35.6762,
+                CenterLongitude = 139.6503,
+                CoverageRadiusKilometers = 100,
+                IsActive = true,
+                SortOrder = 2
+            },
+            new()
             {
                 Id = Guid.Parse("3f44e734-7f45-4a20-a6df-56e2498341a0"),
                 Code = "hong-kong",
@@ -59,12 +126,8 @@ public static class AppDbInitializer
                 CoverageRadiusKilometers = 60,
                 IsActive = true,
                 SortOrder = 3
-            });
-        }
-
-        if (!cityCodes.Contains("singapore"))
-        {
-            cities.Add(new City
+            },
+            new()
             {
                 Id = Guid.Parse("c8c1f1a4-2a8b-4a40-9f10-8e5b4f19ab23"),
                 Code = "singapore",
@@ -77,15 +140,19 @@ public static class AppDbInitializer
                 CoverageRadiusKilometers = 45,
                 IsActive = true,
                 SortOrder = 4
-            });
-        }
+            }
+        ];
 
-        if (cities.Count == 0)
+        var missingCities = currentCities
+            .Where(city => !cityCodes.Contains(city.Code))
+            .ToList();
+
+        if (missingCities.Count == 0)
         {
             return;
         }
 
-        dbContext.Cities.AddRange(cities);
+        dbContext.Cities.AddRange(missingCities);
         await dbContext.SaveChangesAsync();
     }
 
@@ -111,6 +178,30 @@ public static class AppDbInitializer
 
         var integratedDefinitions = new[]
         {
+            new
+            {
+                CityCode = "taipei",
+                Id = Guid.Parse("aaecb725-b02c-47c9-a09f-456f2a58733f"),
+                ServiceKey = "bus",
+                DisplayName = "公車",
+                SortOrder = 1
+            },
+            new
+            {
+                CityCode = "taipei",
+                Id = Guid.Parse("828f124b-a580-48e1-a5f1-e751e48dc679"),
+                ServiceKey = "metro",
+                DisplayName = "捷運",
+                SortOrder = 2
+            },
+            new
+            {
+                CityCode = "taipei",
+                Id = Guid.Parse("c95f5dbc-b3dc-4d5b-be90-3720d5b9f535"),
+                ServiceKey = "rail",
+                DisplayName = "台鐵",
+                SortOrder = 3
+            },
             new
             {
                 CityCode = "tokyo",
@@ -293,6 +384,38 @@ public static class AppDbInitializer
                 capability.AvailabilityStatus = AvailabilityStatus.Available;
                 capability.DisplayName = definition.DisplayName;
                 capability.SortOrder = definition.SortOrder;
+                changed = true;
+            }
+        }
+
+        var tokyo = await dbContext.Cities
+            .FirstOrDefaultAsync(item => item.Code == "tokyo");
+        if (tokyo is not null)
+        {
+            var tokyoBus = await dbContext.CityServiceCapabilities
+                .FirstOrDefaultAsync(item =>
+                    item.CityId == tokyo.Id && item.ServiceKey == "bus");
+            if (tokyoBus is null)
+            {
+                dbContext.CityServiceCapabilities.Add(new CityServiceCapability
+                {
+                    Id = Guid.Parse("86a6de06-35c0-4ff2-92f7-9ebd3f0594bb"),
+                    CityId = tokyo.Id,
+                    ServiceKey = "bus",
+                    DisplayName = "都營巴士",
+                    IntegrationStatus = IntegrationStatus.NotIntegrated,
+                    AvailabilityStatus = AvailabilityStatus.Available,
+                    SortOrder = 2
+                });
+                changed = true;
+            }
+            else if (tokyoBus.DisplayName != "都營巴士" ||
+                     tokyoBus.AvailabilityStatus != AvailabilityStatus.Available ||
+                     tokyoBus.SortOrder != 2)
+            {
+                tokyoBus.DisplayName = "都營巴士";
+                tokyoBus.AvailabilityStatus = AvailabilityStatus.Available;
+                tokyoBus.SortOrder = 2;
                 changed = true;
             }
         }

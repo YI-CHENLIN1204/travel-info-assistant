@@ -19,4 +19,8 @@
   <ItemGroup>
     <Content Update="Data/airports.min.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TravelInfoAssistant.Api.Tests" />
+  </ItemGroup>
 </Project>
