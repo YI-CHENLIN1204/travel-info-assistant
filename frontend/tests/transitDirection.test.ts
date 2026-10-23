@@ -60,6 +60,58 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('transit mode request state', () => {
+  it('restores the last response metadata when returning to a loaded mode', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    const busMeta = { ...odptMeta, source: '香港巴士官方資料' }
+    const ferryMeta = { ...odptMeta, source: '香港運輸署 GTFS' }
+
+    vi.spyOn(transitApi, 'searchBusRoutes').mockResolvedValue({
+      data: [route],
+      meta: busMeta,
+    })
+    vi.spyOn(transitApi, 'getFerryRoutes').mockResolvedValue({
+      data: [],
+      meta: ferryMeta,
+    })
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    store.activateMode('bus')
+    await store.searchBusRoutes('hong-kong-id')
+    expect(store.resultMeta).toEqual(busMeta)
+
+    store.activateMode('ferry')
+    expect(store.resultMeta).toBeNull()
+    await store.loadFerryRoutes('hong-kong-id')
+    expect(store.resultMeta).toEqual(ferryMeta)
+
+    store.activateMode('bus')
+    expect(store.resultMeta).toEqual(busMeta)
+  })
+
+  it('ends loading and restores a mode-specific error after a request fails', async () => {
+    setActivePinia(createPinia())
+    const store = useTransitStore()
+    vi.spyOn(transitApi, 'getFerryRoutes').mockRejectedValue(
+      new Error('provider unavailable'),
+    )
+    vi.spyOn(transitApi, 'getTdxStatus').mockRejectedValue(new Error('not needed'))
+
+    store.activateMode('ferry')
+    await store.loadFerryRoutes('hong-kong-id')
+
+    expect(store.loading).toBe(false)
+    expect(store.error).toBe('目前無法完成查詢，請稍後再試。')
+
+    store.activateMode('bus')
+    expect(store.error).toBeNull()
+
+    store.activateMode('ferry')
+    expect(store.error).toBe('目前無法完成查詢，請稍後再試。')
+  })
+})
+
 describe('getBusDirectionLabel', () => {
   it('uses each direction destination before a duplicated headsign', () => {
     expect(getBusDirectionLabel(route, 0)).toBe('往 內湖')

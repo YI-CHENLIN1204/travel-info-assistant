@@ -41,6 +41,16 @@ export const metroStatusRefreshMilliseconds = 30_000
 export const busArrivalRefreshMilliseconds = 15_000
 export const metroArrivalRefreshMilliseconds = 15_000
 
+function createModeRecord<T>(value: T): Record<TransitModeKey, T> {
+  return {
+    bus: value,
+    metro: value,
+    rail: value,
+    tram: value,
+    ferry: value,
+  }
+}
+
 export function buildArrivalDirectionOptions(
   arrivals: TransitArrival[],
 ): TransitDirection[] {
@@ -205,8 +215,17 @@ export const useTransitStore = defineStore('transit', () => {
     return arrivals.value.filter((arrival) => arrival.heading === selectedRailHeading.value)
   })
   const resultMeta = ref<ApiMeta | null>(null)
+  const resultMetaByMode = ref<Record<TransitModeKey, ApiMeta | null>>(
+    createModeRecord<ApiMeta | null>(null),
+  )
   const providerStatus = ref<TdxProviderStatus | null>(null)
-  const loading = ref(false)
+  const pendingRequestsByMode = ref<Record<TransitModeKey, number>>(
+    createModeRecord(0),
+  )
+  const errorByMode = ref<Record<TransitModeKey, string | null>>(
+    createModeRecord<string | null>(null),
+  )
+  const loading = computed(() => pendingRequestsByMode.value[activeMode.value] > 0)
   const metroStatusLoading = ref(false)
   const error = ref<string | null>(null)
   let busArrivalRefreshTimer: number | undefined
@@ -245,30 +264,46 @@ export const useTransitStore = defineStore('transit', () => {
     selectedRailHeading.value = null
     arrivals.value = []
     resultMeta.value = null
+    resultMetaByMode.value = createModeRecord<ApiMeta | null>(null)
+    pendingRequestsByMode.value = createModeRecord(0)
+    errorByMode.value = createModeRecord<string | null>(null)
     error.value = null
   }
 
+  function activateMode(mode: TransitModeKey): void {
+    activeMode.value = mode
+    resultMeta.value = resultMetaByMode.value[mode]
+    error.value = errorByMode.value[mode]
+  }
+
+  function setResultMeta(mode: TransitModeKey, meta: ApiMeta): void {
+    resultMetaByMode.value[mode] = meta
+    if (activeMode.value === mode) {
+      resultMeta.value = meta
+    }
+  }
+
   async function searchBusRoutes(cityId: string): Promise<void> {
-    await run(async () => {
+    await run('bus', async () => {
       const response = await requestBusRoutes(cityId, busQuery.value.trim())
       routes.value = response.data
       selectedRoute.value = null
       stops.value = []
       selectedStop.value = null
       arrivals.value = []
-      resultMeta.value = response.meta
+      setResultMeta('bus', response.meta)
     })
   }
 
   async function loadTramRoutes(cityId: string): Promise<void> {
-    await run(async () => {
+    await run('tram', async () => {
       const response = await getTramRoutes(cityId)
       tramRoutes.value = response.data
       selectedTramRoute.value = null
       selectedTramDirection.value = 0
       tramStops.value = []
       tramSchedule.value = null
-      resultMeta.value = response.meta
+      setResultMeta('tram', response.meta)
     })
   }
 
@@ -287,7 +322,7 @@ export const useTransitStore = defineStore('transit', () => {
     if (!selectedTramRoute.value) return
     const routeId = selectedTramRoute.value.id
     const direction = selectedTramDirection.value
-    await run(async () => {
+    await run('tram', async () => {
       const [stopsResponse, departuresResponse] = await Promise.all([
         getTramStops(cityId, routeId, direction),
         getTramDepartures(cityId, routeId, direction),
@@ -298,12 +333,14 @@ export const useTransitStore = defineStore('transit', () => {
       ) return
       tramStops.value = stopsResponse.data
       tramSchedule.value = departuresResponse.data
-      resultMeta.value =
+      setResultMeta(
+        'tram',
         departuresResponse.meta.dataStatus === 'unavailable'
           ? departuresResponse.meta
           : stopsResponse.meta.dataStatus === 'unavailable'
             ? stopsResponse.meta
-            : departuresResponse.meta
+            : departuresResponse.meta,
+      )
     })
   }
 
@@ -311,26 +348,26 @@ export const useTransitStore = defineStore('transit', () => {
     if (!selectedTramRoute.value || loading.value) return
     const routeId = selectedTramRoute.value.id
     const direction = selectedTramDirection.value
-    await run(async () => {
+    await run('tram', async () => {
       const response = await getTramDepartures(cityId, routeId, direction)
       if (
         selectedTramRoute.value?.id !== routeId ||
         selectedTramDirection.value !== direction
       ) return
       tramSchedule.value = response.data
-      resultMeta.value = response.meta
+      setResultMeta('tram', response.meta)
     })
   }
 
   async function loadFerryRoutes(cityId: string): Promise<void> {
-    await run(async () => {
+    await run('ferry', async () => {
       const response = await getFerryRoutes(cityId)
       ferryRoutes.value = response.data
       selectedFerryRoute.value = null
       selectedFerryDirection.value = 0
       ferryStops.value = []
       ferrySchedule.value = null
-      resultMeta.value = response.meta
+      setResultMeta('ferry', response.meta)
     })
   }
 
@@ -349,7 +386,7 @@ export const useTransitStore = defineStore('transit', () => {
     if (!selectedFerryRoute.value) return
     const routeId = selectedFerryRoute.value.id
     const direction = selectedFerryDirection.value
-    await run(async () => {
+    await run('ferry', async () => {
       const [stopsResponse, journeysResponse] = await Promise.all([
         getFerryStops(cityId, routeId, direction),
         getFerryJourneys(cityId, routeId, direction),
@@ -360,12 +397,14 @@ export const useTransitStore = defineStore('transit', () => {
       ) return
       ferryStops.value = stopsResponse.data
       ferrySchedule.value = journeysResponse.data
-      resultMeta.value =
+      setResultMeta(
+        'ferry',
         journeysResponse.meta.dataStatus === 'unavailable'
           ? journeysResponse.meta
           : stopsResponse.meta.dataStatus === 'unavailable'
             ? stopsResponse.meta
-            : journeysResponse.meta
+            : journeysResponse.meta,
+      )
     })
   }
 
@@ -373,14 +412,14 @@ export const useTransitStore = defineStore('transit', () => {
     if (!selectedFerryRoute.value || loading.value) return
     const routeId = selectedFerryRoute.value.id
     const direction = selectedFerryDirection.value
-    await run(async () => {
+    await run('ferry', async () => {
       const response = await getFerryJourneys(cityId, routeId, direction)
       if (
         selectedFerryRoute.value?.id !== routeId ||
         selectedFerryDirection.value !== direction
       ) return
       ferrySchedule.value = response.data
-      resultMeta.value = response.meta
+      setResultMeta('ferry', response.meta)
     })
   }
 
@@ -402,7 +441,7 @@ export const useTransitStore = defineStore('transit', () => {
   async function loadBusStops(cityId: string): Promise<void> {
     if (!selectedRoute.value) return
 
-    await run(async () => {
+    await run('bus', async () => {
       const response = await getBusStops(
         cityId,
         getBusRouteQueryId(selectedRoute.value!),
@@ -411,7 +450,7 @@ export const useTransitStore = defineStore('transit', () => {
       stops.value = response.data
       selectedStop.value = null
       arrivals.value = []
-      resultMeta.value = response.meta
+      setResultMeta('bus', response.meta)
     })
   }
 
@@ -419,7 +458,7 @@ export const useTransitStore = defineStore('transit', () => {
     if (!selectedRoute.value) return
 
     selectedStop.value = stop
-    await run(async () => {
+    await run('bus', async () => {
       const response = await getBusArrivals(
         cityId,
         getBusRouteQueryId(selectedRoute.value!),
@@ -427,7 +466,7 @@ export const useTransitStore = defineStore('transit', () => {
         stop.id,
       )
       arrivals.value = response.data
-      resultMeta.value = response.meta
+      setResultMeta('bus', response.meta)
     })
   }
 
@@ -452,18 +491,18 @@ export const useTransitStore = defineStore('transit', () => {
   }
 
   async function searchMetroStations(cityId: string): Promise<void> {
-    await run(async () => {
+    await run('metro', async () => {
       const response = await requestMetroStations(cityId, metroQuery.value.trim())
       stations.value = response.data
       selectedStation.value = null
       selectedMetroDirection.value = null
       arrivals.value = []
-      resultMeta.value = response.meta
+      setResultMeta('metro', response.meta)
     })
   }
 
   async function searchRouteMetro(cityId: string): Promise<void> {
-    await run(async () => {
+    await run('metro', async () => {
       const query = metroQuery.value.trim()
       const [routeResponse, stationResponse] = await Promise.all([
         requestMetroRoutes(cityId, query),
@@ -478,10 +517,12 @@ export const useTransitStore = defineStore('transit', () => {
       selectedMetroRouteStations.value = []
       selectedStation.value = null
       arrivals.value = []
-      resultMeta.value =
+      setResultMeta(
+        'metro',
         routeResponse.meta.dataStatus === 'unavailable'
           ? routeResponse.meta
-          : stationResponse.meta
+          : stationResponse.meta,
+      )
     })
   }
 
@@ -551,22 +592,22 @@ export const useTransitStore = defineStore('transit', () => {
       arrivals.value = []
     }
 
-    await run(async () => {
+    await run('metro', async () => {
       const response = await requestMetroStations(cityId, nextRoute.id)
       if (selectedMetroRoute.value?.id !== nextRoute.id) return
 
       selectedMetroRouteStations.value = response.data
-      resultMeta.value = response.meta
+      setResultMeta('metro', response.meta)
     })
   }
 
   async function chooseMetroStation(cityId: string, station: MetroStation): Promise<void> {
     selectedStation.value = station
-    await run(async () => {
+    await run('metro', async () => {
       const response = await getMetroArrivals(cityId, station.id)
       arrivals.value = response.data
       syncMetroDirection()
-      resultMeta.value = response.meta
+      setResultMeta('metro', response.meta)
     })
   }
 
@@ -609,13 +650,13 @@ export const useTransitStore = defineStore('transit', () => {
     cityId: string,
     serviceKey: RailServiceKey = 'rail',
   ): Promise<void> {
-    await run(async () => {
+    await run('rail', async () => {
       const response = await requestRailStations(cityId, railQuery.value.trim(), serviceKey)
       railStations.value = response.data
       selectedRailStation.value = null
       selectedRailHeading.value = null
       arrivals.value = []
-      resultMeta.value = response.meta
+      setResultMeta('rail', response.meta)
     })
   }
 
@@ -628,7 +669,7 @@ export const useTransitStore = defineStore('transit', () => {
     const stationChanged = selectedRailStation.value?.id !== station.id
     selectedRailStation.value = station
     if (stationChanged) selectedRailHeading.value = null
-    await run(async () => {
+    await run('rail', async () => {
       const response = await getRailArrivals(
         cityId,
         station.id,
@@ -637,7 +678,7 @@ export const useTransitStore = defineStore('transit', () => {
       )
       arrivals.value = response.data
       syncRailHeading()
-      resultMeta.value = response.meta
+      setResultMeta('rail', response.meta)
     })
   }
 
@@ -673,15 +714,25 @@ export const useTransitStore = defineStore('transit', () => {
     }
   }
 
-  async function run(action: () => Promise<void>): Promise<void> {
-    loading.value = true
-    error.value = null
+  async function run(mode: TransitModeKey, action: () => Promise<void>): Promise<void> {
+    pendingRequestsByMode.value[mode] += 1
+    errorByMode.value[mode] = null
+    if (activeMode.value === mode) {
+      error.value = null
+    }
     try {
       await action()
     } catch {
-      error.value = '目前無法完成查詢，請稍後再試。'
+      const message = '目前無法完成查詢，請稍後再試。'
+      errorByMode.value[mode] = message
+      if (activeMode.value === mode) {
+        error.value = message
+      }
     } finally {
-      loading.value = false
+      pendingRequestsByMode.value[mode] = Math.max(
+        0,
+        pendingRequestsByMode.value[mode] - 1,
+      )
       await loadProviderStatus()
     }
   }
@@ -729,6 +780,7 @@ export const useTransitStore = defineStore('transit', () => {
     metroStatusLoading,
     error,
     resetResults,
+    activateMode,
     searchBusRoutes,
     loadTramRoutes,
     chooseTramRoute,

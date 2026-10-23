@@ -103,6 +103,8 @@ const metroSearchPlaceholder = computed(() => {
 const providerConfigured = computed(() => transitStore.providerStatus?.configured === true)
 const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
   if (availableModes.value.length === 0) return 'neutral'
+  if (transitStore.loading) return 'neutral'
+  if (transitStore.error) return 'warning'
   if (isTokyo.value) {
     if (!transitStore.resultMeta || transitStore.resultMeta.source !== 'ODPT') return 'neutral'
     return transitStore.resultMeta.dataStatus === 'unavailable' ? 'warning' : 'ready'
@@ -120,6 +122,8 @@ const statusTone = computed<'ready' | 'warning' | 'neutral'>(() => {
 const statusLabel = computed(() => {
   if (availableModes.value.length === 0) return '此城市尚未整合'
   if (isTokyo.value) {
+    if (transitStore.loading) return 'ODPT 官方資料載入中'
+    if (transitStore.error) return 'ODPT 官方資料暫時無法使用'
     if (!transitStore.resultMeta || transitStore.resultMeta.source !== 'ODPT') {
       return 'ODPT 連線確認中'
     }
@@ -136,12 +140,16 @@ const statusLabel = computed(() => {
           : transitStore.activeMode === 'ferry'
             ? '渡輪'
           : '港鐵'
+    if (transitStore.loading) return `${label}官方資料載入中`
+    if (transitStore.error) return `${label}官方資料暫時無法使用`
     if (!transitStore.resultMeta) return `${label}資料連線確認中`
     return transitStore.resultMeta.dataStatus === 'unavailable'
       ? `${label}官方資料暫時無法使用`
       : `${label}官方資料已啟用`
   }
   if (isSingapore.value) {
+    if (transitStore.loading) return 'LTA 官方資料載入中'
+    if (transitStore.error) return 'LTA 官方資料暫時無法使用'
     if (!transitStore.resultMeta) return 'LTA DataMall 連線確認中'
     if (transitStore.resultMeta.dataStatus === 'unavailable') {
       return 'LTA API Account Key 或服務待確認'
@@ -196,7 +204,7 @@ watch(
     if (!firstMode) return
 
     if (!availableModes.value.includes(transitStore.activeMode)) {
-      transitStore.activeMode = firstMode
+      transitStore.activateMode(firstMode)
     }
     await loadModeIndex(transitStore.activeMode)
   },
@@ -264,9 +272,8 @@ onUnmounted(() => {
 })
 
 async function activateMode(mode: TransitModeKey): Promise<void> {
-  transitStore.activeMode = mode
+  transitStore.activateMode(mode)
   transitStore.arrivals = []
-  transitStore.resultMeta = null
   transitStore.selectedRoute = null
   transitStore.selectedTramRoute = null
   transitStore.tramStops = []
@@ -579,6 +586,16 @@ function formatClock(value: string | null | undefined): string {
       <div v-if="transitStore.error" class="provider-message provider-message-error">
         <CircleAlert :size="19" />
         <span>{{ transitStore.error }}</span>
+      </div>
+
+      <div
+        v-else-if="transitStore.loading"
+        class="provider-message"
+        role="status"
+        aria-live="polite"
+      >
+        <RefreshCw :size="19" />
+        <span>正在載入{{ activeService?.displayName ?? '交通' }}官方資料，請稍候。</span>
       </div>
 
       <template v-if="transitStore.activeMode === 'bus'">
