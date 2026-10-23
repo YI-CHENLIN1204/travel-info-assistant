@@ -41,7 +41,7 @@ public sealed class ProviderCacheTests
                     now));
             },
             CancellationToken.None);
-        var cached = await cache.GetOrCreateAsync(
+        var cached = await cache.GetOrCreateAsync<SerializationProbePayload>(
             "provider:memory-only",
             TimeSpan.FromMinutes(30),
             TimeSpan.FromHours(1),
