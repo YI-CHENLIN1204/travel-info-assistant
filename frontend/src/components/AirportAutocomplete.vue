@@ -74,7 +74,7 @@ function choose(airport: Airport): void {
 }
 
 function formatAirport(airport: Airport): string {
-  return `${airport.iata} · ${airport.municipality ?? airport.name}`
+  return `${airport.name} (${airport.iata})`
 }
 </script>
 

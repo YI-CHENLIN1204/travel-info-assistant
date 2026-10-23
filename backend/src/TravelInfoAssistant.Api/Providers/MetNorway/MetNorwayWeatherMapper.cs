@@ -9,7 +9,8 @@ public static class MetNorwayWeatherMapper
         string locationName,
         string timeZone,
         double fallbackLatitude,
-        double fallbackLongitude)
+        double fallbackLongitude,
+        DateTimeOffset? now = null)
     {
         var series = forecast.Properties?.Timeseries
             .Where(item => item.Data?.Instant?.Details is not null)
@@ -21,12 +22,19 @@ public static class MetNorwayWeatherMapper
         }
 
         var zone = FindTimeZone(timeZone);
-        var current = MapCurrent(series[0]);
-        var hourly = series
+        var currentPoint = now.HasValue
+            ? series.LastOrDefault(item => item.Time <= now.Value) ?? series[0]
+            : series[0];
+        if (now.HasValue && currentPoint.Time < now.Value.AddHours(-6))
+        {
+            throw new MetNorwayProviderException("Forecast no longer covers the current time.");
+        }
+        var current = MapCurrent(currentPoint);
+        var hourly = series.Where(item => item.Time >= currentPoint.Time)
             .Take(12)
             .Select(MapHourly)
             .ToList();
-        var daily = series
+        var daily = series.Where(item => item.Time >= currentPoint.Time)
             .GroupBy(item => DateOnly.FromDateTime(
                 TimeZoneInfo.ConvertTime(item.Time, zone).DateTime))
             .OrderBy(group => group.Key)

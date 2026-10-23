@@ -118,7 +118,7 @@ function formatUpdatedAt(value: string | null): string {
       <div>
         <StatusPill tone="ready" label="全球天氣已啟用" />
         <h2>{{ cityStore.currentCity.nameZh }}天氣</h2>
-        <p>查看目前城市或定位地點的即時預報摘要；資料由後端共用快取，不會因重整頁面重複呼叫來源。</p>
+        <p>MET Norway 模型預報，非測站即時實測；台灣等地通常約每 6 小時更新，實際天氣可能有差異。請留意資料發布時間與預報適用時間。</p>
         <button
           class="button button-ghost weather-location-button"
           type="button"
@@ -170,6 +170,7 @@ function formatUpdatedAt(value: string | null): string {
             <strong>{{ temperature(weather.current.temperatureCelsius) }}</strong>
             <span>{{ weather.current.conditionLabel }}</span>
             <small>體感 {{ temperature(weather.current.apparentTemperatureCelsius) }}</small>
+            <small>預報適用 {{ formatUpdatedAt(weather.current.time) }}</small>
           </div>
         </div>
       </div>
@@ -202,7 +203,7 @@ function formatUpdatedAt(value: string | null): string {
         <span>
           資料來源
           <a href="https://api.met.no/" target="_blank" rel="noreferrer">MET Norway</a>
-          · 更新 {{ formatUpdatedAt(sourceUpdatedAt) }}
+          · 預報發布 {{ formatUpdatedAt(sourceUpdatedAt) }}
         </span>
         <span v-if="weatherStore.resultMeta?.stale" class="stale-badge">備援快取</span>
       </div>

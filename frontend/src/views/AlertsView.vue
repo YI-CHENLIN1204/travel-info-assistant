@@ -11,13 +11,14 @@ import {
 } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
 import { getAlertAction, getAlertTone } from '@/services/alertDisplay'
-import { getLocalAlertKindLabel, getLocalAlertTone } from '@/services/localAlertDisplay'
+import { getLocalAlertKindLabel, getLocalAlertTone, getTravelerAlerts, getTravelerAlertSummary } from '@/services/localAlertDisplay'
 import { useAlertStore } from '@/stores/alerts'
 import { useCityStore } from '@/stores/city'
 import type { LocalAlert, TravelAlert } from '@/types/api'
 
 const cityStore = useCityStore()
 const alertStore = useAlertStore()
+const travelerAlerts = computed(() => getTravelerAlerts(alertStore.localAlerts))
 
 const sourceUpdatedAt = computed(
   () => alertStore.popularMeta?.sourceUpdatedAt ?? alertStore.popularMeta?.fetchedAt ?? null,
@@ -105,14 +106,15 @@ function localAlertKey(alert: LocalAlert): string {
       <div class="panel-heading-row">
         <div>
           <span class="eyebrow">LOCAL ALERTS</span>
-          <h3>{{ cityStore.currentCity.nameZh }}當地警報與災害資訊</h3>
+          <h3>{{ cityStore.currentCity.nameZh }}重大旅遊影響警報</h3>
         </div>
         <Siren :size="21" />
       </div>
 
-      <div v-if="alertStore.localAlerts.length" class="local-alert-list">
+      <p>優先顯示颱風、海嘯、地震、撤離與停駛等重大事件；同類公告僅顯示最新一筆。</p>
+      <div v-if="travelerAlerts.length" class="local-alert-list">
         <article
-          v-for="alert in alertStore.localAlerts"
+          v-for="alert in travelerAlerts"
           :key="localAlertKey(alert)"
           class="local-alert-card"
           :class="`local-${getLocalAlertTone(alert.severity)}`"
@@ -125,7 +127,7 @@ function localAlertKey(alert: LocalAlert): string {
             <strong>{{ alert.severityLabel }}</strong>
           </div>
           <h4>{{ alert.title }}</h4>
-          <p class="local-alert-summary">{{ alert.summary }}</p>
+          <p class="local-alert-summary">{{ getTravelerAlertSummary(alert) }}</p>
           <div class="local-alert-details">
             <span>影響 {{ alert.regionName }}</span>
             <span>生效 {{ formatDateTime(alert.effectiveAt) }}</span>
@@ -153,9 +155,9 @@ function localAlertKey(alert: LocalAlert): string {
               ? '這個地區的在地警報尚未完成整合'
               : cityStore.currentCity.countryCode === 'SG'
                 ? '目前查無生效中的 MSS 豪雨警告'
-                : '目前查無生效中的官方警報' }}
+                : '目前查無符合篩選條件的重大旅遊影響警報' }}
           </strong>
-          <p>{{ alertStore.localMeta?.message ?? '官方來源目前沒有回傳有效警報。' }}</p>
+          <p>{{ alertStore.localMeta?.message ?? '已篩除一般地方公告；其他警特報仍請查閱官方來源。' }}</p>
         </div>
       </div>
 

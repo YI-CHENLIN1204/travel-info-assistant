@@ -24,11 +24,11 @@ public sealed class MetNorwayWeatherProvider(
         var roundedLongitude = Math.Round(longitude, 4);
         var key = string.Create(
             CultureInfo.InvariantCulture,
-            $"weather:metno:{roundedLatitude:0.####}:{roundedLongitude:0.####}:v1");
+            $"weather:metno:{roundedLatitude:0.####}:{roundedLongitude:0.####}:v2");
 
         try
         {
-            return await cache.GetOrCreateAsync<WeatherResponse?>(
+            var cached = await cache.GetOrCreateAsync<MetNorwayForecast>(
                 key,
                 DefaultFreshFor,
                 RetainFor,
@@ -38,21 +38,19 @@ public sealed class MetNorwayWeatherProvider(
                         roundedLatitude,
                         roundedLongitude,
                         token);
-                    var weather = MetNorwayWeatherMapper.Map(
+                    return new ProviderPayload<MetNorwayForecast>(
                         response.Data,
-                        locationName,
-                        timeZone,
-                        roundedLatitude,
-                        roundedLongitude);
-
-                    return new ProviderPayload<WeatherResponse?>(
-                        weather,
                         "scheduled",
                         response.Data.Properties?.Meta?.UpdatedAt ?? response.LastModified,
                         response.FetchedAt,
                         response.ExpiresAt);
                 },
                 cancellationToken);
+            var weather = MetNorwayWeatherMapper.Map(cached.Data, locationName, timeZone,
+                roundedLatitude, roundedLongitude, timeProvider.GetUtcNow());
+            return new ProviderQueryResult<WeatherResponse?>(weather, cached.DataStatus,
+                cached.SourceUpdatedAt, cached.FetchedAt, cached.Stale, cached.Message,
+                "MET Norway");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

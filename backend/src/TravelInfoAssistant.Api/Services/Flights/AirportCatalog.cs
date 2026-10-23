@@ -83,7 +83,8 @@ public sealed class AirportCatalog : IAirportCatalog
         airport.Name,
         airport.Municipality,
         airport.CountryCode,
-        airport.Keywords));
+        airport.Keywords,
+        AirportChineseNames.SearchText(airport.Iata)));
 
     private static string Normalize(string? value)
     {
@@ -92,7 +93,7 @@ public sealed class AirportCatalog : IAirportCatalog
             return string.Empty;
         }
 
-        var decomposed = value.Trim().Normalize(NormalizationForm.FormD);
+        var decomposed = value.Trim().Replace('臺', '台').Normalize(NormalizationForm.FormD);
         var builder = new StringBuilder(decomposed.Length);
         foreach (var character in decomposed)
         {
@@ -108,8 +109,8 @@ public sealed class AirportCatalog : IAirportCatalog
     private static AirportResponse Map(CatalogAirport item) => new(
         item.Iata,
         item.Icao,
-        item.Name,
-        item.Municipality,
+        AirportChineseNames.Find(item.Iata)?.Name ?? item.Name,
+        AirportChineseNames.Find(item.Iata)?.City ?? item.Municipality,
         item.CountryCode,
         item.Latitude,
         item.Longitude);

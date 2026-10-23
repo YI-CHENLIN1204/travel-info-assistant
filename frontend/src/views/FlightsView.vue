@@ -177,7 +177,7 @@ function formatBytes(value: number): string {
           <AirportAutocomplete
             v-model="flightsStore.origin"
             label="出發機場"
-            placeholder="輸入城市、機場或 TPE"
+            placeholder="輸入桃園、台北、台中、香港等"
           />
 
           <button
@@ -192,7 +192,7 @@ function formatBytes(value: number): string {
           <AirportAutocomplete
             v-model="flightsStore.destination"
             label="抵達機場"
-            placeholder="輸入城市、機場或 NRT"
+            placeholder="輸入香港、東京、大阪、高雄等"
           />
         </template>
 

@@ -86,6 +86,10 @@ public sealed class MetNorwayWeatherMapperTests
         Assert.Equal("partlycloudy", result.Current.ConditionCode);
         Assert.Equal("局部多雲", result.Current.ConditionLabel);
         Assert.Equal(2, result.Hourly.Count);
+        var later = MetNorwayWeatherMapper.Map(forecast, "台北", "Asia/Taipei", 0, 0,
+            DateTimeOffset.Parse("2026-09-24T04:30:00Z"));
+        Assert.Equal(31, later.Current.TemperatureCelsius);
+        Assert.Single(later.Hourly);
         Assert.Single(result.Daily);
         Assert.Equal(28, result.Daily[0].MinimumTemperatureCelsius);
         Assert.Equal(31, result.Daily[0].MaximumTemperatureCelsius);
