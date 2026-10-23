@@ -16,53 +16,55 @@ public static class HongKongGtfsParser
     public static HongKongGtfsSchedule Parse(byte[] zipBytes)
     {
         var routes = Read(zipBytes, "routes.txt")
+            .Where(row => SupportedAgencies.Contains(Get(row, "agency_id")))
             .Select(row => new HongKongGtfsRoute(
                 Get(row, "route_id"),
                 Get(row, "agency_id"),
                 Get(row, "route_short_name"),
                 Optional(row, "route_long_name")))
-            .Where(item => SupportedAgencies.Contains(item.AgencyId))
             .ToList();
         var routeIds = routes.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var trips = Read(zipBytes, "trips.txt")
+            .Where(row => routeIds.Contains(Get(row, "route_id")))
             .Select(row => new HongKongGtfsTrip(
                 Get(row, "trip_id"),
                 Get(row, "route_id"),
                 Get(row, "service_id"),
                 ParseInt(Get(row, "direction_id")) ?? 0))
-            .Where(item => routeIds.Contains(item.RouteId))
             .ToList();
         var tripIds = trips.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var serviceIds = trips.Select(item => item.ServiceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var frequencies = Read(zipBytes, "frequencies.txt", false)
+            .Where(row => tripIds.Contains(Get(row, "trip_id")))
             .Select(row => new HongKongGtfsFrequency(
                 Get(row, "trip_id"),
                 Get(row, "start_time"),
                 Get(row, "end_time"),
                 ParseInt(Get(row, "headway_secs")) ?? 0))
-            .Where(item => tripIds.Contains(item.TripId))
             .ToList();
         var stopTimes = Read(zipBytes, "stop_times.txt", false)
+            .Where(row => tripIds.Contains(Get(row, "trip_id")))
             .Select(row => new HongKongGtfsStopTime(
                 Get(row, "trip_id"),
                 ParseInt(Get(row, "stop_sequence")) ?? int.MaxValue,
                 Optional(row, "departure_time"),
                 Optional(row, "stop_id"),
                 Optional(row, "arrival_time")))
-            .Where(item => tripIds.Contains(item.TripId))
             .ToList();
         var stopIds = stopTimes
             .Where(item => !string.IsNullOrWhiteSpace(item.StopId))
             .Select(item => item.StopId!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var stops = Read(zipBytes, "stops.txt", false)
+            .Where(row => stopIds.Contains(Get(row, "stop_id")))
             .Select(row => new HongKongGtfsStop(
                 Get(row, "stop_id"),
                 Get(row, "stop_name"),
                 ParseDouble(Optional(row, "stop_lat")),
                 ParseDouble(Optional(row, "stop_lon"))))
-            .Where(item => stopIds.Contains(item.Id))
             .ToList();
         var calendars = Read(zipBytes, "calendar.txt", false)
+            .Where(row => serviceIds.Contains(Get(row, "service_id")))
             .Select(row => new HongKongGtfsCalendar(
                 Get(row, "service_id"),
                 ParseDate(Get(row, "start_date")) ?? DateOnly.MinValue,
@@ -70,6 +72,7 @@ public static class HongKongGtfsParser
                 Days(row)))
             .ToList();
         var calendarDates = Read(zipBytes, "calendar_dates.txt", false)
+            .Where(row => serviceIds.Contains(Get(row, "service_id")))
             .Select(row => new HongKongGtfsCalendarDate(
                 Get(row, "service_id"),
                 ParseDate(Get(row, "date")) ?? DateOnly.MinValue,
@@ -87,7 +90,7 @@ public static class HongKongGtfsParser
             stops);
     }
 
-    private static IReadOnlyList<IReadOnlyDictionary<string, string>> Read(
+    private static IEnumerable<IReadOnlyDictionary<string, string>> Read(
         byte[] zipBytes,
         string fileName,
         bool required = true)
@@ -99,14 +102,13 @@ public static class HongKongGtfsParser
         if (entry is null)
         {
             if (required) throw new InvalidOperationException($"Hong Kong GTFS archive is missing {fileName}.");
-            return [];
+            yield break;
         }
 
         using var reader = new StreamReader(entry.Open(), Encoding.UTF8, true);
         var headers = ParseCsv(reader.ReadLine() ?? string.Empty)
             .Select(item => item.TrimStart('\uFEFF'))
             .ToList();
-        var rows = new List<IReadOnlyDictionary<string, string>>();
         while (reader.ReadLine() is { } line)
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -116,9 +118,8 @@ public static class HongKongGtfsParser
             {
                 row[headers[index]] = index < values.Count ? values[index].Trim() : string.Empty;
             }
-            rows.Add(row);
+            yield return row;
         }
-        return rows;
     }
 
     private static IReadOnlyList<string> ParseCsv(string line)
