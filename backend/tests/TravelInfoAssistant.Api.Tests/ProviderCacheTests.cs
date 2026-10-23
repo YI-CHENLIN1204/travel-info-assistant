@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +10,50 @@ namespace TravelInfoAssistant.Api.Tests;
 
 public sealed class ProviderCacheTests
 {
+    [Fact]
+    public async Task GetOrCreateAsync_WithDistributedMemoryFallback_DoesNotSerializePayload()
+    {
+        var now = new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero);
+        var services = new ServiceCollection();
+        services.AddDistributedMemoryCache();
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var cache = new ProviderCache(
+            serviceProvider.GetRequiredService<IDistributedCache>(),
+            memoryCache,
+            new AdjustableTimeProvider(now),
+            NullLogger<ProviderCache>.Instance);
+        var payload = new SerializationProbePayload("memory only");
+        var refreshAttempts = 0;
+
+        var initial = await cache.GetOrCreateAsync(
+            "provider:memory-only",
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromHours(1),
+            _ =>
+            {
+                refreshAttempts++;
+                return Task.FromResult(new ProviderPayload<SerializationProbePayload>(
+                    payload,
+                    "scheduled",
+                    now,
+                    now));
+            },
+            CancellationToken.None);
+        var cached = await cache.GetOrCreateAsync(
+            "provider:memory-only",
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromHours(1),
+            _ => throw new InvalidOperationException("The memory cache should satisfy this request."),
+            CancellationToken.None);
+
+        Assert.Same(payload, initial.Data);
+        Assert.Same(payload, cached.Data);
+        Assert.Equal(1, refreshAttempts);
+        Assert.Equal(0, payload.SerializationAttempts);
+    }
+
     [Fact]
     public async Task GetOrCreateAsync_WhenRefreshFails_ReturnsRetainedDataAsStale()
     {
@@ -67,5 +112,24 @@ public sealed class ProviderCacheTests
         public override DateTimeOffset GetUtcNow() => utcNow;
 
         public void Advance(TimeSpan duration) => utcNow = utcNow.Add(duration);
+    }
+
+    private sealed class SerializationProbePayload(string value)
+    {
+        private int _serializationAttempts;
+
+        public string Value { get; } = value;
+
+        public int SerializationProbe
+        {
+            get
+            {
+                Interlocked.Increment(ref _serializationAttempts);
+                return 1;
+            }
+        }
+
+        [JsonIgnore]
+        public int SerializationAttempts => _serializationAttempts;
     }
 }

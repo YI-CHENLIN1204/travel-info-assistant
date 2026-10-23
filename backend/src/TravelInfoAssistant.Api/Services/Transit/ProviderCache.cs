@@ -122,6 +122,16 @@ public sealed class ProviderCache(
         string key,
         CancellationToken cancellationToken)
     {
+        if (memoryCache.TryGetValue<CacheEnvelope<T>>(key, out var memoryCached))
+        {
+            return memoryCached;
+        }
+
+        if (distributedCache is MemoryDistributedCache)
+        {
+            return null;
+        }
+
         try
         {
             var json = await distributedCache.GetStringAsync(key, cancellationToken);
@@ -140,9 +150,7 @@ public sealed class ProviderCache(
             logger.LogWarning(exception, "Redis read failed for {CacheKey}.", key);
         }
 
-        return memoryCache.TryGetValue<CacheEnvelope<T>>(key, out var cached)
-            ? cached
-            : null;
+        return null;
     }
 
     private async Task WriteAsync<T>(
@@ -152,6 +160,11 @@ public sealed class ProviderCache(
         CancellationToken cancellationToken)
     {
         memoryCache.Set(key, envelope, retainFor);
+
+        if (distributedCache is MemoryDistributedCache)
+        {
+            return;
+        }
 
         try
         {
