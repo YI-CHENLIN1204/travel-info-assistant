@@ -114,6 +114,11 @@ async function chooseLocality(locality: RailLocality): Promise<void> {
   clearRailResults()
   transitStore.railQuery = locality.query
   await transitStore.searchRailStations(cityStore.currentCity.id, railServiceKey.value)
+  if (transitStore.railStations.length === 1) {
+    await transitStore.chooseRailStation(
+      cityStore.currentCity.id, transitStore.railStations[0]!, railServiceKey.value,
+    )
+  }
 }
 
 function chooseStation(station: RailStation): void {
@@ -314,8 +319,8 @@ function formatTimestamp(value: string | null | undefined): string {
         </div>
       </div>
 
-      <div v-if="selectedLocality && transitStore.railStations.length" class="transit-results-layout">
-        <section class="selection-panel">
+      <div v-if="selectedLocality && transitStore.railStations.length" class="transit-results-layout rail-results-layout" :class="{ 'single-station': transitStore.railStations.length === 1 }">
+        <section v-if="transitStore.railStations.length > 1" class="selection-panel">
           <div class="panel-heading-row">
             <div>
               <span class="eyebrow">STEP 3</span>
@@ -380,6 +385,7 @@ function formatTimestamp(value: string | null | undefined): string {
                   <strong>
                     {{ arrival.routeName ? `${arrival.routeName} 次` : '車次待確認' }}
                     · {{ arrival.lineName ?? railService.displayName }}
+                    <span v-if="arrival.isLastService" class="stale-badge">本方向表定末班</span>
                   </strong>
                   <span>
                     {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}

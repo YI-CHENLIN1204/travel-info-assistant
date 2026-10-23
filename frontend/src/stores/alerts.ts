@@ -1,11 +1,13 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getCityAlerts, getPopularAlerts } from '@/api/alerts'
-import type { ApiMeta, TravelAlert } from '@/types/api'
+import { getCityAlerts, getLocalAlerts, getPopularAlerts } from '@/api/alerts'
+import type { ApiMeta, LocalAlert, TravelAlert } from '@/types/api'
 
 export const useAlertStore = defineStore('alerts', () => {
+  const localAlerts = ref<LocalAlert[]>([])
   const cityAlerts = ref<TravelAlert[]>([])
   const popularAlerts = ref<TravelAlert[]>([])
+  const localMeta = ref<ApiMeta | null>(null)
   const cityMeta = ref<ApiMeta | null>(null)
   const popularMeta = ref<ApiMeta | null>(null)
   const loading = ref(false)
@@ -17,14 +19,17 @@ export const useAlertStore = defineStore('alerts', () => {
     loading.value = true
     error.value = null
     try {
-      const [city, popular] = await Promise.all([
+      const [local, city, popular] = await Promise.all([
+        getLocalAlerts(cityId),
         getCityAlerts(cityId),
         getPopularAlerts(),
       ])
       if (sequence !== requestSequence) return
 
+      localAlerts.value = local.data
       cityAlerts.value = city.data
       popularAlerts.value = popular.data
+      localMeta.value = local.meta
       cityMeta.value = city.meta
       popularMeta.value = popular.meta
       if (popular.meta.dataStatus === 'unavailable') {
@@ -32,8 +37,10 @@ export const useAlertStore = defineStore('alerts', () => {
       }
     } catch {
       if (sequence !== requestSequence) return
+      localAlerts.value = []
       cityAlerts.value = []
       popularAlerts.value = []
+      localMeta.value = null
       cityMeta.value = null
       popularMeta.value = null
       error.value = '目前無法完成旅遊警示查詢，請稍後再試。'
@@ -43,8 +50,10 @@ export const useAlertStore = defineStore('alerts', () => {
   }
 
   return {
+    localAlerts,
     cityAlerts,
     popularAlerts,
+    localMeta,
     cityMeta,
     popularMeta,
     loading,

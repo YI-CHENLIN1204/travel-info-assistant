@@ -822,7 +822,7 @@ public sealed class TdxTransitProviderTests
     }
 
     [Fact]
-    public async Task GetHighSpeedRailArrivalsAsync_ReturnsNextTenScheduledTripsPerDirection()
+    public async Task GetHighSpeedRailArrivalsAsync_PreservesLastTrainBeyondNextTenTrips()
     {
         var now = DateTimeOffset.Parse("2026-10-07T02:00:00Z");
         var northbound = Enumerable.Range(0, 12)
@@ -851,9 +851,9 @@ public sealed class TdxTransitProviderTests
             "1000",
             CancellationToken.None);
 
-        Assert.Equal(20, result.Data.Count);
-        Assert.Equal(10, result.Data.Count(item => item.Heading == "north"));
-        Assert.Equal(10, result.Data.Count(item => item.Heading == "south"));
+        Assert.Equal(22, result.Data.Count);
+        Assert.Equal(11, result.Data.Count(item => item.Heading == "north"));
+        Assert.Equal(11, result.Data.Count(item => item.Heading == "south"));
         Assert.All(result.Data, item =>
         {
             Assert.Equal("high-speed-rail", item.Mode);
@@ -861,7 +861,10 @@ public sealed class TdxTransitProviderTests
             Assert.Equal("表定班次", item.ServiceStatus);
             Assert.Null(item.EstimatedAt);
         });
-        Assert.DoesNotContain(result.Data, item => item.RouteName is "N10" or "N11" or "S10" or "S11");
+        Assert.DoesNotContain(result.Data, item => item.RouteName is "N10" or "S10");
+        Assert.Equal(2, result.Data.Count(item => item.IsLastService));
+        Assert.All(result.Data.Where(item => item.IsLastService), item =>
+            Assert.Contains(item.RouteName, new[] { "N11", "S11" }));
         Assert.Equal("scheduled", result.DataStatus);
         Assert.Equal("TDX 高鐵每日班表", result.Source);
     }

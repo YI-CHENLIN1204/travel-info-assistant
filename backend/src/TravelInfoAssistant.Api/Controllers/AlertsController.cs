@@ -7,8 +7,31 @@ namespace TravelInfoAssistant.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/alerts")]
-public sealed class AlertsController(ITravelAlertService alertService) : ControllerBase
+public sealed class AlertsController(
+    ITravelAlertService alertService,
+    ILocalAlertService localAlertService) : ControllerBase
 {
+    [HttpGet("local")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<LocalAlertResponse>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<LocalAlertResponse>>>> GetLocalAlerts(
+        [FromQuery] Guid cityId,
+        CancellationToken cancellationToken)
+    {
+        var result = await localAlertService.GetCityAlertsAsync(cityId, cancellationToken);
+        return result is null
+            ? NotFound()
+            : Ok(new ApiResponse<IReadOnlyList<LocalAlertResponse>>(
+                result.Data,
+                new ApiMeta(
+                    result.DataStatus,
+                    "官方在地警報",
+                    result.SourceUpdatedAt,
+                    result.FetchedAt,
+                    result.Stale,
+                    result.Message)));
+    }
+
     [HttpGet]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TravelAlertResponse>>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

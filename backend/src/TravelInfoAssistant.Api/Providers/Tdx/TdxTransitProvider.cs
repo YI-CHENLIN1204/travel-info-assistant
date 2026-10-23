@@ -544,7 +544,13 @@ public sealed class TdxTransitProvider(
             .Cast<TransitArrivalResponse>()
             .Where(item => item.ScheduledAt >= now.AddMinutes(-2))
             .GroupBy(item => item.Heading ?? "unknown", StringComparer.OrdinalIgnoreCase)
-            .SelectMany(group => group.OrderBy(item => item.ScheduledAt).Take(10))
+            .SelectMany(group =>
+            {
+                var ordered = group.OrderBy(item => item.ScheduledAt).ToArray();
+                var last = ordered[^1];
+                return ordered.Take(10).Append(last).DistinctBy(item => item.Id)
+                    .Select(item => item with { IsLastService = item.Id == last.Id });
+            })
             .OrderBy(item => item.ScheduledAt)
             .ToList();
         var lastDepartureAt = scheduled.Count == 0
@@ -1488,7 +1494,14 @@ public sealed class TdxTransitProvider(
             }
         }
 
-        return arrivals;
+        return arrivals
+            .GroupBy(GetRailArrivalDirectionKey, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(group =>
+            {
+                var last = group.MaxBy(item => item.ScheduledAt)!;
+                return group.Select(item => item with { IsLastService = item.Id == last.Id });
+            })
+            .ToArray();
     }
 
     private static DateTimeOffset? GetEndedServiceDayLastDeparture(
@@ -1566,7 +1579,7 @@ public sealed class TdxTransitProvider(
             estimatedAt,
             sourceUpdatedAt,
             GetRailServiceStatus(item.RunningStatus, item.DelayTime),
-            false,
+            matchingSchedule?.IsLastService ?? false,
             item.Platform is "00" ? null : item.Platform,
             GetRailHeading(stationId, item.EndingStationID, stationsById)
                 ?? matchingSchedule?.Heading);
@@ -1588,7 +1601,9 @@ public sealed class TdxTransitProvider(
             .GroupBy(GetRailArrivalDirectionKey, StringComparer.OrdinalIgnoreCase)
             .SelectMany(group => group
                 .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
-                .Take(10))
+                .Take(10)
+                .Concat(group.Where(item => item.IsLastService))
+                .DistinctBy(item => item.Id))
             .OrderBy(item => item.EstimatedAt ?? item.ScheduledAt)
             .ToList();
     }

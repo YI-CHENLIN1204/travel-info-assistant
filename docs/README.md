@@ -8,7 +8,8 @@
 2. [MVP Spec](./MVP_SPEC.md) — 系統邊界與資料流；文件頂端已標示目前 Web App 方向
 3. [TDX Integration](./TDX_INTEGRATION.md) — 台灣交通 Provider、快取與額度策略
 4. [Flights Integration](./FLIGHTS_INTEGRATION.md) — 全球航班 Provider、快取與 quota handling
-5. [Security Policy](../SECURITY.md) — API key 與 credential 管理原則
+5. [Local Alerts Integration](./LOCAL_ALERTS_INTEGRATION.md) — 在地有效警報與 BOCA 的分流、NCDR Provider 及跨國擴充介面
+6. [Security Policy](../SECURITY.md) — API key 與 credential 管理原則
 
 ## 閱讀原則
 

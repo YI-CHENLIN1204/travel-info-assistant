@@ -315,6 +315,39 @@ export interface TravelAlert {
   sourceUrl: string
 }
 
+export type LocalAlertKind =
+  | 'weather'
+  | 'naturalHazard'
+  | 'transport'
+  | 'infrastructure'
+  | 'health'
+  | 'publicSafety'
+  | 'other'
+
+export type LocalAlertSeverity =
+  | 'unknown'
+  | 'info'
+  | 'advisory'
+  | 'warning'
+  | 'severe'
+  | 'emergency'
+
+export interface LocalAlert {
+  id: string
+  kind: LocalAlertKind
+  category: string
+  severity: LocalAlertSeverity
+  severityLabel: string
+  title: string
+  summary: string
+  regionName: string
+  sourceName: string
+  updatedAt: string | null
+  effectiveAt: string | null
+  expiresAt: string | null
+  sourceUrl: string
+}
+
 export interface EmergencyContact {
   id: string
   category: string

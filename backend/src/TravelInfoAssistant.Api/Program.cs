@@ -9,11 +9,16 @@ using TravelInfoAssistant.Api.Providers.AeroDataBox;
 using TravelInfoAssistant.Api.Providers.Boca;
 using TravelInfoAssistant.Api.Providers.Citybus;
 using TravelInfoAssistant.Api.Providers.HongKong;
+using TravelInfoAssistant.Api.Providers.Hko;
+using TravelInfoAssistant.Api.Providers.Jma;
 using TravelInfoAssistant.Api.Providers.LtaDataMall;
+using TravelInfoAssistant.Api.Providers.LocalAlerts;
 using TravelInfoAssistant.Api.Providers.Kmb;
 using TravelInfoAssistant.Api.Providers.MetNorway;
 using TravelInfoAssistant.Api.Providers.Mtr;
+using TravelInfoAssistant.Api.Providers.Mss;
 using TravelInfoAssistant.Api.Providers.Nlb;
+using TravelInfoAssistant.Api.Providers.Ncdr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
 using TravelInfoAssistant.Api.Services;
@@ -45,6 +50,12 @@ builder.Services.Configure<MetNorwayOptions>(
     builder.Configuration.GetSection(MetNorwayOptions.SectionName));
 builder.Services.Configure<BocaOptions>(
     builder.Configuration.GetSection(BocaOptions.SectionName));
+builder.Services.Configure<NcdrOptions>(
+    builder.Configuration.GetSection(NcdrOptions.SectionName));
+builder.Services.Configure<JmaOptions>(
+    builder.Configuration.GetSection(JmaOptions.SectionName));
+builder.Services.Configure<HkoOptions>(
+    builder.Configuration.GetSection(HkoOptions.SectionName));
 builder.Services.Configure<OdptOptions>(
     builder.Configuration.GetSection(OdptOptions.SectionName));
 builder.Services.Configure<MtrOptions>(
@@ -99,6 +110,45 @@ builder.Services
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("ncdr-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<NcdrOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    });
+builder.Services
+    .AddHttpClient("jma-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<JmaOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
+    });
+builder.Services
+    .AddHttpClient("hko-api", (services, client) =>
+    {
+        var settings = services.GetRequiredService<IOptions<HkoOptions>>().Value;
+        client.BaseAddress = new Uri(settings.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.TimeoutSeconds));
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AutomaticDecompression =
+            DecompressionMethods.GZip |
+            DecompressionMethods.Deflate |
+            DecompressionMethods.Brotli
     });
 builder.Services
     .AddHttpClient("odpt-api", (services, client) =>
@@ -269,6 +319,7 @@ builder.Services.AddScoped<ITransitService, TransitService>();
 builder.Services.AddScoped<IFlightService, FlightService>();
 builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddScoped<ITravelAlertService, TravelAlertService>();
+builder.Services.AddScoped<ILocalAlertService, LocalAlertService>();
 builder.Services.AddScoped<IEmergencyInfoService, EmergencyInfoService>();
 builder.Services.AddSingleton<IProviderCache, ProviderCache>();
 builder.Services.AddSingleton<IAirportCatalog, AirportCatalog>();
@@ -286,6 +337,18 @@ builder.Services.AddSingleton<IMetNorwayApiClient, MetNorwayApiClient>();
 builder.Services.AddSingleton<IMetNorwayWeatherProvider, MetNorwayWeatherProvider>();
 builder.Services.AddSingleton<IBocaApiClient, BocaApiClient>();
 builder.Services.AddSingleton<IBocaAlertsProvider, BocaAlertsProvider>();
+builder.Services.AddSingleton<INcdrApiClient, NcdrApiClient>();
+builder.Services.AddSingleton<ILocalAlertsProvider, NcdrAlertsProvider>();
+builder.Services.AddSingleton<IJmaApiClient, JmaApiClient>();
+builder.Services.AddSingleton<ILocalAlertsProvider, JmaAlertsProvider>();
+builder.Services.AddSingleton<IHkoApiClient, HkoApiClient>();
+builder.Services.AddSingleton<ILocalAlertsProvider, HkoAlertsProvider>();
+builder.Services.AddHttpClient("mss-api", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("TravelInfoAssistant/0.1");
+});
+builder.Services.AddSingleton<ILocalAlertsProvider, MssAlertsProvider>();
 builder.Services.AddSingleton<IOdptApiClient, OdptApiClient>();
 builder.Services.AddSingleton<IOdptTransitProvider, OdptTransitProvider>();
 builder.Services.AddSingleton<IMtrApiClient, MtrApiClient>();
