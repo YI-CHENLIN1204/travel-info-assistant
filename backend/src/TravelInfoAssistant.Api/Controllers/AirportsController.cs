@@ -12,7 +12,8 @@ public sealed class AirportsController(IAirportCatalog airportCatalog) : Control
     [ProducesResponseType<ApiResponse<IReadOnlyList<AirportResponse>>>(StatusCodes.Status200OK)]
     public ActionResult<ApiResponse<IReadOnlyList<AirportResponse>>> Search(
         [FromQuery] string? q,
-        [FromQuery] int limit = 10)
+        [FromQuery] int limit = 10,
+        [FromQuery] int offset = 0)
     {
         if (q?.Length > 80)
         {
@@ -24,6 +25,11 @@ public sealed class AirportsController(IAirportCatalog airportCatalog) : Control
             ModelState.AddModelError(nameof(limit), "回傳筆數必須介於 1 到 20。");
         }
 
+        if (offset is < 0 or > 10000)
+        {
+            ModelState.AddModelError(nameof(offset), "搜尋起始筆數必須介於 0 到 10000。");
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
@@ -31,7 +37,7 @@ public sealed class AirportsController(IAirportCatalog airportCatalog) : Control
 
         var airports = string.IsNullOrWhiteSpace(q)
             ? Array.Empty<AirportResponse>()
-            : airportCatalog.Search(q, limit);
+            : airportCatalog.Search(q, limit, offset);
         return Ok(new ApiResponse<IReadOnlyList<AirportResponse>>(
             airports,
             new ApiMeta(

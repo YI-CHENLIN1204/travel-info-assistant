@@ -6,8 +6,8 @@ import type {
   FlightItinerary,
 } from '@/types/api'
 
-export function searchAirports(query: string, limit = 10): Promise<ApiResponse<Airport[]>> {
-  return apiRequest(`/v1/airports?${params({ q: query, limit: String(limit) })}`)
+export function searchAirports(query: string, limit = 20, offset = 0): Promise<ApiResponse<Airport[]>> {
+  return apiRequest(`/v1/airports?${params({ q: query, limit: String(limit), offset: String(offset) })}`)
 }
 
 export function searchFlights(

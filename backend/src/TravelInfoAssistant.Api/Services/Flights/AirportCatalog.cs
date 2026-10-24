@@ -31,7 +31,7 @@ public sealed class AirportCatalog : IAirportCatalog
 
     public DateTimeOffset GeneratedAt { get; }
 
-    public IReadOnlyList<AirportResponse> Search(string query, int limit)
+    public IReadOnlyList<AirportResponse> Search(string query, int limit, int offset = 0)
     {
         var normalized = Normalize(query);
         if (string.IsNullOrWhiteSpace(normalized))
@@ -43,8 +43,10 @@ public sealed class AirportCatalog : IAirportCatalog
             .Select(item => new { Airport = item, Rank = GetRank(item, normalized) })
             .Where(item => item.Rank < int.MaxValue)
             .OrderBy(item => item.Rank)
+            .ThenBy(item => PopularAirportRank(item.Airport.Iata))
             .ThenBy(item => item.Airport.Municipality ?? item.Airport.Name)
             .ThenBy(item => item.Airport.Iata)
+            .Skip(Math.Max(0, offset))
             .Take(limit)
             .Select(item => Map(item.Airport))
             .ToList();
@@ -52,6 +54,14 @@ public sealed class AirportCatalog : IAirportCatalog
 
     public AirportResponse? FindByIata(string iata) =>
         _byIata.TryGetValue(iata.Trim(), out var airport) ? Map(airport) : null;
+
+    private static int PopularAirportRank(string iata) => iata switch
+    {
+        "TPE" => 0, "TSA" => 1, "RMQ" => 2, "KHH" => 3,
+        "NRT" or "HND" or "ICN" or "HKG" or "SIN" or "LHR" or "CDG" => 4,
+        "KIX" or "BKK" or "KUL" or "JFK" or "LAX" => 5,
+        _ => 10
+    };
 
     private static int GetRank(CatalogAirport airport, string query)
     {
@@ -84,7 +94,8 @@ public sealed class AirportCatalog : IAirportCatalog
         airport.Municipality,
         airport.CountryCode,
         airport.Keywords,
-        AirportChineseNames.SearchText(airport.Iata)));
+        AirportChineseNames.SearchText(airport.Iata),
+        AirportCountryNames.SearchText(airport.CountryCode)));
 
     private static string Normalize(string? value)
     {

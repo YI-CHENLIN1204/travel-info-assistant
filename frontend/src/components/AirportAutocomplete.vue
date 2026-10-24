@@ -18,6 +18,8 @@ const query = ref('')
 const options = ref<Airport[]>([])
 const open = ref(false)
 const loading = ref(false)
+const hasMore = ref(false)
+const countryNames = new Intl.DisplayNames(['zh-Hant'], { type: 'region' })
 let timer: number | undefined
 let requestSequence = 0
 
@@ -34,6 +36,9 @@ onUnmounted(() => {
 })
 
 function onInput(): void {
+  ++requestSequence
+  hasMore.value = false
+  options.value = []
   if (props.modelValue && query.value !== formatAirport(props.modelValue)) {
     emit('update:modelValue', null)
   }
@@ -49,13 +54,14 @@ function onInput(): void {
   timer = window.setTimeout(() => void loadOptions(term), 220)
 }
 
-async function loadOptions(term: string): Promise<void> {
+async function loadOptions(term: string, append = false): Promise<void> {
   const sequence = ++requestSequence
   loading.value = true
   try {
-    const response = await searchAirports(term)
+    const response = await searchAirports(term, 20, append ? options.value.length : 0)
     if (sequence !== requestSequence) return
-    options.value = response.data
+    options.value = append ? [...options.value, ...response.data] : response.data
+    hasMore.value = response.data.length === 20
     open.value = true
   } catch {
     if (sequence !== requestSequence) return
@@ -106,11 +112,14 @@ function formatAirport(airport: Airport): string {
         <strong>{{ airport.iata }}</strong>
         <span>
           {{ airport.municipality ?? airport.name }}
-          <small>{{ airport.name }}</small>
+          <small>{{ airport.countryCode ? countryNames.of(airport.countryCode) : '' }} · {{ airport.name }}</small>
         </span>
         <MapPin :size="15" />
       </button>
       <span v-if="loading" class="airport-options-state">搜尋機場中…</span>
+      <button v-else-if="hasMore" type="button" @mousedown.prevent="loadOptions(query.trim(), true)">
+        顯示更多城市／機場
+      </button>
       <span v-else-if="!options.length" class="airport-options-state">找不到符合的定期航班機場</span>
     </span>
   </label>
