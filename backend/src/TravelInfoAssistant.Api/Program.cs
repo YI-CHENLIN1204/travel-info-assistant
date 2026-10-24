@@ -21,6 +21,7 @@ using TravelInfoAssistant.Api.Providers.Nlb;
 using TravelInfoAssistant.Api.Providers.Ncdr;
 using TravelInfoAssistant.Api.Providers.Odpt;
 using TravelInfoAssistant.Api.Providers.Tdx;
+using TravelInfoAssistant.Api.Providers.Tra;
 using TravelInfoAssistant.Api.Services;
 using TravelInfoAssistant.Api.Services.Alerts;
 using TravelInfoAssistant.Api.Services.Emergency;
@@ -339,6 +340,12 @@ builder.Services.AddSingleton<IBocaApiClient, BocaApiClient>();
 builder.Services.AddSingleton<IBocaAlertsProvider, BocaAlertsProvider>();
 builder.Services.AddSingleton<INcdrApiClient, NcdrApiClient>();
 builder.Services.AddSingleton<ILocalAlertsProvider, NcdrAlertsProvider>();
+builder.Services.AddHttpClient("tra-operations", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("TravelInfoAssistant/0.1");
+});
+builder.Services.AddSingleton<ILocalAlertsProvider, TraOperationsProvider>();
 builder.Services.AddSingleton<IJmaApiClient, JmaApiClient>();
 builder.Services.AddSingleton<ILocalAlertsProvider, JmaAlertsProvider>();
 builder.Services.AddSingleton<IHkoApiClient, HkoApiClient>();
