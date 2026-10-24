@@ -69,6 +69,17 @@ public sealed class AirportCatalogTests
         finally { Directory.Delete(root, true); }
     }
 
+    [Theory]
+    [InlineData("MFK", "馬祖北竿")]
+    [InlineData("LZN", "馬祖南竿")]
+    [InlineData("KYD", "蘭嶼")]
+    [InlineData("CYI", "嘉義")]
+    public void TaiwanAirportNames_CoversRemainingRegionalAirports(string code, string city)
+    {
+        Assert.Equal(city, AirportChineseNames.Find(code)?.City);
+        Assert.Contains(city, AirportChineseNames.SearchText(code));
+    }
+
     private sealed class EnvironmentStub : IWebHostEnvironment
     {
         public string ContentRootPath { get; set; } = "";
