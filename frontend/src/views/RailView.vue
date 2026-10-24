@@ -5,6 +5,7 @@ import { Database, MapPinned, RefreshCw, TrainFront } from '@lucide/vue'
 import StatusPill from '@/components/StatusPill.vue'
 import {
   getArrivalDisplay,
+  isSuspendedService,
   getTransitEmptyMessage,
   type ArrivalDisplayResult,
 } from '@/services/arrivalDisplay'
@@ -173,6 +174,7 @@ function getArrivalView(arrival: TransitArrival): ArrivalDisplayResult {
   }
 
   return getArrivalDisplay({
+    serviceStatus: arrival.serviceStatus,
     now: now.value,
     scheduledAt: new Date(scheduledAt),
     estimatedAt: arrival.estimatedAt ? new Date(arrival.estimatedAt) : null,
@@ -191,6 +193,7 @@ function formatTime(value: Date): string {
 }
 
 function arrivalTimingCaption(arrival: TransitArrival): string {
+  if (isSuspendedService(arrival.serviceStatus)) return '停駛 · 原定時間'
   const view = getArrivalView(arrival)
   const labels: string[] = []
   const hasDistinctScheduledTime =
@@ -379,13 +382,15 @@ function formatTimestamp(value: string | null | undefined): string {
                 v-for="arrival in transitStore.visibleRailArrivals"
                 :key="arrival.id"
                 class="arrival-card"
+                :class="{ 'arrival-cancelled': isSuspendedService(arrival.serviceStatus) }"
               >
                 <div class="arrival-icon"><TrainFront :size="20" /></div>
                 <div class="arrival-main">
                   <strong>
                     {{ arrival.routeName ? `${arrival.routeName} 次` : '車次待確認' }}
                     · {{ arrival.lineName ?? railService.displayName }}
-                    <span v-if="arrival.isLastService" class="stale-badge">本方向表定末班</span>
+                    <span v-if="isSuspendedService(arrival.serviceStatus)" class="cancelled-badge">停駛</span>
+                    <span v-if="arrival.isLastService && !isSuspendedService(arrival.serviceStatus)" class="stale-badge">本方向表定末班</span>
                   </strong>
                   <span>
                     {{ arrival.destinationName ? `往 ${arrival.destinationName}` : arrival.serviceStatus }}

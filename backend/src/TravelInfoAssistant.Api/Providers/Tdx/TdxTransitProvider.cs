@@ -1459,7 +1459,7 @@ public sealed class TdxTransitProvider(
         var arrivals = new List<TransitArrivalResponse>();
         foreach (var timetable in timetables)
         {
-            foreach (var entry in timetable.TimeTables.Where(item => item.SuspendedFlag != 1))
+            foreach (var entry in timetable.TimeTables)
             {
                 var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
                     entry.DepartureTime ?? entry.ArrivalTime,
@@ -1485,7 +1485,7 @@ public sealed class TdxTransitProvider(
                     scheduledAt,
                     null,
                     sourceUpdatedAt,
-                    "表定班次",
+                    entry.SuspendedFlag == 1 ? "停駛" : "表定班次",
                     false,
                     Heading: GetRailHeading(
                         responseStationId,
@@ -1498,8 +1498,9 @@ public sealed class TdxTransitProvider(
             .GroupBy(GetRailArrivalDirectionKey, StringComparer.OrdinalIgnoreCase)
             .SelectMany(group =>
             {
-                var last = group.MaxBy(item => item.ScheduledAt)!;
-                return group.Select(item => item with { IsLastService = item.Id == last.Id });
+                var last = group.Where(item => item.ServiceStatus != "停駛")
+                    .MaxBy(item => item.ScheduledAt);
+                return group.Select(item => item with { IsLastService = item.Id == last?.Id });
             })
             .ToArray();
     }
@@ -1546,6 +1547,12 @@ public sealed class TdxTransitProvider(
                                 StringComparison.OrdinalIgnoreCase))
             .OrderBy(value => value.ScheduledAt)
             .FirstOrDefault(value => value.ScheduledAt >= now.AddMinutes(-2));
+        // The official timetable cancellation takes precedence over retained live data.
+        if (!string.IsNullOrWhiteSpace(item.TrainNo) && matchingSchedule?.ServiceStatus == "停駛")
+        {
+            return matchingSchedule;
+        }
+
         var scheduledAt = TdxTimeParser.ParseOccurrenceOnReferenceDate(
                               item.ScheduleArrivalTime ?? item.ScheduleDepartureTime,
                               now)

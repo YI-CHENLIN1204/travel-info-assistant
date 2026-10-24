@@ -538,6 +538,52 @@ public sealed class TdxTransitProviderTests
         Assert.Equal("realtime", result.DataStatus);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task GetRailArrivalsAsync_PreservesOfficialSuspensions(bool realtime, bool allSuspended)
+    {
+        var now = DateTimeOffset.Parse("2026-09-23T02:00:00Z");
+        var provider = CreateProviderWithResponses(new Dictionary<string, object>
+        {
+            ["v3/Rail/TRA/Station"] = new TdxTraStationResponse(),
+            ["v3/Rail/TRA/StationOfLine"] = new TdxTraStationOfLineResponse(),
+            ["v3/Rail/TRA/DailyStationTimetable/Today/Station/1000"] = new TdxTraDailyStationTimetableResponse
+            {
+                StationTimetables = [new TdxTraStationTimetable
+                {
+                    StationID = "1000", Direction = 1,
+                    TimeTables = [
+                        new TdxTraTimetableEntry { Sequence = 1, TrainNo = "123", DepartureTime = "10:10", SuspendedFlag = allSuspended ? 1 : 0 },
+                        new TdxTraTimetableEntry { Sequence = 2, TrainNo = "125", DepartureTime = "10:20", SuspendedFlag = 1 }
+                    ]
+                }]
+            },
+            ["v3/Rail/TRA/StationLiveBoard/Station/1000"] = new TdxTraStationLiveBoardResponse
+            {
+                StationLiveBoards = [new TdxTraStationLiveBoard
+                {
+                    StationID = "1000", Direction = 1, TrainNo = "125",
+                    ScheduleArrivalTime = "10:20", RunningStatus = 1, DelayTime = 5, UpdateTime = now
+                }]
+            }
+        }, new FixedTimeProvider(now));
+
+        var result = await provider.GetRailArrivalsAsync("1000", realtime, CancellationToken.None);
+
+        Assert.Equal(new[] { "123", "125" }, result.Data.Select(item => item.RouteName));
+        var cancelled = Assert.Single(result.Data.Where(item => item.RouteName == "125"));
+        Assert.Equal("停駛", cancelled.ServiceStatus);
+        Assert.Equal(now.AddMinutes(20), cancelled.ScheduledAt);
+        Assert.Null(cancelled.EstimatedAt);
+        Assert.False(cancelled.IsLastService);
+        if (allSuspended)
+            Assert.DoesNotContain(result.Data, item => item.IsLastService);
+        else
+            Assert.Equal("123", Assert.Single(result.Data.Where(item => item.IsLastService)).RouteName);
+    }
+
     [Fact]
     public async Task GetRailArrivalsAsync_DefaultsToScheduleAndFallsBackWhenManualRealtimeFails()
     {

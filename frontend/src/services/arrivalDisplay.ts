@@ -3,6 +3,7 @@ import type { ApiMeta } from '@/types/api'
 export type ArrivalDisplayMode = 'realtime' | 'scheduled'
 
 export interface ArrivalDisplayInput {
+  serviceStatus?: string
   scheduledAt: Date
   estimatedAt?: Date | null
   sourceUpdatedAt?: Date | null
@@ -20,9 +21,16 @@ export interface ArrivalDisplayResult {
 const realtimeWindowMinutes = 60
 const staleAfterMinutes = 2
 
+export function isSuspendedService(status: string | undefined): boolean {
+  return status === '停駛'
+}
+
 export function getArrivalDisplay(input: ArrivalDisplayInput): ArrivalDisplayResult {
   const scheduledMinutes = minutesBetween(input.now, input.scheduledAt)
   const scheduledLabel = formatTime(input.scheduledAt, input.timeZone)
+  if (isSuspendedService(input.serviceStatus)) {
+    return { label: scheduledLabel, mode: 'scheduled', stale: false, scheduledLabel }
+  }
   const sourceAgeMinutes = input.sourceUpdatedAt
     ? minutesBetween(input.sourceUpdatedAt, input.now)
     : Number.POSITIVE_INFINITY

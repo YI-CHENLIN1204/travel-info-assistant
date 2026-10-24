@@ -1,9 +1,25 @@
-import { getArrivalDisplay, getTransitEmptyMessage } from '@/services/arrivalDisplay'
+import { getArrivalDisplay, getTransitEmptyMessage, isSuspendedService } from '@/services/arrivalDisplay'
 import type { ApiMeta } from '@/types/api'
 
 const now = new Date('2026-09-21T10:00:00+08:00')
 
 describe('getArrivalDisplay', () => {
+  it.each([null, new Date('2026-09-21T10:00:30+08:00')])(
+    'keeps the original time for a suspended train without a countdown',
+    (estimatedAt) => {
+      expect(getArrivalDisplay({
+        now, scheduledAt: new Date('2026-09-21T10:01:00+08:00'),
+        estimatedAt, sourceUpdatedAt: now, serviceStatus: '停駛', timeZone: 'Asia/Taipei',
+      })).toEqual({ label: '10:01', scheduledLabel: '10:01', mode: 'scheduled', stale: false })
+    },
+  )
+
+  it('does not interpret a general disruption notice as a cancelled train', () => {
+    expect(isSuspendedService('部分路線停駛')).toBe(false)
+    expect(isSuspendedService('表定班次')).toBe(false)
+    expect(isSuspendedService('停駛')).toBe(true)
+  })
+
   it('uses scheduled time when arrival is more than 60 minutes away', () => {
     const result = getArrivalDisplay({
       now,

@@ -2721,3 +2721,23 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+.arrival-card.arrival-cancelled {
+  border-color: #d89494;
+  background: #fff7f7;
+}
+
+.cancelled-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #a82222;
+  background: #fee2e2;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.arrival-cancelled .arrival-time strong,
+.arrival-cancelled .arrival-time span {
+  color: #a82222;
+}
